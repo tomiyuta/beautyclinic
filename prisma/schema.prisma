@@ -1,0 +1,162 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+enum ResearchType {
+  trend_analysis
+  competitor_analysis
+  price_research
+}
+
+enum AiAgent {
+  gemini
+  grok
+  claude
+  chatgpt
+}
+
+enum SNSPlatform {
+  twitter
+  instagram
+  youtube
+}
+
+enum ImplementationStatus {
+  pending
+  in_progress
+  completed
+}
+
+enum ContentType {
+  instagram_lp
+  website_article
+  campaign_copy
+}
+
+enum ContentStatus {
+  draft
+  approved
+  published
+}
+
+enum WorkflowStatus {
+  running
+  completed
+  failed
+}
+
+model ClinicProduct {
+  id           Int      @id @default(autoincrement())
+  userId       Int
+  name         String   @db.VarChar(255)
+  category     String?  @db.VarChar(100)
+  costPrice    Int
+  sellingPrice Int
+  description  String?  @db.Text
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@map("clinicProducts")
+}
+
+model MarketResearchResult {
+  id            Int          @id @default(autoincrement())
+  userId        Int
+  location      String       @db.VarChar(100)
+  researchType  ResearchType
+  aiAgent       AiAgent
+  rawData       String       @db.Text
+  processedData String?      @db.Text
+  createdAt     DateTime     @default(now())
+
+  @@map("marketResearchResults")
+}
+
+model SNSResearchResult {
+  id        Int         @id @default(autoincrement())
+  userId    Int
+  platform  SNSPlatform
+  keywords  String      @db.Text
+  aiAgent   AiAgent
+  trendData String      @db.Text
+  createdAt DateTime    @default(now())
+
+  @@map("snsResearchResults")
+}
+
+model StrategyRecommendation {
+  id                      Int                  @id @default(autoincrement())
+  userId                  Int
+  analysisDate            DateTime             @default(now())
+  priceRecommendations    String?              @db.Text
+  campaignProposals       String?              @db.Text
+  newTreatmentSuggestions String?              @db.Text
+  marketingStrategy       String?              @db.Text
+  userFeedback            String?              @db.Text
+  implementationStatus    ImplementationStatus @default(pending)
+  createdAt               DateTime             @default(now())
+  updatedAt               DateTime             @updatedAt
+
+  @@map("strategyRecommendations")
+}
+
+model GeneratedContent {
+  id          Int           @id @default(autoincrement())
+  userId      Int
+  strategyId  Int
+  contentType ContentType
+  title       String        @db.VarChar(255)
+  content     String        @db.Text
+  metadata    String?       @db.Text
+  aiAgent     AiAgent
+  status      ContentStatus @default(draft)
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  @@map("generatedContents")
+}
+
+model WorkflowExecution {
+  id           Int            @id @default(autoincrement())
+  userId       Int
+  workflowType String         @db.VarChar(100)
+  status       WorkflowStatus
+  steps        String         @db.Text
+  results      String?        @db.Text
+  errorMessage String?        @db.Text
+  startedAt    DateTime       @default(now())
+  completedAt  DateTime?
+
+  @@map("workflowExecutions")
+}
+
+model ErrorLog {
+  id          Int           @id @default(autoincrement())
+  userId      Int
+  module      String        @db.VarChar(100)
+  errorType   String        @db.VarChar(100)
+  errorMessage String       @db.Text
+  stackTrace  String?       @db.Text
+  context     String?       @db.Text
+  aiAgent     AiAgent?
+  isNotified  Boolean       @default(false)
+  notifiedAt  DateTime?
+  resolved    Boolean       @default(false)
+  resolvedAt  DateTime?
+  createdAt   DateTime      @default(now())
+
+  @@map("errorLogs")
+}

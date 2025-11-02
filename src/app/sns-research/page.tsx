@@ -1,7 +1,7 @@
 import Link from "next/link";
-import ProductManagement from "@/features/products/product-management";
+import SNSResearch from "@/features/sns-research/sns-research";
 
-export default function Home() {
+export default function SNSResearchPage() {
   return (
     <main className="min-h-screen bg-zinc-50 px-4 pb-16 font-sans">
       <nav className="mx-auto flex w-full max-w-4xl items-center justify-between border-b border-zinc-200 bg-white px-4 py-4">
@@ -39,15 +39,10 @@ export default function Home() {
           >
             コンテンツ生成
           </Link>
-          <Link
-            href="/api-key"
-            className="rounded-lg px-4 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-100"
-          >
-            APIキー設定
-          </Link>
         </div>
       </nav>
-      <ProductManagement />
+      <SNSResearch />
     </main>
   );
 }
+

@@ -4,23 +4,42 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
+    "dev:webpack": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint .",
+    "startup": "./start.sh",
+    "quick-start": "./start.sh"
   },
   "dependencies": {
-    "react": "19.2.0",
-    "react-dom": "19.2.0",
-    "next": "16.0.1"
+    "@anthropic-ai/sdk": "^0.68.0",
+    "@google/generative-ai": "^0.24.1",
+    "@prisma/client": "^6.18.0",
+    "@tanstack/react-query": "^5.90.5",
+    "@trpc/client": "^11.7.1",
+    "@trpc/react-query": "^11.7.1",
+    "@trpc/server": "^11.7.1",
+    "axios": "^1.13.1",
+    "dotenv": "^17.2.3",
+    "exceljs": "^4.4.0",
+    "jspdf": "^3.0.3",
+    "jspdf-autotable": "^5.0.2",
+    "next": "13.5.6",
+    "openai": "^6.7.0",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "superjson": "^2.2.5",
+    "zod": "^4.1.12"
   },
   "devDependencies": {
-    "typescript": "^5",
+    "tailwindcss": "^3.4.17",
     "@types/node": "^20",
-    "@types/react": "^19",
-    "@types/react-dom": "^19",
-    "@tailwindcss/postcss": "^4",
-    "tailwindcss": "^4",
-    "eslint": "^9",
-    "eslint-config-next": "16.0.1"
+    "@types/react": "^18",
+    "@types/react-dom": "^18",
+    "eslint": "^8",
+    "eslint-config-next": "13.5.6",
+    "autoprefixer": "^10.4.20",
+    "prisma": "^6.18.0",
+    "typescript": "^5"
   }
 }

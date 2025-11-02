@@ -1,13 +1,11 @@
 import Link from "next/link";
-import ProductManagement from "@/features/products/product-management";
+import ApiKeyManagement from "@/features/api-key/api-key-management";
 
-export default function Home() {
+export default function ApiKeyPage() {
   return (
     <main className="min-h-screen bg-zinc-50 px-4 pb-16 font-sans">
       <nav className="mx-auto flex w-full max-w-4xl items-center justify-between border-b border-zinc-200 bg-white px-4 py-4">
-        <h1 className="text-lg font-semibold text-zinc-900">
-          美容クリニックAI協調プラットフォーム
-        </h1>
+        <h1 className="text-lg font-semibold text-zinc-900">美容クリニックAI協調プラットフォーム</h1>
         <div className="flex gap-4">
           <Link
             href="/"
@@ -41,13 +39,14 @@ export default function Home() {
           </Link>
           <Link
             href="/api-key"
-            className="rounded-lg px-4 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-100"
+            className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-500"
           >
             APIキー設定
           </Link>
         </div>
       </nav>
-      <ProductManagement />
+      <ApiKeyManagement />
     </main>
   );
 }
+
