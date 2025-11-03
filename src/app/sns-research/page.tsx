@@ -23,7 +23,7 @@ export default function SNSResearchPage() {
           </Link>
           <Link
             href="/sns-research"
-            className="rounded-lg px-4 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-100"
+            className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-500"
           >
             SNS調査
           </Link>
@@ -38,6 +38,18 @@ export default function SNSResearchPage() {
             className="rounded-lg px-4 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-100"
           >
             コンテンツ生成
+          </Link>
+          <Link
+            href="/api-key"
+            className="rounded-lg px-4 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-100"
+          >
+            APIキー設定
+          </Link>
+          <Link
+            href="/prompt"
+            className="rounded-lg px-4 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-100"
+          >
+            プロンプト管理
           </Link>
         </div>
       </nav>

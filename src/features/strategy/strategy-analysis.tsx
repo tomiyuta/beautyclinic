@@ -243,9 +243,11 @@ export function StrategyAnalysis() {
                 <summary className="cursor-pointer text-sm font-medium text-zinc-700">
                   結果を表示
                 </summary>
-                <pre className="mt-2 max-h-60 overflow-auto rounded bg-zinc-50 p-3 text-xs text-zinc-900">
-                  {JSON.stringify(priceRecommendationMutation.data.result, null, 2)}
-                </pre>
+                <div className="mt-2 whitespace-pre-wrap rounded bg-zinc-50 p-3 text-sm text-zinc-900">
+                  {typeof priceRecommendationMutation.data.result === "string"
+                    ? priceRecommendationMutation.data.result
+                    : String(priceRecommendationMutation.data.result)}
+                </div>
               </details>
             )}
           </div>
@@ -270,9 +272,11 @@ export function StrategyAnalysis() {
                 <summary className="cursor-pointer text-sm font-medium text-zinc-700">
                   結果を表示
                 </summary>
-                <pre className="mt-2 max-h-60 overflow-auto rounded bg-zinc-50 p-3 text-xs text-zinc-900">
-                  {JSON.stringify(campaignMutation.data.result, null, 2)}
-                </pre>
+                <div className="mt-2 whitespace-pre-wrap rounded bg-zinc-50 p-3 text-sm text-zinc-900">
+                  {typeof campaignMutation.data.result === "string"
+                    ? campaignMutation.data.result
+                    : String(campaignMutation.data.result)}
+                </div>
               </details>
             )}
           </div>
@@ -299,9 +303,11 @@ export function StrategyAnalysis() {
                 <summary className="cursor-pointer text-sm font-medium text-zinc-700">
                   結果を表示
                 </summary>
-                <pre className="mt-2 max-h-60 overflow-auto rounded bg-zinc-50 p-3 text-xs text-zinc-900">
-                  {JSON.stringify(newTreatmentMutation.data.result, null, 2)}
-                </pre>
+                <div className="mt-2 whitespace-pre-wrap rounded bg-zinc-50 p-3 text-sm text-zinc-900">
+                  {typeof newTreatmentMutation.data.result === "string"
+                    ? newTreatmentMutation.data.result
+                    : String(newTreatmentMutation.data.result)}
+                </div>
               </details>
             )}
           </div>
@@ -363,13 +369,9 @@ export function StrategyAnalysis() {
                         <h4 className="text-sm font-medium text-zinc-700">
                           価格設定提案
                         </h4>
-                        <pre className="mt-1 max-h-40 overflow-auto rounded bg-zinc-50 p-3 text-xs text-zinc-900">
-                          {JSON.stringify(
-                            JSON.parse(strategy.priceRecommendations),
-                            null,
-                            2,
-                          )}
-                        </pre>
+                        <div className="mt-1 max-h-40 overflow-auto whitespace-pre-wrap rounded bg-zinc-50 p-3 text-sm text-zinc-900">
+                          {strategy.priceRecommendations}
+                        </div>
                       </div>
                     )}
                     {strategy.campaignProposals && (
@@ -377,13 +379,9 @@ export function StrategyAnalysis() {
                         <h4 className="text-sm font-medium text-zinc-700">
                           キャンペーン案
                         </h4>
-                        <pre className="mt-1 max-h-40 overflow-auto rounded bg-zinc-50 p-3 text-xs text-zinc-900">
-                          {JSON.stringify(
-                            JSON.parse(strategy.campaignProposals),
-                            null,
-                            2,
-                          )}
-                        </pre>
+                        <div className="mt-1 max-h-40 overflow-auto whitespace-pre-wrap rounded bg-zinc-50 p-3 text-sm text-zinc-900">
+                          {strategy.campaignProposals}
+                        </div>
                       </div>
                     )}
                     {strategy.newTreatmentSuggestions && (
@@ -391,13 +389,9 @@ export function StrategyAnalysis() {
                         <h4 className="text-sm font-medium text-zinc-700">
                           新施術提案
                         </h4>
-                        <pre className="mt-1 max-h-40 overflow-auto rounded bg-zinc-50 p-3 text-xs text-zinc-900">
-                          {JSON.stringify(
-                            JSON.parse(strategy.newTreatmentSuggestions),
-                            null,
-                            2,
-                          )}
-                        </pre>
+                        <div className="mt-1 max-h-40 overflow-auto whitespace-pre-wrap rounded bg-zinc-50 p-3 text-sm text-zinc-900">
+                          {strategy.newTreatmentSuggestions}
+                        </div>
                       </div>
                     )}
                     {strategy.marketingStrategy && (
@@ -405,13 +399,9 @@ export function StrategyAnalysis() {
                         <h4 className="text-sm font-medium text-zinc-700">
                           マーケティング戦略
                         </h4>
-                        <pre className="mt-1 max-h-40 overflow-auto rounded bg-zinc-50 p-3 text-xs text-zinc-900">
-                          {JSON.stringify(
-                            JSON.parse(strategy.marketingStrategy),
-                            null,
-                            2,
-                          )}
-                        </pre>
+                        <div className="mt-1 max-h-40 overflow-auto whitespace-pre-wrap rounded bg-zinc-50 p-3 text-sm text-zinc-900">
+                          {strategy.marketingStrategy}
+                        </div>
                       </div>
                     )}
                   </div>

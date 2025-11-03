@@ -390,13 +390,9 @@ export function MarketResearch() {
                         <summary className="cursor-pointer text-sm font-medium text-zinc-700 hover:text-zinc-900">
                           結果を表示
                         </summary>
-                        <pre className="mt-2 max-h-60 overflow-auto rounded bg-zinc-50 p-3 text-xs text-zinc-900">
-                          {JSON.stringify(
-                            JSON.parse(result.processedData),
-                            null,
-                            2,
-                          )}
-                        </pre>
+                        <div className="mt-2 max-h-60 overflow-auto whitespace-pre-wrap rounded bg-zinc-50 p-3 text-sm text-zinc-900">
+                          {result.processedData}
+                        </div>
                       </details>
                     )}
                   </div>

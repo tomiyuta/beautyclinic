@@ -3,7 +3,6 @@ import { db } from "@/server/db";
 import { z } from "zod";
 
 import {
-  extractJSONFromResponse,
   researchCompetitorAnalysis,
   researchPriceComparison,
   researchTrendAnalysis,
@@ -28,20 +27,8 @@ export const marketResearchRouter = router({
     .mutation(async ({ input }) => {
       try {
         const result = await researchTrendAnalysis(input.location);
-        const cleanedResult = extractJSONFromResponse(result);
-        let parsedResult;
-        try {
-          parsedResult = JSON.parse(cleanedResult);
-        } catch (parseError) {
-          console.error("JSON parse error. Original response:", result);
-          console.error("Cleaned result:", cleanedResult);
-          throw new TRPCError({
-            code: "INTERNAL_SERVER_ERROR",
-            message: `JSON解析に失敗しました。APIレスポンスが不正な形式です: ${parseError instanceof Error ? parseError.message : "Unknown error"}`,
-          });
-        }
 
-        // データベースに保存
+        // データベースに保存（テキスト形式で保存）
         const saved = await db.marketResearchResult.create({
           data: {
             userId: input.userId,
@@ -49,13 +36,13 @@ export const marketResearchRouter = router({
             researchType: "trend_analysis",
             aiAgent: "gemini",
             rawData: result,
-            processedData: JSON.stringify(parsedResult),
+            processedData: result, // テキスト形式で保存
           },
         });
 
         return {
           id: saved.id,
-          result: parsedResult,
+          result: result, // テキスト形式の結果をそのまま返す
           message: "トレンド分析が完了しました",
         };
       } catch (error) {
@@ -90,59 +77,8 @@ export const marketResearchRouter = router({
           input.treatments,
           input.cities,
         );
-        let cleanedResult = extractJSONFromResponse(result);
-        let parsedResult;
-        
-        // 複数回の修正を試行
-        for (let retry = 0; retry < 3; retry++) {
-          try {
-            parsedResult = JSON.parse(cleanedResult);
-            break; // 成功したらループを抜ける
-          } catch (parseError) {
-            if (retry === 2) {
-              // 最後の試行でも失敗した場合
-              console.error("JSON parse error. Original response:", result.substring(0, 500));
-              console.error("Cleaned result length:", cleanedResult.length);
-              if (parseError instanceof Error && parseError.message.includes("position")) {
-                const match = parseError.message.match(/position (\d+)/);
-                if (match) {
-                  const pos = parseInt(match[1]!, 10);
-                  const start = Math.max(0, pos - 100);
-                  const end = Math.min(cleanedResult.length, pos + 100);
-                  console.error("Error around position", pos, ":", cleanedResult.substring(start, end));
-                  // 問題箇所を詳しく確認
-                  const problemArea = cleanedResult.substring(Math.max(0, pos - 20), Math.min(cleanedResult.length, pos + 20));
-                  console.error("Problem area:", JSON.stringify(problemArea));
-                }
-              }
-              throw new TRPCError({
-                code: "INTERNAL_SERVER_ERROR",
-                message: `JSON解析に失敗しました。APIレスポンスが不正な形式です: ${parseError instanceof Error ? parseError.message : "Unknown error"}`,
-              });
-            }
-            
-            // 再試行: 追加の修正を適用
-            // 末尾のカンマを除去
-            cleanedResult = cleanedResult.replace(/,\s*([}\]])/g, '$1');
-            // 末尾の空白や改行を除去
-            cleanedResult = cleanedResult.trim();
-            // JSONの構造を確認して、閉じ括弧が足りない場合は追加
-            const openBraces = (cleanedResult.match(/{/g) || []).length;
-            const closeBraces = (cleanedResult.match(/}/g) || []).length;
-            const openBrackets = (cleanedResult.match(/\[/g) || []).length;
-            const closeBrackets = (cleanedResult.match(/]/g) || []).length;
-            
-            // 閉じ括弧を追加
-            for (let i = 0; i < openBraces - closeBraces; i++) {
-              cleanedResult += '}';
-            }
-            for (let i = 0; i < openBrackets - closeBrackets; i++) {
-              cleanedResult += ']';
-            }
-          }
-        }
 
-        // データベースに保存
+        // データベースに保存（テキスト形式で保存）
         const saved = await db.marketResearchResult.create({
           data: {
             userId: input.userId,
@@ -150,13 +86,13 @@ export const marketResearchRouter = router({
             researchType: "price_research",
             aiAgent: "gemini",
             rawData: result,
-            processedData: JSON.stringify(parsedResult),
+            processedData: result, // テキスト形式で保存
           },
         });
 
         return {
           id: saved.id,
-          result: parsedResult,
+          result: result, // テキスト形式の結果をそのまま返す
           message: "価格調査が完了しました",
         };
       } catch (error) {
@@ -185,20 +121,8 @@ export const marketResearchRouter = router({
           input.location,
           input.radius,
         );
-        const cleanedResult = extractJSONFromResponse(result);
-        let parsedResult;
-        try {
-          parsedResult = JSON.parse(cleanedResult);
-        } catch (parseError) {
-          console.error("JSON parse error. Original response:", result);
-          console.error("Cleaned result:", cleanedResult);
-          throw new TRPCError({
-            code: "INTERNAL_SERVER_ERROR",
-            message: `JSON解析に失敗しました。APIレスポンスが不正な形式です: ${parseError instanceof Error ? parseError.message : "Unknown error"}`,
-          });
-        }
 
-        // データベースに保存
+        // データベースに保存（テキスト形式で保存）
         const saved = await db.marketResearchResult.create({
           data: {
             userId: input.userId,
@@ -206,13 +130,13 @@ export const marketResearchRouter = router({
             researchType: "competitor_analysis",
             aiAgent: "gemini",
             rawData: result,
-            processedData: JSON.stringify(parsedResult),
+            processedData: result, // テキスト形式で保存
           },
         });
 
         return {
           id: saved.id,
-          result: parsedResult,
+          result: result, // テキスト形式の結果をそのまま返す
           message: "競合調査が完了しました",
         };
       } catch (error) {
@@ -270,9 +194,7 @@ export const marketResearchRouter = router({
 
       return {
         ...result,
-        processedData: result.processedData
-          ? JSON.parse(result.processedData)
-          : null,
+        processedData: result.processedData,
       };
     }),
 });

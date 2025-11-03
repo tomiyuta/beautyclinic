@@ -57,6 +57,27 @@ enum WorkflowStatus {
   failed
 }
 
+enum PromptType {
+  // Claude
+  claude_analyze_market_position
+  claude_generate_price_recommendations
+  claude_generate_campaign_proposals
+  claude_suggest_new_treatments
+  // Gemini
+  gemini_research_trend_analysis
+  gemini_research_price_comparison
+  gemini_analyze_instagram_trends
+  gemini_analyze_youtube_trends
+  gemini_research_competitor_analysis
+  // Grok
+  grok_analyze_twitter_trends
+  // ChatGPT
+  chatgpt_system_prompt
+  chatgpt_generate_instagram_lp
+  chatgpt_generate_website_article
+  chatgpt_generate_campaign_copy
+}
+
 model ClinicProduct {
   id           Int      @id @default(autoincrement())
   userId       Int
@@ -159,4 +180,18 @@ model ErrorLog {
   createdAt   DateTime      @default(now())
 
   @@map("errorLogs")
+}
+
+model PromptTemplate {
+  id          Int       @id @default(autoincrement())
+  promptType  PromptType @unique
+  aiAgent     AiAgent
+  name        String    @db.VarChar(255)
+  description String?   @db.Text
+  prompt       String    @db.Text
+  isActive    Boolean   @default(true)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@map("promptTemplates")
 }

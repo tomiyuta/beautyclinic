@@ -51,7 +51,18 @@ export default function StrategyManagementPage() {
           >
             戦略管理
           </Link>
-        </div>
+          <Link
+            href="/api-key"
+            className="whitespace-nowrap rounded-lg px-3 py-2 text-xs font-medium text-zinc-700 hover:bg-zinc-100 sm:px-4 sm:text-sm"
+          >
+            APIキー設定
+          </Link>
+          <Link
+            href="/prompt"
+            className="whitespace-nowrap rounded-lg px-3 py-2 text-xs font-medium text-zinc-700 hover:bg-zinc-100 sm:px-4 sm:text-sm"
+          >
+            プロンプト管理
+          </Link>
       </nav>
       <StrategyManagement />
     </main>

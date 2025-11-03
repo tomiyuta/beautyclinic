@@ -1,4 +1,5 @@
 import Anthropic from "@anthropic-ai/sdk";
+import { getPrompt, replacePlaceholders } from "./prompt-helper";
 
 const apiKey = process.env.CLAUDE_API_KEY;
 
@@ -141,66 +142,64 @@ export async function analyzeMarketPosition(
   }>,
   location: string,
 ): Promise<string> {
-  const prompt = `あなたは美容クリニックの経営戦略コンサルタントです。
+  const defaultPrompt = `あなたは美容クリニックの経営戦略コンサルタントです。
 以下のデータを総合的に分析し、戦略的な提案を行ってください。
 
 【自院の商品情報】
-${JSON.stringify(clinicProducts, null, 2)}
+\${clinicProducts}
 
 【市場調査データ】
-${JSON.stringify(marketData, null, 2)}
+\${marketData}
 
 【SNS調査データ】
-${JSON.stringify(snsData, null, 2)}
+\${snsData}
 
 【所在地】
-${location}
+\${location}
 
-以下の観点から総合分析を行い、以下のJSON形式で提案を返してください：
-{
-  "marketPosition": {
-    "strengths": ["強み1", "強み2"],
-    "weaknesses": ["弱み1", "弱み2"],
-    "opportunities": ["機会1", "機会2"],
-    "threats": ["脅威1", "脅威2"]
-  },
-  "priceAdjustments": [
-    {
-      "productName": "商品名",
-      "currentPrice": "現在の価格",
-      "recommendedPrice": "推奨価格",
-      "reason": "理由",
-      "priority": "high" | "medium" | "low"
-    }
-  ],
-  "campaignProposals": [
-    {
-      "title": "キャンペーン名",
-      "description": "キャンペーン説明",
-      "targetAudience": "ターゲット層",
-      "period": "実施期間",
-      "promotion": "プロモーション内容",
-      "expectedResult": "期待される効果",
-      "snsPlatforms": ["推奨SNSプラットフォーム"]
-    }
-  ],
-  "newTreatmentSuggestions": [
-    {
-      "treatmentName": "施術名",
-      "reason": "導入理由",
-      "marketDemand": "市場需要",
-      "expectedPrice": "想定価格",
-      "competitiveness": "競争力"
-    }
-  ],
-  "marketingStrategy": {
-    "overallDirection": "全体的な方向性",
-    "keyInitiatives": ["主要施策1", "主要施策2"],
-    "timeline": "タイムライン",
-    "successMetrics": ["成功指標1", "成功指標2"]
-  },
-  "summary": "分析総括"
-}`;
+以下の観点から総合分析を行い、わかりやすく読みやすい形式で提案を返してください：
+
+1. 市場ポジション分析
+   - 強み
+   - 弱み
+   - 機会
+   - 脅威
+
+2. 価格調整の提案
+   - 各商品の現在価格と推奨価格
+   - 価格調整の理由
+   - 優先度
+
+3. キャンペーン案
+   - キャンペーン名と説明
+   - ターゲット層
+   - 実施期間
+   - プロモーション内容
+   - 期待される効果
+   - 推奨SNSプラットフォーム
+
+4. 新施術提案
+   - 施術名
+   - 導入理由
+   - 市場需要
+   - 想定価格
+   - 競争力
+
+5. マーケティング戦略
+   - 全体的な方向性
+   - 主要施策
+   - タイムライン
+   - 成功指標
+
+6. 分析総括`;
+
+  const template = await getPrompt("claude_analyze_market_position", defaultPrompt);
+  const prompt = replacePlaceholders(template, {
+    clinicProducts: JSON.stringify(clinicProducts, null, 2),
+    marketData: JSON.stringify(marketData, null, 2),
+    snsData: JSON.stringify(snsData, null, 2),
+    location,
+  });
 
   return callClaude(prompt);
 }
@@ -214,32 +213,33 @@ export async function generatePriceRecommendations(
   }>,
   marketPricing: Record<string, unknown>,
 ): Promise<string> {
-  const prompt = `あなたは美容クリニックの価格戦略専門家です。
+  const defaultPrompt = `あなたは美容クリニックの価格戦略専門家です。
 以下の商品情報と市場価格データを基に、価格設定の提案を行ってください。
 
 【自院商品】
-${JSON.stringify(products, null, 2)}
+\${products}
 
 【市場価格データ】
-${JSON.stringify(marketPricing, null, 2)}
+\${marketPricing}
 
-以下のJSON形式で価格提案を返してください：
-{
-  "recommendations": [
-    {
-      "productName": "商品名",
-      "currentPrice": "現在の価格",
-      "recommendedPrice": "推奨価格",
-      "priceChange": "価格変動（%増減）",
-      "reason": "価格調整の理由",
-      "priority": "high" | "medium" | "low",
-      "risks": "リスク要因",
-      "opportunities": "機会要因"
-    }
-  ],
-  "summary": "価格戦略の総括",
-  "overallRecommendation": "全体的な推奨事項"
-}`;
+各商品について、以下の情報を含めてわかりやすく提案してください：
+
+- 商品名
+- 現在の価格
+- 推奨価格
+- 価格変動（%増減）
+- 価格調整の理由
+- 優先度（高/中/低）
+- リスク要因
+- 機会要因
+
+最後に、価格戦略の総括と全体的な推奨事項を記載してください。`;
+
+  const template = await getPrompt("claude_generate_price_recommendations", defaultPrompt);
+  const prompt = replacePlaceholders(template, {
+    products: JSON.stringify(products, null, 2),
+    marketPricing: JSON.stringify(marketPricing, null, 2),
+  });
 
   return callClaude(prompt);
 }
@@ -248,34 +248,35 @@ export async function generateCampaignProposals(
   trends: Array<Record<string, unknown>>,
   snsData: Array<Record<string, unknown>>,
 ): Promise<string> {
-  const prompt = `あなたは美容クリニックのマーケティングキャンペーン企画専門家です。
+  const defaultPrompt = `あなたは美容クリニックのマーケティングキャンペーン企画専門家です。
 以下のトレンドデータとSNSデータを基に、効果的な月次キャンペーン案を2つ以上提案してください。
 
 【市場トレンド】
-${JSON.stringify(trends, null, 2)}
+\${trends}
 
 【SNSトレンド】
-${JSON.stringify(snsData, null, 2)}
+\${snsData}
 
-以下のJSON形式でキャンペーン案を返してください（最低2つ以上）：
-{
-  "campaigns": [
-    {
-      "title": "キャンペーン名",
-      "description": "キャンペーン説明",
-      "targetAudience": "ターゲット層",
-      "period": "実施期間（例：2024年11月）",
-      "promotion": "プロモーション内容（割引率、特典など）",
-      "channels": ["実施チャンネル"],
-      "snsStrategy": "SNS戦略",
-      "expectedResult": "期待される効果",
-      "budget": "予算の目安",
-      "priority": "high" | "medium" | "low"
-    }
-  ],
-  "summary": "キャンペーン戦略の総括",
-  "recommendedTiming": "推奨実施時期"
-}`;
+各キャンペーン案について、以下の情報を含めてわかりやすく提案してください：
+
+- キャンペーン名
+- キャンペーン説明
+- ターゲット層
+- 実施期間（例：2024年11月）
+- プロモーション内容（割引率、特典など）
+- 実施チャンネル
+- SNS戦略
+- 期待される効果
+- 予算の目安
+- 優先度（高/中/低）
+
+最後に、キャンペーン戦略の総括と推奨実施時期を記載してください。`;
+
+  const template = await getPrompt("claude_generate_campaign_proposals", defaultPrompt);
+  const prompt = replacePlaceholders(template, {
+    trends: JSON.stringify(trends, null, 2),
+    snsData: JSON.stringify(snsData, null, 2),
+  });
 
   return callClaude(prompt);
 }
@@ -288,42 +289,43 @@ export async function suggestNewTreatments(
   marketTrends: Array<Record<string, unknown>>,
   snsTrends: Array<Record<string, unknown>>,
 ): Promise<string> {
-  const prompt = `あなたは美容クリニックの施術開発コンサルタントです。
+  const defaultPrompt = `あなたは美容クリニックの施術開発コンサルタントです。
 以下の情報を基に、未導入の有望な施術・治療の導入提案を行ってください。
 
 【現在導入済み施術】
-${JSON.stringify(currentTreatments, null, 2)}
+\${currentTreatments}
 
 【市場トレンド】
-${JSON.stringify(marketTrends, null, 2)}
+\${marketTrends}
 
 【SNSトレンド】
-${JSON.stringify(snsTrends, null, 2)}
+\${snsTrends}
 
-以下のJSON形式で新施術提案を返してください：
-{
-  "suggestions": [
-    {
-      "treatmentName": "施術名",
-      "category": "カテゴリ",
-      "reason": "導入理由",
-      "marketDemand": "市場需要（高/中/低）",
-      "trend": "トレンド状況",
-      "expectedPrice": {
-        "costPrice": "原価の目安",
-        "sellingPrice": "販売価格の目安",
-        "priceRange": "市場価格帯"
-      },
-      "competitiveness": "競争力の評価",
-      "investment": "導入に必要な投資",
-      "roi": "投資対効果",
-      "priority": "high" | "medium" | "low",
-      "implementation": "導入方法・スケジュール"
-    }
-  ],
-  "summary": "新施術導入戦略の総括",
-  "recommendedTimeline": "推奨導入タイムライン"
-}`;
+各新施術提案について、以下の情報を含めてわかりやすく提案してください：
+
+- 施術名
+- カテゴリ
+- 導入理由
+- 市場需要（高/中/低）
+- トレンド状況
+- 価格情報
+  - 原価の目安
+  - 販売価格の目安
+  - 市場価格帯
+- 競争力の評価
+- 導入に必要な投資
+- 投資対効果
+- 優先度（高/中/低）
+- 導入方法・スケジュール
+
+最後に、新施術導入戦略の総括と推奨導入タイムラインを記載してください。`;
+
+  const template = await getPrompt("claude_suggest_new_treatments", defaultPrompt);
+  const prompt = replacePlaceholders(template, {
+    currentTreatments: JSON.stringify(currentTreatments, null, 2),
+    marketTrends: JSON.stringify(marketTrends, null, 2),
+    snsTrends: JSON.stringify(snsTrends, null, 2),
+  });
 
   return callClaude(prompt);
 }

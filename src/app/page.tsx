@@ -45,6 +45,12 @@ export default function Home() {
           >
             APIキー設定
           </Link>
+          <Link
+            href="/prompt"
+            className="rounded-lg px-4 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-100"
+          >
+            プロンプト管理
+          </Link>
         </div>
       </nav>
       <ProductManagement />

@@ -432,25 +432,35 @@ export function StrategyManagement() {
                     {strategy.priceRecommendations && (
                       <div>
                         <strong>価格設定提案:</strong>
-                        <pre className="mt-1 rounded bg-zinc-50 p-2 text-xs text-zinc-900">
-                          {JSON.stringify(
-                            JSON.parse(strategy.priceRecommendations),
-                            null,
-                            2,
-                          )}
-                        </pre>
+                        <div className="mt-1 whitespace-pre-wrap rounded bg-zinc-50 p-2 text-xs text-zinc-900">
+                          {(() => {
+                            try {
+                              // 既存データがJSON形式の場合とテキスト形式の場合の両方に対応
+                              const parsed = JSON.parse(strategy.priceRecommendations);
+                              return JSON.stringify(parsed, null, 2);
+                            } catch {
+                              // JSONでない場合はテキスト形式として表示
+                              return strategy.priceRecommendations;
+                            }
+                          })()}
+                        </div>
                       </div>
                     )}
                     {strategy.campaignProposals && (
                       <div>
                         <strong>キャンペーン案:</strong>
-                        <pre className="mt-1 rounded bg-zinc-50 p-2 text-xs text-zinc-900">
-                          {JSON.stringify(
-                            JSON.parse(strategy.campaignProposals),
-                            null,
-                            2,
-                          )}
-                        </pre>
+                        <div className="mt-1 whitespace-pre-wrap rounded bg-zinc-50 p-2 text-xs text-zinc-900">
+                          {(() => {
+                            try {
+                              // 既存データがJSON形式の場合とテキスト形式の場合の両方に対応
+                              const parsed = JSON.parse(strategy.campaignProposals);
+                              return JSON.stringify(parsed, null, 2);
+                            } catch {
+                              // JSONでない場合はテキスト形式として表示
+                              return strategy.campaignProposals;
+                            }
+                          })()}
+                        </div>
                       </div>
                     )}
                   </div>

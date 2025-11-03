@@ -3,7 +3,6 @@ import { db } from "@/server/db";
 import { z } from "zod";
 
 import {
-  extractJSONFromResponse,
   analyzeInstagramTrends,
   analyzeYouTubeTrends,
 } from "@/server/services/gemini";
@@ -29,29 +28,21 @@ export const snsResearchRouter = router({
     .mutation(async ({ input }) => {
       try {
         const result = await analyzeTwitterTrends(input.keywords, input.timeRange);
-        
-        // JSONパースを試行（失敗してもrawDataとして保存）
-        let parsedResult;
-        try {
-          parsedResult = JSON.parse(result);
-        } catch {
-          parsedResult = { raw: result };
-        }
 
-        // データベースに保存
+        // データベースに保存（テキスト形式で保存）
         const saved = await db.sNSResearchResult.create({
           data: {
             userId: input.userId,
             platform: "twitter",
             keywords: input.keywords.join(","),
             aiAgent: "grok",
-            trendData: JSON.stringify(parsedResult),
+            trendData: result, // テキスト形式で保存
           },
         });
 
         return {
           id: saved.id,
-          result: parsedResult,
+          result: result, // テキスト形式の結果をそのまま返す
           message: "Twitter調査が完了しました",
         };
       } catch (error) {
@@ -97,30 +88,21 @@ export const snsResearchRouter = router({
     .mutation(async ({ input }) => {
       try {
         const result = await analyzeInstagramTrends(input.keywords, input.timeRange);
-        
-        // JSONパースを試行（Markdownコードブロックを除去）
-        let parsedResult;
-        try {
-          const cleanedResult = extractJSONFromResponse(result);
-          parsedResult = JSON.parse(cleanedResult);
-        } catch {
-          parsedResult = { raw: result };
-        }
 
-        // データベースに保存
+        // データベースに保存（テキスト形式で保存）
         const saved = await db.sNSResearchResult.create({
           data: {
             userId: input.userId,
             platform: "instagram",
             keywords: input.keywords.join(","),
             aiAgent: "gemini",
-            trendData: JSON.stringify(parsedResult),
+            trendData: result, // テキスト形式で保存
           },
         });
 
         return {
           id: saved.id,
-          result: parsedResult,
+          result: result, // テキスト形式の結果をそのまま返す
           message: "Instagram調査が完了しました",
         };
       } catch (error) {
@@ -166,30 +148,21 @@ export const snsResearchRouter = router({
     .mutation(async ({ input }) => {
       try {
         const result = await analyzeYouTubeTrends(input.keywords, input.timeRange);
-        
-        // JSONパースを試行（Markdownコードブロックを除去）
-        let parsedResult;
-        try {
-          const cleanedResult = extractJSONFromResponse(result);
-          parsedResult = JSON.parse(cleanedResult);
-        } catch {
-          parsedResult = { raw: result };
-        }
 
-        // データベースに保存
+        // データベースに保存（テキスト形式で保存）
         const saved = await db.sNSResearchResult.create({
           data: {
             userId: input.userId,
             platform: "youtube",
             keywords: input.keywords.join(","),
             aiAgent: "gemini",
-            trendData: JSON.stringify(parsedResult),
+            trendData: result, // テキスト形式で保存
           },
         });
 
         return {
           id: saved.id,
-          result: parsedResult,
+          result: result, // テキスト形式の結果をそのまま返す
           message: "YouTube調査が完了しました",
         };
       } catch (error) {
@@ -265,7 +238,7 @@ export const snsResearchRouter = router({
 
       return {
         ...result,
-        trendData: JSON.parse(result.trendData),
+        trendData: result.trendData,
       };
     }),
 });

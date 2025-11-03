@@ -45,10 +45,16 @@ export async function exportToPDF(data: StrategyExportData): Promise<Buffer> {
 
     const priceData =
       typeof data.priceRecommendations === "string"
-        ? JSON.parse(data.priceRecommendations)
+        ? (() => {
+            try {
+              return JSON.parse(data.priceRecommendations);
+            } catch {
+              return data.priceRecommendations; // テキスト形式として返す
+            }
+          })()
         : data.priceRecommendations;
 
-    if (Array.isArray(priceData) || (priceData && Array.isArray(priceData.recommendations))) {
+    if (Array.isArray(priceData) || (priceData && typeof priceData === "object" && Array.isArray(priceData.recommendations))) {
       const recommendations = Array.isArray(priceData)
         ? priceData
         : priceData.recommendations || [];
@@ -69,11 +75,8 @@ export async function exportToPDF(data: StrategyExportData): Promise<Buffer> {
       yPos = (doc as unknown as { lastAutoTable: { finalY: number } }).lastAutoTable.finalY + 10;
     } else {
       doc.setFontSize(10);
-      doc.text(
-        JSON.stringify(priceData, null, 2).substring(0, 200),
-        20,
-        yPos,
-      );
+      const priceText = typeof priceData === "string" ? priceData : JSON.stringify(priceData, null, 2);
+      doc.text(priceText.substring(0, 200), 20, yPos);
       yPos += 20;
     }
   }
@@ -91,10 +94,16 @@ export async function exportToPDF(data: StrategyExportData): Promise<Buffer> {
 
     const campaignData =
       typeof data.campaignProposals === "string"
-        ? JSON.parse(data.campaignProposals)
+        ? (() => {
+            try {
+              return JSON.parse(data.campaignProposals);
+            } catch {
+              return data.campaignProposals; // テキスト形式として返す
+            }
+          })()
         : data.campaignProposals;
 
-    if (campaignData && Array.isArray(campaignData.campaigns)) {
+    if (campaignData && typeof campaignData === "object" && Array.isArray(campaignData.campaigns)) {
       campaignData.campaigns.forEach((campaign: Record<string, unknown>, index: number) => {
         if (yPos > 250) {
           doc.addPage();
@@ -109,11 +118,8 @@ export async function exportToPDF(data: StrategyExportData): Promise<Buffer> {
       });
     } else {
       doc.setFontSize(10);
-      doc.text(
-        JSON.stringify(campaignData, null, 2).substring(0, 200),
-        20,
-        yPos,
-      );
+      const campaignText = typeof campaignData === "string" ? campaignData : JSON.stringify(campaignData, null, 2);
+      doc.text(campaignText.substring(0, 200), 20, yPos);
       yPos += 20;
     }
   }
@@ -131,10 +137,16 @@ export async function exportToPDF(data: StrategyExportData): Promise<Buffer> {
 
     const treatmentData =
       typeof data.newTreatmentSuggestions === "string"
-        ? JSON.parse(data.newTreatmentSuggestions)
+        ? (() => {
+            try {
+              return JSON.parse(data.newTreatmentSuggestions);
+            } catch {
+              return data.newTreatmentSuggestions; // テキスト形式として返す
+            }
+          })()
         : data.newTreatmentSuggestions;
 
-    if (treatmentData && Array.isArray(treatmentData.suggestions)) {
+    if (treatmentData && typeof treatmentData === "object" && Array.isArray(treatmentData.suggestions)) {
       const tableData = treatmentData.suggestions.map((sug: Record<string, unknown>) => [
         String(sug.treatmentName || ""),
         String(sug.reason || ""),
@@ -150,11 +162,8 @@ export async function exportToPDF(data: StrategyExportData): Promise<Buffer> {
       yPos = (doc as unknown as { lastAutoTable: { finalY: number } }).lastAutoTable.finalY + 10;
     } else {
       doc.setFontSize(10);
-      doc.text(
-        JSON.stringify(treatmentData, null, 2).substring(0, 200),
-        20,
-        yPos,
-      );
+      const treatmentText = typeof treatmentData === "string" ? treatmentData : JSON.stringify(treatmentData, null, 2);
+      doc.text(treatmentText.substring(0, 200), 20, yPos);
       yPos += 20;
     }
   }
@@ -172,11 +181,17 @@ export async function exportToPDF(data: StrategyExportData): Promise<Buffer> {
 
     const strategyData =
       typeof data.marketingStrategy === "string"
-        ? JSON.parse(data.marketingStrategy)
+        ? (() => {
+            try {
+              return JSON.parse(data.marketingStrategy);
+            } catch {
+              return data.marketingStrategy; // テキスト形式として返す
+            }
+          })()
         : data.marketingStrategy;
 
     doc.setFontSize(10);
-    const strategyText = JSON.stringify(strategyData, null, 2);
+    const strategyText = typeof strategyData === "string" ? strategyData : JSON.stringify(strategyData, null, 2);
     const lines = doc.splitTextToSize(strategyText, 170);
     doc.text(lines, 20, yPos);
   }
@@ -226,14 +241,20 @@ export async function exportToExcel(data: StrategyExportData): Promise<Buffer> {
   if (data.priceRecommendations) {
     const priceData =
       typeof data.priceRecommendations === "string"
-        ? JSON.parse(data.priceRecommendations)
+        ? (() => {
+            try {
+              return JSON.parse(data.priceRecommendations);
+            } catch {
+              return data.priceRecommendations; // テキスト形式として返す
+            }
+          })()
         : data.priceRecommendations;
 
     worksheet.getCell(`A${row}`).value = "価格設定提案";
     worksheet.getCell(`A${row}`).font = { size: 14, bold: true };
     row++;
 
-    if (Array.isArray(priceData) || (priceData && Array.isArray(priceData.recommendations))) {
+    if (Array.isArray(priceData) || (priceData && typeof priceData === "object" && Array.isArray(priceData.recommendations))) {
       const recommendations = Array.isArray(priceData)
         ? priceData
         : priceData.recommendations || [];
@@ -260,7 +281,8 @@ export async function exportToExcel(data: StrategyExportData): Promise<Buffer> {
       });
       row += recommendations.length + 2;
     } else {
-      worksheet.getCell(`A${row}`).value = JSON.stringify(priceData, null, 2);
+      const priceText = typeof priceData === "string" ? priceData : JSON.stringify(priceData, null, 2);
+      worksheet.getCell(`A${row}`).value = priceText;
       row += 10;
     }
   }
@@ -273,10 +295,16 @@ export async function exportToExcel(data: StrategyExportData): Promise<Buffer> {
 
     const campaignData =
       typeof data.campaignProposals === "string"
-        ? JSON.parse(data.campaignProposals)
+        ? (() => {
+            try {
+              return JSON.parse(data.campaignProposals);
+            } catch {
+              return data.campaignProposals; // テキスト形式として返す
+            }
+          })()
         : data.campaignProposals;
 
-    if (campaignData && Array.isArray(campaignData.campaigns)) {
+    if (campaignData && typeof campaignData === "object" && Array.isArray(campaignData.campaigns)) {
       campaignData.campaigns.forEach((campaign: Record<string, unknown>, index: number) => {
         worksheet.getCell(`A${row}`).value = `案 ${index + 1}`;
         worksheet.getCell(`A${row}`).font = { bold: true };
@@ -289,7 +317,8 @@ export async function exportToExcel(data: StrategyExportData): Promise<Buffer> {
         row += 2;
       });
     } else {
-      worksheet.getCell(`A${row}`).value = JSON.stringify(campaignData, null, 2);
+      const campaignText = typeof campaignData === "string" ? campaignData : JSON.stringify(campaignData, null, 2);
+      worksheet.getCell(`A${row}`).value = campaignText;
       row += 10;
     }
   }
@@ -302,10 +331,16 @@ export async function exportToExcel(data: StrategyExportData): Promise<Buffer> {
 
     const treatmentData =
       typeof data.newTreatmentSuggestions === "string"
-        ? JSON.parse(data.newTreatmentSuggestions)
+        ? (() => {
+            try {
+              return JSON.parse(data.newTreatmentSuggestions);
+            } catch {
+              return data.newTreatmentSuggestions; // テキスト形式として返す
+            }
+          })()
         : data.newTreatmentSuggestions;
 
-    if (treatmentData && Array.isArray(treatmentData.suggestions)) {
+    if (treatmentData && typeof treatmentData === "object" && Array.isArray(treatmentData.suggestions)) {
       worksheet.addTable({
         name: "TreatmentSuggestions",
         ref: `A${row}`,
@@ -330,7 +365,8 @@ export async function exportToExcel(data: StrategyExportData): Promise<Buffer> {
       });
       row += treatmentData.suggestions.length + 2;
     } else {
-      worksheet.getCell(`A${row}`).value = JSON.stringify(treatmentData, null, 2);
+      const treatmentText = typeof treatmentData === "string" ? treatmentData : JSON.stringify(treatmentData, null, 2);
+      worksheet.getCell(`A${row}`).value = treatmentText;
       row += 10;
     }
   }
@@ -342,9 +378,16 @@ export async function exportToExcel(data: StrategyExportData): Promise<Buffer> {
     row++;
     const strategyData =
       typeof data.marketingStrategy === "string"
-        ? JSON.parse(data.marketingStrategy)
+        ? (() => {
+            try {
+              return JSON.parse(data.marketingStrategy);
+            } catch {
+              return data.marketingStrategy; // テキスト形式として返す
+            }
+          })()
         : data.marketingStrategy;
-    worksheet.getCell(`A${row}`).value = JSON.stringify(strategyData, null, 2);
+    const strategyText = typeof strategyData === "string" ? strategyData : JSON.stringify(strategyData, null, 2);
+    worksheet.getCell(`A${row}`).value = strategyText;
     worksheet.getCell(`A${row}`).alignment = { wrapText: true };
     row += 10;
   }

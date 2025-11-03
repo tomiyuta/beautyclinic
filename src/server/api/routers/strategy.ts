@@ -51,6 +51,7 @@ export const strategyRouter = router({
           marketResults.forEach((result) => {
             if (result.processedData) {
               try {
+                // 既存データがJSON形式の場合とテキスト形式の場合の両方に対応
                 const parsed = JSON.parse(result.processedData);
                 if (result.researchType === "trend_analysis") {
                   marketData.trends = parsed as Record<string, unknown>;
@@ -60,7 +61,14 @@ export const strategyRouter = router({
                   marketData.competitors = parsed as Record<string, unknown>;
                 }
               } catch {
-                // パース失敗時はスキップ
+                // JSONでない場合はテキスト形式として扱う
+                if (result.researchType === "trend_analysis") {
+                  marketData.trends = { text: result.processedData } as Record<string, unknown>;
+                } else if (result.researchType === "price_research") {
+                  marketData.pricing = { text: result.processedData } as Record<string, unknown>;
+                } else if (result.researchType === "competitor_analysis") {
+                  marketData.competitors = { text: result.processedData } as Record<string, unknown>;
+                }
               }
             }
           });
@@ -76,14 +84,23 @@ export const strategyRouter = router({
           });
 
           snsData = snsResults
-            .map((result: { platform: string; trendData: string }) => {
+            .map((result: { platform: string; trendData: string | null }) => {
+              if (!result.trendData) {
+                return null;
+              }
               try {
+                // 既存データがJSON形式の場合とテキスト形式の場合の両方に対応
+                const parsed = JSON.parse(result.trendData);
                 return {
                   platform: result.platform,
-                  ...JSON.parse(result.trendData),
+                  ...parsed,
                 };
               } catch {
-                return null;
+                // JSONでない場合はテキスト形式として扱う
+                return {
+                  platform: result.platform,
+                  text: result.trendData,
+                };
               }
             })
             .filter((data: unknown): data is Record<string, unknown> => data !== null);
@@ -108,35 +125,20 @@ export const strategyRouter = router({
           input.location,
         );
 
-        let parsedResult;
-        try {
-          parsedResult = JSON.parse(result);
-        } catch {
-          parsedResult = { raw: result };
-        }
-
-        // データベースに保存
+        // データベースに保存（テキスト形式で保存）
         const saved = await db.strategyRecommendation.create({
           data: {
             userId: input.userId,
-            priceRecommendations: parsedResult.priceAdjustments
-              ? JSON.stringify(parsedResult.priceAdjustments)
-              : null,
-            campaignProposals: parsedResult.campaignProposals
-              ? JSON.stringify(parsedResult.campaignProposals)
-              : null,
-            newTreatmentSuggestions: parsedResult.newTreatmentSuggestions
-              ? JSON.stringify(parsedResult.newTreatmentSuggestions)
-              : null,
-            marketingStrategy: parsedResult.marketingStrategy
-              ? JSON.stringify(parsedResult.marketingStrategy)
-              : null,
+            marketingStrategy: result, // 総合分析結果をマーケティング戦略として保存
+            priceRecommendations: null,
+            campaignProposals: null,
+            newTreatmentSuggestions: null,
           },
         });
 
         return {
           id: saved.id,
-          result: parsedResult,
+          result: result, // テキスト形式の結果をそのまま返す
           message: "総合分析が完了しました",
         };
       } catch (error) {
@@ -184,13 +186,16 @@ export const strategyRouter = router({
 
         const marketPricingArray = priceResults
           .map((result) => {
-            try {
-              return result.processedData
-                ? JSON.parse(result.processedData)
-                : null;
-            } catch {
-              return null;
+            if (result.processedData) {
+              try {
+                // 既存データがJSON形式の場合とテキスト形式の場合の両方に対応
+                return JSON.parse(result.processedData);
+              } catch {
+                // JSONでない場合はテキスト形式として扱う
+                return { text: result.processedData };
+              }
             }
+            return null;
           })
           .filter((data): data is Record<string, unknown> => data !== null);
 
@@ -209,15 +214,8 @@ export const strategyRouter = router({
           marketPricing,
         );
 
-        let parsedResult;
-        try {
-          parsedResult = JSON.parse(result);
-        } catch {
-          parsedResult = { raw: result };
-        }
-
         return {
-          result: parsedResult,
+          result: result, // テキスト形式の結果をそのまま返す
           message: "価格設定提案が完了しました",
         };
       } catch (error) {
@@ -254,13 +252,16 @@ export const strategyRouter = router({
 
         const trends = trendResults
           .map((result) => {
-            try {
-              return result.processedData
-                ? JSON.parse(result.processedData)
-                : null;
-            } catch {
-              return null;
+            if (result.processedData) {
+              try {
+                // 既存データがJSON形式の場合とテキスト形式の場合の両方に対応
+                return JSON.parse(result.processedData);
+              } catch {
+                // JSONでない場合はテキスト形式として扱う
+                return { text: result.processedData };
+              }
             }
+            return null;
           })
           .filter((data) => data !== null);
 
@@ -273,36 +274,23 @@ export const strategyRouter = router({
 
         const snsData = snsResults
           .map((result) => {
+            if (!result.trendData) {
+              return null;
+            }
             try {
+              // 既存データがJSON形式の場合とテキスト形式の場合の両方に対応
               return JSON.parse(result.trendData);
             } catch {
-              return null;
+              // JSONでない場合はテキスト形式として扱う
+              return { text: result.trendData };
             }
           })
           .filter((data) => data !== null);
 
         const result = await generateCampaignProposals(trends, snsData);
 
-        let parsedResult;
-        try {
-          parsedResult = JSON.parse(result);
-        } catch {
-          parsedResult = { raw: result };
-        }
-
-        // キャンペーン案が2つ以上あることを確認
-        if (
-          parsedResult.campaigns &&
-          Array.isArray(parsedResult.campaigns) &&
-          parsedResult.campaigns.length < 2
-        ) {
-          console.warn(
-            "Campaign proposals less than 2. Expected at least 2 proposals.",
-          );
-        }
-
         return {
-          result: parsedResult,
+          result: result, // テキスト形式の結果をそのまま返す
           message: "キャンペーン案が生成されました",
         };
       } catch (error) {
@@ -341,13 +329,16 @@ export const strategyRouter = router({
 
         const marketTrends = trendResults
           .map((result) => {
-            try {
-              return result.processedData
-                ? JSON.parse(result.processedData)
-                : null;
-            } catch {
-              return null;
+            if (result.processedData) {
+              try {
+                // 既存データがJSON形式の場合とテキスト形式の場合の両方に対応
+                return JSON.parse(result.processedData);
+              } catch {
+                // JSONでない場合はテキスト形式として扱う
+                return { text: result.processedData };
+              }
             }
+            return null;
           })
           .filter((data) => data !== null);
 
@@ -360,10 +351,15 @@ export const strategyRouter = router({
 
         const snsTrends = snsResults
           .map((result) => {
+            if (!result.trendData) {
+              return null;
+            }
             try {
+              // 既存データがJSON形式の場合とテキスト形式の場合の両方に対応
               return JSON.parse(result.trendData);
             } catch {
-              return null;
+              // JSONでない場合はテキスト形式として扱う
+              return { text: result.trendData };
             }
           })
           .filter((data) => data !== null);
@@ -377,15 +373,8 @@ export const strategyRouter = router({
           snsTrends,
         );
 
-        let parsedResult;
-        try {
-          parsedResult = JSON.parse(result);
-        } catch {
-          parsedResult = { raw: result };
-        }
-
         return {
-          result: parsedResult,
+          result: result, // テキスト形式の結果をそのまま返す
           message: "新施術提案が完了しました",
         };
       } catch (error) {
@@ -437,18 +426,10 @@ export const strategyRouter = router({
 
       return {
         ...result,
-        priceRecommendations: result.priceRecommendations
-          ? JSON.parse(result.priceRecommendations)
-          : null,
-        campaignProposals: result.campaignProposals
-          ? JSON.parse(result.campaignProposals)
-          : null,
-        newTreatmentSuggestions: result.newTreatmentSuggestions
-          ? JSON.parse(result.newTreatmentSuggestions)
-          : null,
-        marketingStrategy: result.marketingStrategy
-          ? JSON.parse(result.marketingStrategy)
-          : null,
+        priceRecommendations: result.priceRecommendations,
+        campaignProposals: result.campaignProposals,
+        newTreatmentSuggestions: result.newTreatmentSuggestions,
+        marketingStrategy: result.marketingStrategy,
       };
     }),
 
