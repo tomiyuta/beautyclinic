@@ -18,6 +18,24 @@ export function TRPCReactProvider({
         defaultOptions: {
           queries: {
             staleTime: 5 * 1000,
+            retry: (failureCount, error) => {
+              // 404エラーや認証エラーはリトライしない
+              if (error && typeof error === "object" && "data" in error) {
+                const errorData = error.data as { httpStatus?: number };
+                if (errorData.httpStatus === 404 || errorData.httpStatus === 401) {
+                  return false;
+                }
+              }
+              // 最大3回までリトライ
+              return failureCount < 3;
+            },
+            retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 30000),
+          },
+          mutations: {
+            retry: false,
+            onError: (error) => {
+              console.error("Mutation error:", error);
+            },
           },
         },
       }),
@@ -28,6 +46,9 @@ export function TRPCReactProvider({
         httpBatchLink({
           url: typeof window !== "undefined" ? "/api/trpc" : "http://localhost:3000/api/trpc",
           transformer: superjson,
+          headers: () => {
+            return {};
+          },
         }),
       ],
     }),

@@ -35,7 +35,10 @@ export function MarketResearch() {
       setLocation("");
     },
     onError: (error) => {
-      setFeedback({ type: "error", message: error.message });
+      setFeedback({ 
+        type: "error", 
+        message: error.message || "エラーが発生しました。もう一度お試しください。" 
+      });
     },
   });
 
@@ -52,7 +55,10 @@ export function MarketResearch() {
       setCities([]);
     },
     onError: (error) => {
-      setFeedback({ type: "error", message: error.message });
+      setFeedback({ 
+        type: "error", 
+        message: error.message || "エラーが発生しました。もう一度お試しください。" 
+      });
     },
   });
 
@@ -76,6 +82,10 @@ export function MarketResearch() {
 
   const resultsQuery = api.marketResearch.list.useQuery({
     userId: USER_ID_PLACEHOLDER,
+  }, {
+    retry: 3,
+    retryDelay: 1000,
+    staleTime: 30000,
   });
 
   const handleAddTreatment = () => {

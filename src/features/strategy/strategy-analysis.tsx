@@ -29,7 +29,10 @@ export function StrategyAnalysis() {
         setLocation("");
       },
       onError: (error) => {
-        setFeedback({ type: "error", message: error.message });
+        setFeedback({ 
+          type: "error", 
+          message: error.message || "エラーが発生しました。もう一度お試しください。" 
+        });
       },
     });
 
@@ -42,7 +45,10 @@ export function StrategyAnalysis() {
         });
       },
       onError: (error) => {
-        setFeedback({ type: "error", message: error.message });
+        setFeedback({ 
+          type: "error", 
+          message: error.message || "エラーが発生しました。もう一度お試しください。" 
+        });
       },
     });
 
@@ -67,12 +73,19 @@ export function StrategyAnalysis() {
         });
       },
       onError: (error) => {
-        setFeedback({ type: "error", message: error.message });
+        setFeedback({ 
+          type: "error", 
+          message: error.message || "エラーが発生しました。もう一度お試しください。" 
+        });
       },
     });
 
   const strategiesQuery = api.strategy.list.useQuery({
     userId: USER_ID_PLACEHOLDER,
+  }, {
+    retry: 3,
+    retryDelay: 1000,
+    staleTime: 30000,
   });
 
   const handleAnalyzeMarketPosition = async (

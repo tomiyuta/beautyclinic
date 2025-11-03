@@ -62,9 +62,9 @@ async function selectGeminiModel(): Promise<string> {
 }
 
 export async function callGemini(prompt: string): Promise<string> {
-  if (!genAI) {
+  if (!genAI || !apiKey) {
     throw new Error(
-      "Gemini API key is not configured. Please set GEMINI_API_KEY environment variable.",
+      "Gemini APIキーが設定されていません。APIキー設定画面で設定してください。",
     );
   }
 
@@ -102,7 +102,15 @@ export async function callGemini(prompt: string): Promise<string> {
         
         return text;
       } catch (modelError) {
-        lastError = modelError instanceof Error ? modelError : new Error(String(modelError));
+        const error = modelError instanceof Error ? modelError : new Error(String(modelError));
+        lastError = error;
+        
+        // エラーの詳細をログに記録
+        console.error(`Gemini API error for model ${modelName}:`, {
+          message: error.message,
+          name: error.name,
+          stack: error.stack,
+        });
         
         // キャッシュされたモデルが失敗した場合はキャッシュをクリア
         if (cachedModelName === modelName) {
@@ -112,22 +120,86 @@ export async function callGemini(prompt: string): Promise<string> {
         
         // 最後のモデルでない限り、次のモデルを試す
         if (i < candidatesToTry.length - 1) {
-          const errorMsg = lastError.message;
-          const is404 = errorMsg.includes("404") || errorMsg.includes("not found");
-          const errorType = is404 ? "not available" : "failed";
-          console.warn(`  ✗ Model ${modelName} ${errorType}, trying next...`);
+          const errorMsg = error.message.toLowerCase();
+          const is404 = errorMsg.includes("404") || errorMsg.includes("not found") || errorMsg.includes("not_found");
+          const is401 = errorMsg.includes("401") || errorMsg.includes("unauthorized") || errorMsg.includes("permission");
+          const is403 = errorMsg.includes("403") || errorMsg.includes("forbidden");
+          const isNetworkError = errorMsg.includes("fetch") || errorMsg.includes("network") || errorMsg.includes("timeout");
+          
+          if (is401 || is403) {
+            // 認証エラーは全てのモデルで同じ可能性が高いので、即座にエラーを投げる
+            throw new Error(
+              `Gemini APIキーが無効または権限がありません。APIキー設定画面で正しいキーを設定してください。エラー詳細: ${error.message}`,
+            );
+          }
+          
+          if (is404) {
+            const errorType = "not available";
+            console.warn(`  ✗ Model ${modelName} ${errorType}, trying next...`);
+            continue;
+          }
+          
+          if (isNetworkError) {
+            // ネットワークエラーの場合も次のモデルを試す
+            console.warn(`  ✗ Model ${modelName} network error, trying next...`);
+            continue;
+          }
+          
+          console.warn(`  ✗ Model ${modelName} failed, trying next...`);
           continue;
         }
         // 最後のモデルでも失敗した場合
-        throw lastError;
+        throw error;
       }
     }
 
-    throw lastError || new Error("Failed to call Gemini API: No available models");
+    // エラーメッセージを改善
+    if (lastError) {
+      const errorMsg = lastError.message.toLowerCase();
+      if (errorMsg.includes("fetch") || errorMsg.includes("network")) {
+        throw new Error(
+          "Gemini APIへの接続に失敗しました。ネットワーク接続を確認してください。APIキーが正しく設定されているか確認してください。",
+        );
+      }
+      if (errorMsg.includes("401") || errorMsg.includes("unauthorized")) {
+        throw new Error(
+          "Gemini APIキーが無効です。APIキー設定画面で正しいキーを設定してください。",
+        );
+      }
+      if (errorMsg.includes("403") || errorMsg.includes("forbidden")) {
+        throw new Error(
+          "Gemini APIへのアクセスが拒否されました。APIキーの権限を確認してください。",
+        );
+      }
+      if (errorMsg.includes("404") || errorMsg.includes("not found")) {
+        throw new Error(
+          `利用可能なGeminiモデルが見つかりません。試行したモデル: ${candidatesToTry.join(", ")}。環境変数GEMINI_MODELで利用可能なモデル名を指定してください。`,
+        );
+      }
+      throw new Error(
+        `Gemini APIの呼び出しに失敗しました: ${lastError.message}`,
+      );
+    }
+    
+    throw new Error("Gemini API: 利用可能なモデルが見つかりませんでした");
   } catch (error) {
+    // 既に形式化されたエラーはそのまま投げる
+    if (error instanceof Error && error.message.includes("Gemini API")) {
+      throw error;
+    }
+    
     console.error("Gemini API error:", error);
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    
+    // エラーメッセージを改善
+    if (errorMessage.includes("fetch") || errorMessage.includes("network")) {
+      throw new Error(
+        "Gemini APIへの接続に失敗しました。ネットワーク接続とAPIキーを確認してください。",
+      );
+    }
+    
     throw new Error(
-      `Failed to call Gemini API: ${error instanceof Error ? error.message : "Unknown error"}`,
+      `Gemini APIエラー: ${errorMessage}`,
     );
   }
 }
@@ -606,7 +678,7 @@ export function extractJSONFromResponse(response: string): string {
 }
 
 export async function researchTrendAnalysis(location: string): Promise<string> {
-  const prompt = `あなたは美容皮膚科クリニックの市場調査専門家です。
+  const defaultPrompt = `あなたは美容皮膚科クリニックの市場調査専門家です。
 ${location}で現在流行している美容施術・治療について調査してください。
 
 以下の観点から分析してください：
@@ -615,20 +687,12 @@ ${location}で現在流行している美容施術・治療について調査し
 3. 新しく注目されている施術や技術
 4. 顧客ニーズの傾向
 
-**重要**: 回答は必ずJSON形式のみで返してください。Markdownの見出しや説明文は不要です。以下の形式のJSONのみを返してください：
+わかりやすく読みやすい形式で調査結果をまとめてください。最後に、トレンド分析の総括を記載してください。`;
 
-{
-  "trends": [
-    {
-      "treatmentName": "施術名",
-      "popularity": "high" | "medium" | "low",
-      "averagePrice": "価格帯の説明",
-      "description": "説明"
-    }
-  ],
-  "summary": "総括"
-}`;
-
+  const { getPrompt, replacePlaceholders } = await import("./prompt-helper");
+  const template = await getPrompt("gemini_research_trend_analysis", defaultPrompt);
+  const prompt = replacePlaceholders(template, { location });
+  
   return callGemini(prompt);
 }
 
@@ -636,27 +700,29 @@ export async function researchPriceComparison(
   treatments: string[],
   cities: string[],
 ): Promise<string> {
-  const prompt = `あなたは美容皮膚科クリニックの価格調査専門家です。
+  const defaultPrompt = `あなたは美容皮膚科クリニックの価格調査専門家です。
 以下の都市の美容クリニックでの施術価格を調査してください：
 
 都市: ${cities.join(", ")}
 施術: ${treatments.join(", ")}
 
-**重要**: 回答は必ずJSON形式のみで返してください。Markdownの見出しや説明文は不要です。以下の形式のJSONのみを返してください：
+各都市・各施術について、以下の情報を含めてわかりやすくまとめてください：
 
-{
-  "pricing": [
-    {
-      "city": "都市名",
-      "treatment": "施術名",
-      "averagePrice": "平均価格（数値）",
-      "priceRange": "価格帯の説明",
-      "sampleSize": "調査件数（推定）"
-    }
-  ],
-  "summary": "価格比較の総括"
-}`;
+- 都市名
+- 施術名
+- 平均価格（数値）
+- 価格帯の説明
+- 調査件数（推定）
 
+最後に、価格比較の総括を記載してください。`;
+
+  const { getPrompt, replacePlaceholders } = await import("./prompt-helper");
+  const template = await getPrompt("gemini_research_price_comparison", defaultPrompt);
+  const prompt = replacePlaceholders(template, { 
+    cities: cities.join(", "),
+    treatments: treatments.join(", ")
+  });
+  
   return callGemini(prompt);
 }
 
@@ -670,7 +736,7 @@ export async function analyzeInstagramTrends(
     last_3months: "過去3ヶ月",
   }[timeRange];
 
-  const prompt = `あなたはInstagramマーケティングの専門家です。
+  const defaultPrompt = `あなたはInstagramマーケティングの専門家です。
 Instagramで以下のキーワードに関連する最新のトレンドを調査してください：
 
 キーワード: ${keywords.join(", ")}
@@ -683,41 +749,15 @@ Instagramで以下のキーワードに関連する最新のトレンドを調�
 4. エンゲージメント（いいね、コメント）の傾向
 5. ビジュアルトレンド（配色、スタイルなど）
 
-**重要**: 回答は必ずJSON形式のみで返してください。Markdownの見出しや説明文は不要です。以下の形式のJSONのみを返してください：
+わかりやすく読みやすい形式で、調査結果をまとめてください。最後に、トレンド分析の総括を記載してください。`;
 
-{
-  "platform": "instagram",
-  "hashtags": [
-    {
-      "name": "ハッシュタグ名",
-      "postCount": "投稿数（推定）",
-      "trend": "up" | "stable" | "down"
-    }
-  ],
-  "influencers": [
-    {
-      "name": "アカウント名",
-      "followers": "フォロワー数（推定）",
-      "engagementRate": "エンゲージメント率",
-      "topics": ["関連トピック"]
-    }
-  ],
-  "popularContent": [
-    {
-      "type": "photo" | "reel" | "story",
-      "theme": "コンテンツのテーマ",
-      "visualStyle": "ビジュアルスタイル",
-      "engagement": "エンゲージメント説明"
-    }
-  ],
-  "engagement": {
-    "averageLikes": "平均いいね数",
-    "averageComments": "平均コメント数",
-    "optimalPostingTimes": ["最適な投稿時間帯"]
-  },
-  "summary": "トレンド分析の総括"
-}`;
-
+  const { getPrompt, replacePlaceholders } = await import("./prompt-helper");
+  const template = await getPrompt("gemini_analyze_instagram_trends", defaultPrompt);
+  const prompt = replacePlaceholders(template, { 
+    keywords: keywords.join(", "),
+    timeRange: timeRangeText
+  });
+  
   return callGemini(prompt);
 }
 
@@ -731,7 +771,7 @@ export async function analyzeYouTubeTrends(
     last_3months: "過去3ヶ月",
   }[timeRange];
 
-  const prompt = `あなたはYouTubeマーケティングの専門家です。
+  const defaultPrompt = `あなたはYouTubeマーケティングの専門家です。
 YouTubeで以下のキーワードに関連する最新のトレンドを調査してください：
 
 キーワード: ${keywords.join(", ")}
@@ -744,42 +784,15 @@ YouTubeで以下のキーワードに関連する最新のトレンドを調査�
 4. エンゲージメント（視聴回数、いいね、コメント）の傾向
 5. 動画の長さや構成のトレンド
 
-**重要**: 回答は必ずJSON形式のみで返してください。Markdownの見出しや説明文は不要です。以下の形式のJSONのみを返してください：
+わかりやすく読みやすい形式で、調査結果をまとめてください。最後に、トレンド分析の総括を記載してください。`;
 
-{
-  "platform": "youtube",
-  "hashtags": [
-    {
-      "name": "タグ名",
-      "videoCount": "動画数（推定）",
-      "trend": "up" | "stable" | "down"
-    }
-  ],
-  "influencers": [
-    {
-      "name": "チャンネル名",
-      "subscribers": "登録者数（推定）",
-      "averageViews": "平均視聴回数",
-      "topics": ["関連トピック"]
-    }
-  ],
-  "popularContent": [
-    {
-      "type": "video" | "short",
-      "theme": "コンテンツのテーマ",
-      "duration": "平均視聴時間",
-      "engagement": "エンゲージメント説明"
-    }
-  ],
-  "engagement": {
-    "averageViews": "平均視聴回数",
-    "averageLikes": "平均いいね数",
-    "averageComments": "平均コメント数",
-    "watchTime": "平均視聴時間"
-  },
-  "summary": "トレンド分析の総括"
-}`;
-
+  const { getPrompt, replacePlaceholders } = await import("./prompt-helper");
+  const template = await getPrompt("gemini_analyze_youtube_trends", defaultPrompt);
+  const prompt = replacePlaceholders(template, { 
+    keywords: keywords.join(", "),
+    timeRange: timeRangeText
+  });
+  
   return callGemini(prompt);
 }
 
@@ -787,7 +800,7 @@ export async function researchCompetitorAnalysis(
   location: string,
   radius: number = 5,
 ): Promise<string> {
-  const prompt = `あなたは美容皮膚科クリニックの競合調査専門家です。
+  const defaultPrompt = `あなたは美容皮膚科クリニックの競合調査専門家です。
 ${location}周辺${radius}km圏内の競合クリニックについて調査してください。
 
 以下の情報を収集してください：
@@ -796,25 +809,15 @@ ${location}周辺${radius}km圏内の競合クリニックについて調査し�
 3. 各施術の価格設定
 4. 特徴や強み
 
-**重要**: 回答は必ずJSON形式のみで返してください。Markdownの見出しや説明文は不要です。以下の形式のJSONのみを返してください：
+各競合クリニックについて、わかりやすく読みやすい形式でまとめてください。最後に、競合分析の総括を記載してください。`;
 
-{
-  "competitors": [
-    {
-      "clinicName": "クリニック名",
-      "location": "場所",
-      "treatments": [
-        {
-          "name": "施術名",
-          "price": "価格"
-        }
-      ],
-      "features": "特徴"
-    }
-  ],
-  "summary": "競合分析の総括"
-}`;
-
+  const { getPrompt, replacePlaceholders } = await import("./prompt-helper");
+  const template = await getPrompt("gemini_research_competitor_analysis", defaultPrompt);
+  const prompt = replacePlaceholders(template, { 
+    location,
+    radius: radius.toString()
+  });
+  
   return callGemini(prompt);
 }
 

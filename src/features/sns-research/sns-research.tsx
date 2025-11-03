@@ -34,7 +34,10 @@ export function SNSResearch() {
       setKeywords([]);
     },
     onError: (error) => {
-      setFeedback({ type: "error", message: error.message });
+      setFeedback({ 
+        type: "error", 
+        message: error.message || "エラーが発生しました。もう一度お試しください。" 
+      });
     },
   });
 
@@ -50,7 +53,10 @@ export function SNSResearch() {
       setKeywords([]);
     },
     onError: (error) => {
-      setFeedback({ type: "error", message: error.message });
+      setFeedback({ 
+        type: "error", 
+        message: error.message || "エラーが発生しました。もう一度お試しください。" 
+      });
     },
   });
 
@@ -66,12 +72,19 @@ export function SNSResearch() {
       setKeywords([]);
     },
     onError: (error) => {
-      setFeedback({ type: "error", message: error.message });
+      setFeedback({ 
+        type: "error", 
+        message: error.message || "エラーが発生しました。もう一度お試しください。" 
+      });
     },
   });
 
   const resultsQuery = api.snsResearch.list.useQuery({
     userId: USER_ID_PLACEHOLDER,
+  }, {
+    retry: 3,
+    retryDelay: 1000,
+    staleTime: 30000,
   });
 
   const handleAddKeyword = () => {

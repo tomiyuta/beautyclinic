@@ -80,7 +80,7 @@ export async function analyzeTwitterTrends(
     last_3months: "過去3ヶ月",
   }[timeRange];
 
-  const prompt = `あなたはSNSマーケティングの専門家です。
+  const defaultPrompt = `あなたはSNSマーケティングの専門家です。
 Twitter/Xで以下のキーワードに関連する最新のトレンドを調査してください：
 
 キーワード: ${keywords.join(", ")}
@@ -93,39 +93,15 @@ Twitter/Xで以下のキーワードに関連する最新のトレンドを調�
 4. エンゲージメント（いいね、リツイート、コメント）の傾向
 5. 話題になっている美容施術や治療
 
-**重要**: 回答は必ずJSON形式のみで返してください。Markdownの見出しや説明文は不要です。以下の形式のJSONのみを返してください：
+わかりやすく読みやすい形式で、調査結果をまとめてください。最後に、トレンド分析の総括を記載してください。`;
 
-{
-  "platform": "twitter",
-  "hashtags": [
-    {
-      "name": "ハッシュタグ名",
-      "count": "使用回数（推定）",
-      "trend": "up" | "stable" | "down"
-    }
-  ],
-  "influencers": [
-    {
-      "name": "アカウント名",
-      "followers": "フォロワー数（推定）",
-      "topics": ["関連トピック"]
-    }
-  ],
-  "popularContent": [
-    {
-      "type": "text" | "image" | "video",
-      "theme": "コンテンツのテーマ",
-      "engagement": "エンゲージメント説明"
-    }
-  ],
-  "engagement": {
-    "averageLikes": "平均いいね数",
-    "averageRetweets": "平均リツイート数",
-    "peakTimes": ["人気の時間帯"]
-  },
-  "summary": "トレンド分析の総括"
-}`;
-
+  const { getPrompt, replacePlaceholders } = await import("./prompt-helper");
+  const template = await getPrompt("grok_analyze_twitter_trends", defaultPrompt);
+  const prompt = replacePlaceholders(template, { 
+    keywords: keywords.join(", "),
+    timeRange: timeRangeText
+  });
+  
   return callGrok(prompt);
 }
 

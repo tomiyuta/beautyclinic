@@ -6,15 +6,21 @@ export const promptRouter = router({
   // すべてのプロンプトを取得
   getAll: publicProcedure.query(async () => {
     try {
-      const prompts = await db.promptTemplate.findMany();
+      const prompts = await db.promptTemplate.findMany({
+        where: {
+          isActive: true,
+        },
+      });
       console.log(`Found ${prompts.length} prompts`);
       // メモリ上でソート
-      return prompts.sort((a, b) => {
-        if (a.aiAgent !== b.aiAgent) {
-          return a.aiAgent.localeCompare(b.aiAgent);
-        }
-        return a.name.localeCompare(b.name);
-      });
+      return prompts
+        .filter((p) => p && p.aiAgent && p.name && p.prompt)
+        .sort((a, b) => {
+          if (a.aiAgent !== b.aiAgent) {
+            return (a.aiAgent || "").localeCompare(b.aiAgent || "");
+          }
+          return (a.name || "").localeCompare(b.name || "");
+        });
     } catch (error) {
       console.error("Failed to fetch prompts:", error);
       if (error instanceof Error) {
@@ -47,10 +53,20 @@ export const promptRouter = router({
       }),
     )
     .query(async ({ input }) => {
-      const prompt = await db.promptTemplate.findUnique({
-        where: { promptType: input.promptType },
-      });
-      return prompt;
+      try {
+        const prompt = await db.promptTemplate.findUnique({
+          where: { promptType: input.promptType },
+        });
+        if (!prompt) {
+          throw new Error(`プロンプトタイプ ${input.promptType} が見つかりません`);
+        }
+        return prompt;
+      } catch (error) {
+        console.error(`Failed to fetch prompt ${input.promptType}:`, error);
+        throw new Error(
+          `プロンプトの取得に失敗しました: ${error instanceof Error ? error.message : String(error)}`,
+        );
+      }
     }),
 
   // プロンプトを更新または作成
@@ -81,24 +97,37 @@ export const promptRouter = router({
       }),
     )
     .mutation(async ({ input }) => {
-      const prompt = await db.promptTemplate.upsert({
-        where: { promptType: input.promptType },
-        update: {
-          name: input.name,
-          description: input.description,
-          prompt: input.prompt,
-          isActive: input.isActive,
-        },
-        create: {
-          promptType: input.promptType,
-          aiAgent: input.aiAgent,
-          name: input.name,
-          description: input.description,
-          prompt: input.prompt,
-          isActive: input.isActive,
-        },
-      });
-      return prompt;
+      try {
+        if (!input.name || !input.name.trim()) {
+          throw new Error("プロンプト名は必須です");
+        }
+        if (!input.prompt || !input.prompt.trim()) {
+          throw new Error("プロンプト内容は必須です");
+        }
+        const prompt = await db.promptTemplate.upsert({
+          where: { promptType: input.promptType },
+          update: {
+            name: input.name.trim(),
+            description: input.description?.trim() || null,
+            prompt: input.prompt.trim(),
+            isActive: input.isActive,
+          },
+          create: {
+            promptType: input.promptType,
+            aiAgent: input.aiAgent,
+            name: input.name.trim(),
+            description: input.description?.trim() || null,
+            prompt: input.prompt.trim(),
+            isActive: input.isActive,
+          },
+        });
+        return prompt;
+      } catch (error) {
+        console.error(`Failed to upsert prompt ${input.promptType}:`, error);
+        throw new Error(
+          `プロンプトの保存に失敗しました: ${error instanceof Error ? error.message : String(error)}`,
+        );
+      }
     }),
 
   // プロンプトを削除（論理削除）

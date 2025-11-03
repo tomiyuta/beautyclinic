@@ -96,15 +96,19 @@ const PROMPT_INFO: Record<
 };
 
 export default function PromptManagement() {
-  const { data: prompts, refetch, isLoading, error } = api.prompt.getAll.useQuery();
+  const { data: prompts, refetch, isLoading, error } = api.prompt.getAll.useQuery(undefined, {
+    retry: 3,
+    retryDelay: 1000,
+    staleTime: 30000,
+  });
   const upsertPrompt = api.prompt.upsert.useMutation({
     onSuccess: () => {
       alert("プロンプトを保存しました");
-      refetch();
+      void refetch();
       setEditingPrompt(null);
     },
     onError: (error) => {
-      alert(`エラー: ${error.message}`);
+      alert(`エラー: ${error.message || "プロンプトの保存に失敗しました"}`);
     },
   });
 
@@ -120,10 +124,10 @@ export default function PromptManagement() {
     const prompt = prompts?.find((p) => p.promptType === promptType);
     if (prompt) {
       setFormData({
-        name: prompt.name,
+        name: prompt.name || "",
         description: prompt.description || "",
-        prompt: prompt.prompt,
-        isActive: prompt.isActive,
+        prompt: prompt.prompt || "",
+        isActive: prompt.isActive ?? true,
       });
       setEditingPrompt(promptType);
     }
@@ -132,12 +136,16 @@ export default function PromptManagement() {
   const handleSubmit = (e: React.FormEvent, promptType: PromptType) => {
     e.preventDefault();
     const info = PROMPT_INFO[promptType];
+    if (!info) {
+      alert("無効なプロンプトタイプです");
+      return;
+    }
     upsertPrompt.mutate({
       promptType,
       aiAgent: info.aiAgent,
-      name: formData.name,
-      description: formData.description || undefined,
-      prompt: formData.prompt,
+      name: formData.name.trim(),
+      description: formData.description.trim() || undefined,
+      prompt: formData.prompt.trim(),
       isActive: formData.isActive,
     });
   };
@@ -154,14 +162,16 @@ export default function PromptManagement() {
 
   const groupedPrompts = prompts?.reduce(
     (acc, prompt) => {
-      if (!acc[prompt.aiAgent]) {
-        acc[prompt.aiAgent] = [];
+      if (!prompt || !prompt.aiAgent) return acc;
+      const agent = prompt.aiAgent as "claude" | "gemini" | "grok" | "chatgpt";
+      if (!acc[agent]) {
+        acc[agent] = [];
       }
-      acc[prompt.aiAgent]!.push(prompt);
+      acc[agent]!.push(prompt);
       return acc;
     },
     {} as Record<"claude" | "gemini" | "grok" | "chatgpt", typeof prompts>,
-  );
+  ) || {};
 
   return (
     <div className="mx-auto flex w-full max-w-4xl flex-col gap-10 py-12">
@@ -179,10 +189,10 @@ export default function PromptManagement() {
       ) : error ? (
         <div className="rounded-2xl border border-red-200 bg-red-50 p-8 shadow-sm">
           <p className="text-sm font-medium text-red-900">
-            エラー: {error.message}
+            エラー: {error.message || "データの取得に失敗しました"}
           </p>
           <button
-            onClick={() => refetch()}
+            onClick={() => void refetch()}
             className="mt-4 rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-500"
           >
             再試行
@@ -197,8 +207,8 @@ export default function PromptManagement() {
       ) : (
         <div className="space-y-8">
           {(["claude", "gemini", "grok", "chatgpt"] as const).map((agent) => {
-            const agentPrompts = groupedPrompts?.[agent] || [];
-            if (agentPrompts.length === 0) return null;
+            const agentPrompts = groupedPrompts[agent] || [];
+            if (!agentPrompts || agentPrompts.length === 0) return null;
 
             return (
               <section
@@ -216,7 +226,9 @@ export default function PromptManagement() {
                 </h2>
                 <div className="space-y-4">
                   {agentPrompts.map((prompt) => {
+                    if (!prompt || !prompt.promptType) return null;
                     const info = PROMPT_INFO[prompt.promptType as PromptType];
+                    if (!info) return null;
                     const isEditing = editingPrompt === prompt.promptType;
 
                     return (
@@ -342,9 +354,9 @@ export default function PromptManagement() {
                                 プロンプト内容（プレビュー）
                               </p>
                               <pre className="max-h-40 overflow-auto whitespace-pre-wrap break-words font-mono text-xs text-zinc-700">
-                                {prompt.prompt.length > 200
+                                {prompt.prompt && prompt.prompt.length > 200
                                   ? `${prompt.prompt.substring(0, 200)}...`
-                                  : prompt.prompt}
+                                  : prompt.prompt || "(プロンプトが設定されていません)"}
                               </pre>
                             </div>
                           </>
@@ -364,7 +376,6 @@ export default function PromptManagement() {
         <h3 className="mb-2 text-sm font-semibold text-amber-900">⚠️ 重要な注意事項</h3>
         <ul className="space-y-1 text-xs text-amber-800">
           <li>• プロンプトを変更すると、AIの出力形式や内容が変わります</li>
-          <li>• JSON形式の出力を求めている場合は、その形式指定を維持してください</li>
           <li>• 変更後は実際の動作を確認してください</li>
           <li>• プレースホルダー（例: {"${location}"}）はそのまま残してください</li>
         </ul>
@@ -372,4 +383,5 @@ export default function PromptManagement() {
     </div>
   );
 }
+
 
