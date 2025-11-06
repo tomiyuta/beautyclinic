@@ -1,8 +1,8 @@
 import "dotenv/config";
 
-import { defineConfig, env } from "prisma/config";
+import { defineConfig } from "prisma/config";
 
-// DATABASE_URLが設定されていない場合のデフォルト値
+// DATABASE_URLが設定されていない場合のデフォルト値（prisma generate用）
 const databaseUrl = process.env.DATABASE_URL || "mysql://dummy:dummy@localhost:3306/dummy";
 
 export default defineConfig({
