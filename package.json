@@ -9,8 +9,7 @@
     "start": "next start",
     "lint": "eslint .",
     "startup": "./start.sh",
-    "quick-start": "./start.sh",
-    "postinstall": "DATABASE_URL=\"mysql://dummy:dummy@localhost:3306/dummy\" prisma generate --schema=./prisma/schema.prisma"
+    "quick-start": "./start.sh"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.68.0",
