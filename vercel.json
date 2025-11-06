@@ -1,10 +1,11 @@
 {
   "buildCommand": "npm run build",
   "devCommand": "npm run dev",
-  "installCommand": "DATABASE_URL=\"mysql://dummy:dummy@localhost:3306/dummy\" npm install",
+  "installCommand": "PRISMA_SKIP_POSTINSTALL_GENERATE=true DATABASE_URL=\"mysql://dummy:dummy@localhost:3306/dummy\" npm install",
   "framework": "nextjs",
   "env": {
-    "DATABASE_URL": "mysql://dummy:dummy@localhost:3306/dummy"
+    "DATABASE_URL": "mysql://dummy:dummy@localhost:3306/dummy",
+    "PRISMA_SKIP_POSTINSTALL_GENERATE": "true"
   }
 }
 
