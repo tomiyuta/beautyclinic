@@ -50,25 +50,13 @@ export const strategyRouter = router({
 
           marketResults.forEach((result) => {
             if (result.processedData) {
-              try {
-                // 既存データがJSON形式の場合とテキスト形式の場合の両方に対応
-                const parsed = JSON.parse(result.processedData);
-                if (result.researchType === "trend_analysis") {
-                  marketData.trends = parsed as Record<string, unknown>;
-                } else if (result.researchType === "price_research") {
-                  marketData.pricing = parsed as Record<string, unknown>;
-                } else if (result.researchType === "competitor_analysis") {
-                  marketData.competitors = parsed as Record<string, unknown>;
-                }
-              } catch {
-                // JSONでない場合はテキスト形式として扱う
-                if (result.researchType === "trend_analysis") {
-                  marketData.trends = { text: result.processedData } as Record<string, unknown>;
-                } else if (result.researchType === "price_research") {
-                  marketData.pricing = { text: result.processedData } as Record<string, unknown>;
-                } else if (result.researchType === "competitor_analysis") {
-                  marketData.competitors = { text: result.processedData } as Record<string, unknown>;
-                }
+              // テキスト形式として扱う
+              if (result.researchType === "trend_analysis") {
+                marketData.trends = { text: result.processedData } as Record<string, unknown>;
+              } else if (result.researchType === "price_research") {
+                marketData.pricing = { text: result.processedData } as Record<string, unknown>;
+              } else if (result.researchType === "competitor_analysis") {
+                marketData.competitors = { text: result.processedData } as Record<string, unknown>;
               }
             }
           });
@@ -88,20 +76,11 @@ export const strategyRouter = router({
               if (!result.trendData) {
                 return null;
               }
-              try {
-                // 既存データがJSON形式の場合とテキスト形式の場合の両方に対応
-                const parsed = JSON.parse(result.trendData);
-                return {
-                  platform: result.platform,
-                  ...parsed,
-                };
-              } catch {
-                // JSONでない場合はテキスト形式として扱う
-                return {
-                  platform: result.platform,
-                  text: result.trendData,
-                };
-              }
+              // テキスト形式として扱う
+              return {
+                platform: result.platform,
+                text: result.trendData,
+              };
             })
             .filter((data: unknown): data is Record<string, unknown> => data !== null);
         }
@@ -187,13 +166,8 @@ export const strategyRouter = router({
         const marketPricingArray = priceResults
           .map((result) => {
             if (result.processedData) {
-              try {
-                // 既存データがJSON形式の場合とテキスト形式の場合の両方に対応
-                return JSON.parse(result.processedData);
-              } catch {
-                // JSONでない場合はテキスト形式として扱う
-                return { text: result.processedData };
-              }
+              // テキスト形式として扱う
+              return { text: result.processedData };
             }
             return null;
           })
@@ -253,13 +227,8 @@ export const strategyRouter = router({
         const trends = trendResults
           .map((result) => {
             if (result.processedData) {
-              try {
-                // 既存データがJSON形式の場合とテキスト形式の場合の両方に対応
-                return JSON.parse(result.processedData);
-              } catch {
-                // JSONでない場合はテキスト形式として扱う
-                return { text: result.processedData };
-              }
+              // テキスト形式として扱う
+              return { text: result.processedData };
             }
             return null;
           })
@@ -277,13 +246,8 @@ export const strategyRouter = router({
             if (!result.trendData) {
               return null;
             }
-            try {
-              // 既存データがJSON形式の場合とテキスト形式の場合の両方に対応
-              return JSON.parse(result.trendData);
-            } catch {
-              // JSONでない場合はテキスト形式として扱う
-              return { text: result.trendData };
-            }
+            // テキスト形式として扱う
+            return { text: result.trendData };
           })
           .filter((data) => data !== null);
 

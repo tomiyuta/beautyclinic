@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef } from "react";
+import html2canvas from "html2canvas";
 
 import { api } from "@/trpc/react";
 import { TRPCClientError } from "@trpc/client";
@@ -8,131 +9,194 @@ import { TRPCClientError } from "@trpc/client";
 const USER_ID_PLACEHOLDER = 1;
 
 // Instagram LPの視覚的プレビューコンポーネント
-function InstagramLPPreview({ content }: { content: unknown }) {
-  let lpData: Record<string, unknown> | null = null;
-
-  // contentをパース
-  if (typeof content === "string") {
-    try {
-      lpData = JSON.parse(content);
-    } catch {
-      // JSONでない場合は、rawフィールドから抽出を試みる
-      try {
-        const parsed = JSON.parse(content);
-        if (parsed.raw) {
-          // Markdownコードブロックを除去
-          const cleaned = String(parsed.raw).replace(/```json\s*/g, "").replace(/```/g, "").trim();
-          lpData = JSON.parse(cleaned);
-        } else {
-          lpData = parsed;
-        }
-      } catch {
-        lpData = null;
+function InstagramLPPreview({ content, onExportImage }: { content: unknown; onExportImage?: (element: HTMLElement) => void }) {
+  // テキスト形式のコンテンツを解析して構造化
+  const contentText = typeof content === "string" ? content : String(content);
+  
+  // テキストから情報を抽出（Markdownや構造化されたテキストを解析）
+  const parseContent = (text: string) => {
+    const lines = text.split('\n').map(l => l.trim()).filter(l => l);
+    
+    let title = '';
+    let headline = '';
+    let description = '';
+    const keyPoints: string[] = [];
+    const benefits: string[] = [];
+    let callToAction = '';
+    const hashtags: string[] = [];
+    
+    let currentSection = '';
+    
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i]!;
+      
+      // セクション判定
+      if (line.includes('タイトル') || line.includes('タイトル:')) {
+        currentSection = 'title';
+        title = line.replace(/.*[:：]\s*/, '').trim() || lines[i + 1]?.trim() || '';
+        if (title) i++;
+        continue;
+      }
+      if (line.includes('ヘッドライン') || line.includes('メインヘッドライン')) {
+        currentSection = 'headline';
+        headline = line.replace(/.*[:：]\s*/, '').trim() || lines[i + 1]?.trim() || '';
+        if (headline) i++;
+        continue;
+      }
+      if (line.includes('説明') || line.includes('説明文')) {
+        currentSection = 'description';
+        continue;
+      }
+      if (line.includes('ポイント') || line.includes('キーポイント') || line.includes('主要ポイント')) {
+        currentSection = 'keyPoints';
+        continue;
+      }
+      if (line.includes('メリット') || line.includes('特典') || line.includes('ベネフィット')) {
+        currentSection = 'benefits';
+        continue;
+      }
+      if (line.includes('行動喚起') || line.includes('CTA') || line.includes('コールトゥアクション')) {
+        currentSection = 'cta';
+        callToAction = line.replace(/.*[:：]\s*/, '').trim() || lines[i + 1]?.trim() || '';
+        if (callToAction) i++;
+        continue;
+      }
+      if (line.includes('ハッシュタグ') || line.includes('ハッシュタッグ')) {
+        currentSection = 'hashtags';
+        continue;
+      }
+      
+      // 内容の抽出
+      if (currentSection === 'title' && !title && line) title = line;
+      else if (currentSection === 'headline' && !headline && line) headline = line;
+      else if (currentSection === 'description' && line && !line.startsWith('-') && !line.startsWith('•') && !line.startsWith('*')) {
+        description += (description ? '\n' : '') + line;
+      }
+      else if (currentSection === 'keyPoints' && (line.startsWith('-') || line.startsWith('•') || line.startsWith('*') || line.startsWith('✓'))) {
+        keyPoints.push(line.replace(/^[-•*✓]\s*/, '').trim());
+      }
+      else if (currentSection === 'benefits' && (line.startsWith('-') || line.startsWith('•') || line.startsWith('*'))) {
+        benefits.push(line.replace(/^[-•*]\s*/, '').trim());
+      }
+      else if (currentSection === 'cta' && !callToAction && line) callToAction = line;
+      else if (currentSection === 'hashtags' && (line.includes('#') || line.match(/^[#＃]/))) {
+        const tags = line.match(/#[\w\u3040-\u309F\u30A0-\u30FF\u4E00-\u9FAF]+/g) || [];
+        hashtags.push(...tags.map(t => t.replace('#', '')));
       }
     }
-  } else if (typeof content === "object" && content !== null) {
-    lpData = content as Record<string, unknown>;
-  }
+    
+    // フォールバック: 最初の数行からタイトルや説明を抽出
+    if (!title && !headline && lines.length > 0) {
+      headline = lines[0]!;
+    }
+    if (!description && lines.length > 1) {
+      description = lines.slice(1, 4).join('\n');
+    }
+    
+    return { title, headline, description, keyPoints, benefits, callToAction, hashtags };
+  };
+  
+  const parsed = parseContent(contentText);
+  const displayTitle = parsed.title || parsed.headline || '';
+  const displayDescription = parsed.description || contentText.split('\n').slice(1, 4).join('\n') || contentText;
 
-  if (!lpData) {
-    return (
-      <pre className="max-h-60 overflow-auto rounded bg-zinc-50 p-3 text-xs text-zinc-900">
-        {JSON.stringify(content, null, 2)}
-      </pre>
-    );
-  }
+  const previewRef = useRef<HTMLDivElement>(null);
 
   return (
-    <div className="mx-auto max-w-md rounded-lg border-2 border-zinc-300 bg-white shadow-lg">
-      {/* Instagram風のヘッダー */}
-      <div className="flex items-center gap-2 border-b border-zinc-200 px-4 py-3">
-        <div className="h-8 w-8 rounded-full bg-gradient-to-br from-purple-500 to-pink-500"></div>
-        <div className="flex-1">
-          <div className="text-sm font-semibold text-zinc-900">美容クリニック</div>
+    <div className="space-y-2">
+      {onExportImage && (
+        <button
+          onClick={() => {
+            if (previewRef.current) {
+              onExportImage(previewRef.current);
+            }
+          }}
+          className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-blue-500"
+        >
+          📥 画像としてダウンロード
+        </button>
+      )}
+      <div ref={previewRef} className="mx-auto max-w-md rounded-lg border-2 border-zinc-300 bg-white shadow-lg" style={{ width: '400px' }}>
+        {/* Instagram風のヘッダー */}
+        <div className="flex items-center gap-2 border-b border-zinc-200 px-4 py-3 bg-white">
+          <div className="h-8 w-8 rounded-full bg-gradient-to-br from-purple-500 to-pink-500"></div>
+          <div className="flex-1">
+            <div className="text-sm font-semibold text-zinc-900">美容クリニック</div>
+          </div>
         </div>
-      </div>
 
-      {/* メインコンテンツ */}
-      <div className="p-4">
-        {/* タイトルまたはヘッドライン */}
-        {"title" in lpData || "headline" in lpData ? (
-          <h3 className="mb-3 text-lg font-bold text-zinc-900">
-            {String(lpData.title || lpData.headline || "")}
-          </h3>
-        ) : null}
+        {/* メインコンテンツ */}
+        <div className="p-6 bg-white">
+          {/* タイトルまたはヘッドライン */}
+          {displayTitle && (
+            <h3 className="mb-4 text-xl font-bold text-zinc-900 leading-tight">
+              {displayTitle}
+            </h3>
+          )}
 
-        {/* 説明文 */}
-        {"description" in lpData && lpData.description ? (
-          <p className="mb-4 whitespace-pre-line text-sm leading-relaxed text-zinc-700">
-            {String(lpData.description)}
-          </p>
-        ) : null}
+          {/* 説明文 */}
+          {displayDescription && (
+            <p className="mb-4 whitespace-pre-line text-sm leading-relaxed text-zinc-700">
+              {displayDescription}
+            </p>
+          )}
 
-        {/* キーポイント */}
-        {"keyPoints" in lpData && Array.isArray(lpData.keyPoints) && lpData.keyPoints.length > 0 ? (
-          <div className="mb-4 space-y-2">
-            {lpData.keyPoints.map((point: unknown, index: number) => (
-              <div key={index} className="flex items-start gap-2">
-                <span className="mt-1 text-blue-600">✓</span>
-                <span className="flex-1 text-sm text-zinc-700">{String(point)}</span>
-              </div>
-            ))}
-          </div>
-        ) : null}
-
-        {/* ベネフィット */}
-        {"benefits" in lpData && Array.isArray(lpData.benefits) && lpData.benefits.length > 0 ? (
-          <div className="mb-4 rounded-lg bg-gradient-to-r from-pink-50 to-purple-50 p-3">
-            <h4 className="mb-2 text-sm font-semibold text-zinc-900">✨ 特典</h4>
-            <ul className="space-y-1">
-              {lpData.benefits.map((benefit: unknown, index: number) => (
-                <li key={index} className="text-sm text-zinc-700">
-                  • {String(benefit)}
-                </li>
+          {/* キーポイント */}
+          {parsed.keyPoints.length > 0 && (
+            <div className="mb-4 space-y-2">
+              {parsed.keyPoints.map((point, index) => (
+                <div key={index} className="flex items-start gap-2">
+                  <span className="mt-1 text-blue-600 font-bold">✓</span>
+                  <span className="flex-1 text-sm text-zinc-700">{point}</span>
+                </div>
               ))}
-            </ul>
+            </div>
+          )}
+
+          {/* ベネフィット */}
+          {parsed.benefits.length > 0 && (
+            <div className="mb-4 rounded-lg bg-gradient-to-r from-pink-50 to-purple-50 p-4">
+              <h4 className="mb-2 text-sm font-semibold text-zinc-900">✨ 特典</h4>
+              <ul className="space-y-1">
+                {parsed.benefits.map((benefit, index) => (
+                  <li key={index} className="text-sm text-zinc-700">
+                    • {benefit}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+
+          {/* コールトゥアクション */}
+          {parsed.callToAction && (
+            <button className="mb-4 w-full rounded-lg bg-gradient-to-r from-pink-500 to-purple-500 px-4 py-3 text-base font-semibold text-white transition hover:from-pink-600 hover:to-purple-600 shadow-md">
+              {parsed.callToAction}
+            </button>
+          )}
+
+          {/* ハッシュタグ */}
+          {parsed.hashtags.length > 0 && (
+            <div className="flex flex-wrap gap-2 border-t border-zinc-200 pt-3">
+              {parsed.hashtags.map((tag, index) => (
+                <span
+                  key={index}
+                  className="text-xs text-blue-600 hover:underline font-medium"
+                >
+                  #{tag.replace(/^#/, "")}
+                </span>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* フッター（いいね、コメントなど） */}
+        <div className="border-t border-zinc-200 px-4 py-3 bg-white">
+          <div className="flex items-center gap-4 text-base text-zinc-500">
+            <span className="text-xl">❤️</span>
+            <span className="text-xl">💬</span>
+            <span className="text-xl">📤</span>
+            <span className="ml-auto text-xs">{new Date().toLocaleDateString("ja-JP")}</span>
           </div>
-        ) : null}
-
-        {/* コールトゥアクション */}
-        {"callToAction" in lpData && lpData.callToAction ? (
-          <button className="mb-4 w-full rounded-lg bg-gradient-to-r from-pink-500 to-purple-500 px-4 py-3 text-sm font-semibold text-white transition hover:from-pink-600 hover:to-purple-600">
-            {String(lpData.callToAction)}
-          </button>
-        ) : null}
-
-        {/* ハッシュタグ */}
-        {"hashtags" in lpData && Array.isArray(lpData.hashtags) && lpData.hashtags.length > 0 ? (
-          <div className="flex flex-wrap gap-1 border-t border-zinc-200 pt-3">
-            {lpData.hashtags.map((tag: unknown, index: number) => (
-              <span
-                key={index}
-                className="text-xs text-blue-600 hover:underline"
-              >
-                #{String(tag).replace(/^#/, "")}
-              </span>
-            ))}
-          </div>
-        ) : null}
-
-        {/* デザイン指示（開発者向け、折りたたみ可能） */}
-        {"designNotes" in lpData && lpData.designNotes ? (
-          <details className="mt-4 border-t border-zinc-200 pt-3">
-            <summary className="cursor-pointer text-xs font-medium text-zinc-500 hover:text-zinc-700">
-              デザイン指示を見る
-            </summary>
-            <p className="mt-2 text-xs text-zinc-600">{String(lpData.designNotes)}</p>
-          </details>
-        ) : null}
-      </div>
-
-      {/* フッター（いいね、コメントなど） */}
-      <div className="border-t border-zinc-200 px-4 py-2">
-        <div className="flex items-center gap-4 text-sm text-zinc-500">
-          <span>❤️</span>
-          <span>💬</span>
-          <span>📤</span>
-          <span className="ml-auto">{new Date().toLocaleDateString("ja-JP")}</span>
         </div>
       </div>
     </div>
@@ -220,6 +284,43 @@ export function ContentGeneration() {
     setPromotion("");
     setSeoKeywords([]);
     setKeywordInput("");
+  };
+
+  const handleExportImage = async (element: HTMLElement) => {
+    try {
+      // LP部分のみをキャプチャ（ボタンは親要素にあるので影響しない）
+      const canvas = await html2canvas(element, {
+        backgroundColor: "#ffffff",
+        scale: 2, // 高解像度で出力
+        logging: false,
+        width: element.scrollWidth,
+        height: element.scrollHeight,
+        useCORS: true,
+        windowWidth: element.scrollWidth,
+        windowHeight: element.scrollHeight,
+      });
+      
+      // 画像をダウンロード
+      const url = canvas.toDataURL("image/png", 1.0);
+      const link = document.createElement("a");
+      link.download = `instagram-lp-${Date.now()}.png`;
+      link.href = url;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+      
+      setFeedback({
+        type: "success",
+        message: "画像をダウンロードしました",
+      });
+    } catch (error) {
+      console.error("画像出力エラー:", error);
+      setFeedback({
+        type: "error",
+        message: "画像の出力に失敗しました",
+      });
+    }
   };
 
   const handleAddKeyword = () => {
@@ -551,7 +652,7 @@ export function ContentGeneration() {
           <h2 className="mb-4 text-lg font-semibold text-zinc-900">プレビュー</h2>
           <div className="rounded-lg border border-zinc-200 bg-zinc-50 p-4">
             {previewContent.type === "instagram_lp" && (
-              <div className="space-y-4">
+              <div className="space-y-6">
                 {Array.isArray(previewContent.data) &&
                   "results" in previewContent.data &&
                   Array.isArray(previewContent.data.results) &&
@@ -562,14 +663,14 @@ export function ContentGeneration() {
                       "result" in item
                         ? item.result
                         : null;
-                    if (!result || typeof result !== "object") return null;
+                    if (!result) return null;
 
                     return (
                       <div
                         key={index}
                         className="rounded-lg border border-zinc-300 bg-white p-4"
                       >
-                        <h3 className="mb-2 text-sm font-semibold text-zinc-900">
+                        <h3 className="mb-4 text-sm font-semibold text-zinc-900">
                           案 {index + 1}
                           {"approach" in (item as Record<string, unknown>) &&
                             typeof (item as Record<string, unknown>).approach === "string" && (
@@ -578,31 +679,10 @@ export function ContentGeneration() {
                               </span>
                             )}
                         </h3>
-                        {"headline" in result && (
-                          <h4 className="mb-2 text-base font-bold text-zinc-900">
-                            {String(result.headline)}
-                          </h4>
-                        )}
-                        {"description" in result && (
-                          <p className="mb-2 text-sm text-zinc-700">
-                            {String(result.description)}
-                          </p>
-                        )}
-                        {"hashtags" in result &&
-                          Array.isArray(result.hashtags) && (
-                            <div className="mt-2 flex flex-wrap gap-1">
-                              {result.hashtags.map(
-                                (tag: unknown, tagIndex: number) => (
-                                  <span
-                                    key={tagIndex}
-                                    className="rounded bg-blue-100 px-2 py-1 text-xs text-blue-700"
-                                  >
-                                    #{String(tag)}
-                                  </span>
-                                ),
-                              )}
-                            </div>
-                          )}
+                        <InstagramLPPreview 
+                          content={typeof result === "string" ? result : String(result)} 
+                          onExportImage={handleExportImage}
+                        />
                       </div>
                     );
                   })}
@@ -610,54 +690,26 @@ export function ContentGeneration() {
             )}
             {previewContent.type === "website_article" && (
               <div className="space-y-4">
-                {"result" in (previewContent.data as Record<string, unknown>) &&
-                  typeof (previewContent.data as Record<string, unknown>).result === "object" &&
-                  (previewContent.data as Record<string, unknown>).result !== null && (
-                    <>
-                      {"title" in (previewContent.data as Record<string, unknown>).result as Record<string, unknown> && (
-                        <h3 className="text-lg font-bold text-zinc-900">
-                          {String(((previewContent.data as Record<string, unknown>).result as Record<string, unknown>).title)}
-                        </h3>
-                      )}
-                      {"content" in ((previewContent.data as Record<string, unknown>).result as Record<string, unknown>) && (
-                        <div
-                          className="prose prose-sm max-w-none"
-                          dangerouslySetInnerHTML={{
-                            __html: String(
-                              ((previewContent.data as Record<string, unknown>).result as Record<string, unknown>).content,
-                            ),
-                          }}
-                        />
-                      )}
-                    </>
-                  )}
+                {"result" in (previewContent.data as Record<string, unknown>) && (
+                  <div
+                    className="prose prose-sm max-w-none whitespace-pre-line"
+                  >
+                    {typeof (previewContent.data as Record<string, unknown>).result === "string"
+                      ? (previewContent.data as Record<string, unknown>).result
+                      : String((previewContent.data as Record<string, unknown>).result)}
+                  </div>
+                )}
               </div>
             )}
             {previewContent.type === "campaign_copy" && (
               <div className="space-y-4">
-                {"result" in (previewContent.data as Record<string, unknown>) &&
-                  typeof (previewContent.data as Record<string, unknown>).result === "object" &&
-                  (previewContent.data as Record<string, unknown>).result !== null && (
-                    <>
-                      {((previewContent.data as Record<string, unknown>).result as unknown) && typeof ((previewContent.data as Record<string, unknown>).result as unknown) === "object" && "headline" in ((previewContent.data as Record<string, unknown>).result as Record<string, unknown>) && (
-                        <h3 className="text-lg font-bold text-zinc-900">
-                          {String(((previewContent.data as Record<string, unknown>).result as Record<string, unknown>).headline)}
-                        </h3>
-                      )}
-                      {"bodyCopy" in ((previewContent.data as Record<string, unknown>).result as Record<string, unknown>) && (
-                        <p className="text-sm leading-relaxed text-zinc-700">
-                          {String(((previewContent.data as Record<string, unknown>).result as Record<string, unknown>).bodyCopy)}
-                        </p>
-                      )}
-                      {"callToAction" in ((previewContent.data as Record<string, unknown>).result as Record<string, unknown>) && (
-                        <div className="mt-4">
-                          <button className="rounded-lg bg-blue-600 px-6 py-2 text-sm font-medium text-white">
-                            {String(((previewContent.data as Record<string, unknown>).result as Record<string, unknown>).callToAction)}
-                          </button>
-                        </div>
-                      )}
-                    </>
-                  )}
+                {"result" in (previewContent.data as Record<string, unknown>) && (
+                  <div className="whitespace-pre-line text-sm leading-relaxed text-zinc-700">
+                    {typeof (previewContent.data as Record<string, unknown>).result === "string"
+                      ? (previewContent.data as Record<string, unknown>).result
+                      : String((previewContent.data as Record<string, unknown>).result)}
+                  </div>
+                )}
               </div>
             )}
           </div>
@@ -723,12 +775,15 @@ export function ContentGeneration() {
                   </summary>
                   <div className="mt-2">
                     {content.contentType === "instagram_lp" ? (
-                      <InstagramLPPreview content={content.content} />
+                      <InstagramLPPreview 
+                        content={content.content} 
+                        onExportImage={handleExportImage}
+                      />
                     ) : (
-                      <pre className="max-h-60 overflow-auto rounded bg-zinc-50 p-3 text-xs text-zinc-900">
+                      <pre className="max-h-60 overflow-auto rounded bg-zinc-50 p-3 text-xs text-zinc-900 whitespace-pre-wrap">
                         {typeof content.content === "string"
                           ? content.content
-                          : JSON.stringify(content.content, null, 2)}
+                          : String(content.content)}
                       </pre>
                     )}
                   </div>

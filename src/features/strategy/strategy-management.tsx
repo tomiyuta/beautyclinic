@@ -71,7 +71,7 @@ export function StrategyManagement() {
         let filename: string;
 
         if (result.data.format === "json") {
-          blob = new Blob([JSON.stringify(result.data.content, null, 2)], {
+          blob = new Blob([typeof result.data.content === "string" ? result.data.content : String(result.data.content)], {
             type: "application/json",
           });
           filename = `strategy-${selectedStrategyId}.json`;
@@ -433,16 +433,7 @@ export function StrategyManagement() {
                       <div>
                         <strong>価格設定提案:</strong>
                         <div className="mt-1 whitespace-pre-wrap rounded bg-zinc-50 p-2 text-xs text-zinc-900">
-                          {(() => {
-                            try {
-                              // 既存データがJSON形式の場合とテキスト形式の場合の両方に対応
-                              const parsed = JSON.parse(strategy.priceRecommendations);
-                              return JSON.stringify(parsed, null, 2);
-                            } catch {
-                              // JSONでない場合はテキスト形式として表示
-                              return strategy.priceRecommendations;
-                            }
-                          })()}
+                          {strategy.priceRecommendations}
                         </div>
                       </div>
                     )}
@@ -450,16 +441,7 @@ export function StrategyManagement() {
                       <div>
                         <strong>キャンペーン案:</strong>
                         <div className="mt-1 whitespace-pre-wrap rounded bg-zinc-50 p-2 text-xs text-zinc-900">
-                          {(() => {
-                            try {
-                              // 既存データがJSON形式の場合とテキスト形式の場合の両方に対応
-                              const parsed = JSON.parse(strategy.campaignProposals);
-                              return JSON.stringify(parsed, null, 2);
-                            } catch {
-                              // JSONでない場合はテキスト形式として表示
-                              return strategy.campaignProposals;
-                            }
-                          })()}
+                          {strategy.campaignProposals}
                         </div>
                       </div>
                     )}

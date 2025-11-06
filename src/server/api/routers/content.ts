@@ -50,24 +50,16 @@ export const contentRouter = router({
             approach,
           );
 
-          let parsedResult;
-          try {
-            parsedResult = JSON.parse(result);
-          } catch {
-            parsedResult = { raw: result };
-          }
-
-          // データベースに保存
+          // テキスト形式で保存（JSONパースしない）
           const saved = await db.generatedContent.create({
             data: {
               userId: input.userId,
               strategyId: input.strategyId || 0,
               contentType: "instagram_lp",
-              title: parsedResult.title || input.campaignTitle,
-              content: JSON.stringify(parsedResult),
+              title: input.campaignTitle,
+              content: result,
               metadata: JSON.stringify({
                 designApproach: approach,
-                hashtags: parsedResult.hashtags || [],
               }),
               aiAgent: "chatgpt",
             },
@@ -76,7 +68,7 @@ export const contentRouter = router({
           results.push({
             id: saved.id,
             approach,
-            result: parsedResult,
+            result: result,
           });
         }
 
@@ -118,24 +110,16 @@ export const contentRouter = router({
           input.seoKeywords,
         );
 
-        let parsedResult;
-        try {
-          parsedResult = JSON.parse(result);
-        } catch {
-          parsedResult = { raw: result };
-        }
-
-        // データベースに保存
+        // テキスト形式で保存（JSONパースしない）
         const saved = await db.generatedContent.create({
           data: {
             userId: input.userId,
             strategyId: input.strategyId || 0,
             contentType: "website_article",
-            title: parsedResult.title || input.campaignTitle,
-            content: parsedResult.content || JSON.stringify(parsedResult),
+            title: input.campaignTitle,
+            content: result,
             metadata: JSON.stringify({
-              metaDescription: parsedResult.metaDescription,
-              keywords: parsedResult.keywords || [],
+              keywords: input.seoKeywords || [],
             }),
             aiAgent: "chatgpt",
           },
@@ -143,7 +127,7 @@ export const contentRouter = router({
 
         return {
           id: saved.id,
-          result: parsedResult,
+          result: result,
           message: "HP記事が生成されました",
         };
       } catch (error) {
@@ -185,24 +169,16 @@ export const contentRouter = router({
           input.tone,
         );
 
-        let parsedResult;
-        try {
-          parsedResult = JSON.parse(result);
-        } catch {
-          parsedResult = { raw: result };
-        }
-
-        // データベースに保存
+        // テキスト形式で保存（JSONパースしない）
         const saved = await db.generatedContent.create({
           data: {
             userId: input.userId,
             strategyId: input.strategyId || 0,
             contentType: "campaign_copy",
-            title: parsedResult.headline || input.campaignTitle,
-            content: JSON.stringify(parsedResult),
+            title: input.campaignTitle,
+            content: result,
             metadata: JSON.stringify({
               tone: input.tone,
-              slogan: parsedResult.slogan,
             }),
             aiAgent: "chatgpt",
           },
@@ -210,7 +186,7 @@ export const contentRouter = router({
 
         return {
           id: saved.id,
-          result: parsedResult,
+          result: result,
           message: "キャンペーンコピーが生成されました",
         };
       } catch (error) {
@@ -268,16 +244,10 @@ export const contentRouter = router({
         });
       }
 
-      let parsedContent;
-      try {
-        parsedContent = JSON.parse(result.content);
-      } catch {
-        parsedContent = result.content;
-      }
-
+      // テキスト形式で返す（JSONパースしない）
       return {
         ...result,
-        content: parsedContent,
+        content: result.content,
         metadata: result.metadata ? JSON.parse(result.metadata) : null,
       };
     }),

@@ -77,60 +77,10 @@ export const strategyManagementRouter = router({
             orderBy: { createdAt: "desc" },
           });
 
-          // 提案内容の要約を生成
-          let priceRecommendationsCount = 0;
-          let campaignProposalsCount = 0;
-          let newTreatmentSuggestionsCount = 0;
-
-          try {
-            if (strategy.priceRecommendations) {
-              try {
-                const parsed = JSON.parse(strategy.priceRecommendations);
-                priceRecommendationsCount = Array.isArray(parsed)
-                  ? parsed.length
-                  : Array.isArray(parsed.recommendations)
-                    ? parsed.recommendations.length
-                    : parsed.recommendations
-                      ? 1
-                      : 0;
-              } catch {
-                // JSONでない場合はテキスト形式として扱う（カウントは1）
-                priceRecommendationsCount = 1;
-              }
-            }
-            if (strategy.campaignProposals) {
-              try {
-                const parsed = JSON.parse(strategy.campaignProposals);
-                campaignProposalsCount = Array.isArray(parsed)
-                  ? parsed.length
-                  : Array.isArray(parsed.campaigns)
-                    ? parsed.campaigns.length
-                    : parsed.campaigns
-                      ? 1
-                      : 0;
-              } catch {
-                // JSONでない場合はテキスト形式として扱う（カウントは1）
-                campaignProposalsCount = 1;
-              }
-            }
-            if (strategy.newTreatmentSuggestions) {
-              try {
-                const parsed = JSON.parse(strategy.newTreatmentSuggestions);
-                newTreatmentSuggestionsCount = Array.isArray(parsed)
-                  ? parsed.length
-                  : Array.isArray(parsed.suggestions)
-                    ? parsed.suggestions.length
-                    : parsed.suggestions
-                      ? 1
-                      : 0;
-              } catch {
-                // JSONでない場合はテキスト形式として扱う（カウントは1）
-                newTreatmentSuggestionsCount = 1;
-              }
-            }
-          } catch {
-            // JSONパースエラーは無視
-          }
+          // 提案内容の要約を生成（テキスト形式として扱う）
+          let priceRecommendationsCount = strategy.priceRecommendations ? 1 : 0;
+          let campaignProposalsCount = strategy.campaignProposals ? 1 : 0;
+          let newTreatmentSuggestionsCount = strategy.newTreatmentSuggestions ? 1 : 0;
 
           return {
             ...strategy,
@@ -174,42 +124,10 @@ export const strategyManagementRouter = router({
       const data = {
         id: strategy.id,
         analysisDate: strategy.analysisDate,
-        priceRecommendations: strategy.priceRecommendations
-          ? (() => {
-              try {
-                return JSON.parse(strategy.priceRecommendations);
-              } catch {
-                return strategy.priceRecommendations; // テキスト形式として返す
-              }
-            })()
-          : null,
-        campaignProposals: strategy.campaignProposals
-          ? (() => {
-              try {
-                return JSON.parse(strategy.campaignProposals);
-              } catch {
-                return strategy.campaignProposals; // テキスト形式として返す
-              }
-            })()
-          : null,
-        newTreatmentSuggestions: strategy.newTreatmentSuggestions
-          ? (() => {
-              try {
-                return JSON.parse(strategy.newTreatmentSuggestions);
-              } catch {
-                return strategy.newTreatmentSuggestions; // テキスト形式として返す
-              }
-            })()
-          : null,
-        marketingStrategy: strategy.marketingStrategy
-          ? (() => {
-              try {
-                return JSON.parse(strategy.marketingStrategy);
-              } catch {
-                return strategy.marketingStrategy; // テキスト形式として返す
-              }
-            })()
-          : null,
+        priceRecommendations: strategy.priceRecommendations, // テキスト形式として扱う
+        campaignProposals: strategy.campaignProposals, // テキスト形式として扱う
+        newTreatmentSuggestions: strategy.newTreatmentSuggestions, // テキスト形式として扱う
+        marketingStrategy: strategy.marketingStrategy, // テキスト形式として扱う
         userFeedback: strategy.userFeedback,
         implementationStatus: strategy.implementationStatus,
         createdAt: strategy.createdAt,
@@ -224,38 +142,22 @@ export const strategyManagementRouter = router({
 
         if (data.priceRecommendations) {
           text += `価格設定提案\n`;
-          if (typeof data.priceRecommendations === "string") {
-            text += `${data.priceRecommendations}\n\n`;
-          } else {
-            text += `${JSON.stringify(data.priceRecommendations, null, 2)}\n\n`;
-          }
+          text += `${data.priceRecommendations}\n\n`;
         }
 
         if (data.campaignProposals) {
           text += `キャンペーン案\n`;
-          if (typeof data.campaignProposals === "string") {
-            text += `${data.campaignProposals}\n\n`;
-          } else {
-            text += `${JSON.stringify(data.campaignProposals, null, 2)}\n\n`;
-          }
+          text += `${data.campaignProposals}\n\n`;
         }
 
         if (data.newTreatmentSuggestions) {
           text += `新施術提案\n`;
-          if (typeof data.newTreatmentSuggestions === "string") {
-            text += `${data.newTreatmentSuggestions}\n\n`;
-          } else {
-            text += `${JSON.stringify(data.newTreatmentSuggestions, null, 2)}\n\n`;
-          }
+          text += `${data.newTreatmentSuggestions}\n\n`;
         }
 
         if (data.marketingStrategy) {
           text += `マーケティング戦略\n`;
-          if (typeof data.marketingStrategy === "string") {
-            text += `${data.marketingStrategy}\n\n`;
-          } else {
-            text += `${JSON.stringify(data.marketingStrategy, null, 2)}\n\n`;
-          }
+          text += `${data.marketingStrategy}\n\n`;
         }
 
         if (strategy.userFeedback) {

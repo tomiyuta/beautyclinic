@@ -1,0 +1,22 @@
+runtime: nodejs20
+
+instance_class: F2
+
+automatic_scaling:
+  min_instances: 1
+  max_instances: 10
+  target_cpu_utilization: 0.6
+
+env_variables:
+  NODE_ENV: production
+  # 以下の環境変数は実際の値に置き換えてください
+  # DATABASE_URL: "mysql://user:password@/ai_clinic?unix_socket=/cloudsql/project:region:instance"
+  # GEMINI_API_KEY: "your-gemini-api-key"
+  # GROK_API_KEY: "your-grok-api-key"
+  # CLAUDE_API_KEY: "your-claude-api-key"
+  # OPENAI_API_KEY: "your-openai-api-key"
+
+# Cloud SQL接続用（必要に応じて）
+# beta_settings:
+#   cloud_sql_instances: "project:region:instance"
+
