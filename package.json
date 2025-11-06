@@ -5,12 +5,12 @@
   "scripts": {
     "dev": "next dev",
     "dev:webpack": "next dev",
-    "build": "prisma generate --schema=./prisma/schema.prisma && next build",
+    "build": "DATABASE_URL=\"mysql://dummy:dummy@localhost:3306/dummy\" prisma generate --schema=./prisma/schema.prisma && next build",
     "start": "next start",
     "lint": "eslint .",
     "startup": "./start.sh",
     "quick-start": "./start.sh",
-    "postinstall": "prisma generate --schema=./prisma/schema.prisma"
+    "postinstall": "DATABASE_URL=\"mysql://dummy:dummy@localhost:3306/dummy\" prisma generate --schema=./prisma/schema.prisma"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.68.0",
