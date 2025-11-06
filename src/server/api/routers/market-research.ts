@@ -65,9 +65,7 @@ export const marketResearchRouter = router({
           .array(z.string().min(1))
           .min(1, "少なくとも1つの施術を指定してください"),
         cities: z
-          .array(
-            z.enum(["東京", "名古屋", "大阪", "福岡", "その他"]),
-          )
+          .array(z.string().min(1, "都市名を入力してください"))
           .min(1, "少なくとも1つの都市を指定してください"),
       }),
     )

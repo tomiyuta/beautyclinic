@@ -16,6 +16,7 @@ export function MarketResearch() {
   const [treatments, setTreatments] = useState<string[]>([]);
   const [treatmentInput, setTreatmentInput] = useState("");
   const [cities, setCities] = useState<string[]>([]);
+  const [cityInput, setCityInput] = useState("");
   const [feedback, setFeedback] = useState<{
     type: "success" | "error" | null;
     message: string;
@@ -99,12 +100,15 @@ export function MarketResearch() {
     setTreatments(treatments.filter((t) => t !== treatment));
   };
 
-  const handleToggleCity = (city: string) => {
-    if (cities.includes(city)) {
-      setCities(cities.filter((c) => c !== city));
-    } else {
-      setCities([...cities, city]);
+  const handleAddCity = () => {
+    if (cityInput.trim() && !cities.includes(cityInput.trim())) {
+      setCities([...cities, cityInput.trim()]);
+      setCityInput("");
     }
+  };
+
+  const handleRemoveCity = (city: string) => {
+    setCities(cities.filter((c) => c !== city));
   };
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
@@ -135,14 +139,14 @@ export function MarketResearch() {
         if (cities.length === 0) {
           setFeedback({
             type: "error",
-            message: "少なくとも1つの都市を選択してください",
+            message: "少なくとも1つの都市を追加してください",
           });
           return;
         }
         await priceMutation.mutateAsync({
           userId: USER_ID_PLACEHOLDER,
           treatments,
-          cities: cities as ("東京" | "名古屋" | "大阪" | "福岡" | "その他")[],
+          cities,
         });
       } else if (researchType === "competitor_analysis") {
         if (!location.trim()) {
@@ -277,22 +281,47 @@ export function MarketResearch() {
                 <label className="mb-2 block text-sm font-medium text-zinc-700">
                   調査対象都市 *
                 </label>
-                <div className="flex flex-wrap gap-2">
-                  {["東京", "名古屋", "大阪", "福岡"].map((city) => (
-                    <label
-                      key={city}
-                      className="flex cursor-pointer items-center gap-2 rounded-lg border border-zinc-200 px-4 py-2 hover:bg-zinc-50"
-                    >
-                      <input
-                        type="checkbox"
-                        checked={cities.includes(city)}
-                        onChange={() => handleToggleCity(city)}
-                        className="size-4 rounded border-zinc-300 text-blue-600 focus:ring-blue-500"
-                      />
-                      <span className="text-sm text-zinc-700">{city}</span>
-                    </label>
-                  ))}
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={cityInput}
+                    onChange={(e) => setCityInput(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        e.preventDefault();
+                        handleAddCity();
+                      }
+                    }}
+                    placeholder="例：東京、大阪、名古屋"
+                    className="flex-1 rounded-lg border border-zinc-200 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200"
+                  />
+                  <button
+                    type="button"
+                    onClick={handleAddCity}
+                    className="rounded-lg bg-blue-100 px-4 py-2 text-sm font-medium text-blue-700 hover:bg-blue-200"
+                  >
+                    追加
+                  </button>
                 </div>
+                {cities.length > 0 && (
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    {cities.map((city) => (
+                      <span
+                        key={city}
+                        className="inline-flex items-center gap-1 rounded-full bg-blue-50 px-3 py-1 text-sm text-blue-700"
+                      >
+                        {city}
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveCity(city)}
+                          className="text-blue-500 hover:text-blue-700"
+                        >
+                          ×
+                        </button>
+                      </span>
+                    ))}
+                  </div>
+                )}
               </div>
             </>
           )}
