@@ -1,7 +1,7 @@
 {
   "buildCommand": "npm run build",
   "devCommand": "npm run dev",
-  "installCommand": "npm install --ignore-scripts && DATABASE_URL=\"mysql://dummy:dummy@localhost:3306/dummy\" npm run build --if-present || true",
+  "installCommand": "npm install --ignore-scripts",
   "framework": "nextjs",
   "env": {
     "DATABASE_URL": "mysql://dummy:dummy@localhost:3306/dummy"
