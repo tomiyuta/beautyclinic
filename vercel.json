@@ -1,7 +1,7 @@
 {
   "buildCommand": "npm run build",
   "devCommand": "npm run dev",
-  "installCommand": "npm install",
+  "installCommand": "DATABASE_URL=\"mysql://dummy:dummy@localhost:3306/dummy\" npm install",
   "framework": "nextjs",
   "env": {
     "DATABASE_URL": "mysql://dummy:dummy@localhost:3306/dummy"
