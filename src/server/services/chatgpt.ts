@@ -127,7 +127,7 @@ ${keywords}
     campaignTitle: campaign.title,
     campaignDescription: campaign.description,
     targetAudience: campaign.targetAudience || "美容に興味のある20-50代の女性",
-    keywords: keywords.join(", ")
+    keywords: keywords
   });
 
   return callChatGPT(prompt);
