@@ -9,7 +9,8 @@
     "start": "next start",
     "lint": "eslint .",
     "startup": "./start.sh",
-    "quick-start": "./start.sh"
+    "quick-start": "./start.sh",
+    "postinstall": "prisma generate --schema=./prisma/schema.prisma"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"
