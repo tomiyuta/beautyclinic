@@ -1,13 +1,26 @@
 "use client";
 
 import { useState } from "react";
-
+import Button from "@atlaskit/button";
+import TextField from "@atlaskit/textfield";
+import Select from "@atlaskit/select";
+import Banner from "@atlaskit/banner";
+import Badge from "@atlaskit/badge";
+import Tag from "@atlaskit/tag";
+import Spinner from "@atlaskit/spinner";
+import EmptyState from "@atlaskit/empty-state";
 import { api } from "@/trpc/react";
 import { TRPCClientError } from "@trpc/client";
 
 type ResearchType = "trend_analysis" | "price_research" | "competitor_analysis";
 
 const USER_ID_PLACEHOLDER = 1;
+
+const researchTypeOptions = [
+  { label: "トレンド分析", value: "trend_analysis" },
+  { label: "価格調査", value: "price_research" },
+  { label: "競合調査", value: "competitor_analysis" },
+];
 
 export function MarketResearch() {
   const [researchType, setResearchType] = useState<ResearchType | "">("");
@@ -30,6 +43,7 @@ export function MarketResearch() {
         type: "success",
         message: "トレンド分析が完了しました",
       });
+      setTimeout(() => setFeedback({ type: null, message: "" }), 5000);
       void utils.marketResearch.list.invalidate({
         userId: USER_ID_PLACEHOLDER,
       });
@@ -41,6 +55,7 @@ export function MarketResearch() {
         type: "error", 
         message
       });
+      setTimeout(() => setFeedback({ type: null, message: "" }), 5000);
     },
   });
 
@@ -50,6 +65,7 @@ export function MarketResearch() {
         type: "success",
         message: "価格調査が完了しました",
       });
+      setTimeout(() => setFeedback({ type: null, message: "" }), 5000);
       void utils.marketResearch.list.invalidate({
         userId: USER_ID_PLACEHOLDER,
       });
@@ -62,6 +78,7 @@ export function MarketResearch() {
         type: "error", 
         message
       });
+      setTimeout(() => setFeedback({ type: null, message: "" }), 5000);
     },
   });
 
@@ -72,6 +89,7 @@ export function MarketResearch() {
           type: "success",
           message: "競合調査が完了しました",
         });
+        setTimeout(() => setFeedback({ type: null, message: "" }), 5000);
         void utils.marketResearch.list.invalidate({
           userId: USER_ID_PLACEHOLDER,
         });
@@ -81,6 +99,7 @@ export function MarketResearch() {
       onError: (error: unknown) => {
         const message = error instanceof Error ? error.message : "エラーが発生しました";
         setFeedback({ type: "error", message });
+        setTimeout(() => setFeedback({ type: null, message: "" }), 5000);
       },
     });
 
@@ -125,6 +144,7 @@ export function MarketResearch() {
             type: "error",
             message: "場所を入力してください",
           });
+          setTimeout(() => setFeedback({ type: null, message: "" }), 5000);
           return;
         }
         await trendMutation.mutateAsync({
@@ -137,6 +157,7 @@ export function MarketResearch() {
             type: "error",
             message: "少なくとも1つの施術を追加してください",
           });
+          setTimeout(() => setFeedback({ type: null, message: "" }), 5000);
           return;
         }
         if (cities.length === 0) {
@@ -144,6 +165,7 @@ export function MarketResearch() {
             type: "error",
             message: "少なくとも1つの都市を追加してください",
           });
+          setTimeout(() => setFeedback({ type: null, message: "" }), 5000);
           return;
         }
         await priceMutation.mutateAsync({
@@ -157,6 +179,7 @@ export function MarketResearch() {
             type: "error",
             message: "場所を入力してください",
           });
+          setTimeout(() => setFeedback({ type: null, message: "" }), 5000);
           return;
         }
         await competitorMutation.mutateAsync({
@@ -168,6 +191,7 @@ export function MarketResearch() {
     } catch (error) {
       if (error instanceof TRPCClientError) {
         setFeedback({ type: "error", message: error.message });
+        setTimeout(() => setFeedback({ type: null, message: "" }), 5000);
       }
     }
   };
@@ -185,48 +209,60 @@ export function MarketResearch() {
     }
   };
 
+  const isPending = trendMutation.isPending || priceMutation.isPending || competitorMutation.isPending;
+
   return (
-    <div className="mx-auto flex w-full max-w-4xl flex-col gap-10 py-12">
-      <header className="space-y-2">
-        <h1 className="text-2xl font-semibold text-zinc-900">市場調査</h1>
-        <p className="text-sm text-zinc-600">
+    <div style={{ maxWidth: "1000px", margin: "0 auto", padding: "48px 16px" }}>
+      <header style={{ marginBottom: "40px" }}>
+        <h1 style={{ fontSize: "24px", fontWeight: 600, marginBottom: "8px", color: "#172B4D" }}>
+          市場調査
+        </h1>
+        <p style={{ fontSize: "14px", color: "#6B778C" }}>
           市場動向、価格情報、競合情報を自動収集します
         </p>
       </header>
 
-      <section className="rounded-2xl border border-zinc-200 bg-white p-8 shadow-sm">
-        <form className="space-y-6" onSubmit={handleSubmit}>
+      {/* フィードバックメッセージ */}
+      {feedback.type && (
+        <Banner appearance={feedback.type === "success" ? "announcement" : "error"}>
+          {feedback.message}
+        </Banner>
+      )}
+
+      {/* 調査フォーム */}
+      <section style={{ marginBottom: "32px", padding: "32px", background: "#FFFFFF", borderRadius: "8px", border: "1px solid #DFE1E6" }}>
+        <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: "24px" }}>
           <div>
-            <label className="mb-2 block text-sm font-medium text-zinc-700">
+            <label style={{ display: "block", marginBottom: "8px", fontSize: "14px", fontWeight: 500, color: "#42526E" }}>
               調査タイプ *
             </label>
-            <select
-              required
-              value={researchType}
-              onChange={(e) =>
-                setResearchType(e.target.value as ResearchType | "")
-              }
-              className="w-full rounded-lg border border-zinc-200 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200"
-            >
-              <option value="">選択してください</option>
-              <option value="trend_analysis">トレンド分析</option>
-              <option value="price_research">価格調査</option>
-              <option value="competitor_analysis">競合調査</option>
-            </select>
+            <Select
+              options={researchTypeOptions}
+              value={researchType ? researchTypeOptions.find(opt => opt.value === researchType) : null}
+              onChange={(option) => {
+                if (option && 'value' in option) {
+                  setResearchType(option.value as ResearchType);
+                } else {
+                  setResearchType("");
+                }
+              }}
+              placeholder="選択してください"
+              isRequired
+            />
           </div>
 
           {researchType === "trend_analysis" && (
             <div>
-              <label className="mb-2 block text-sm font-medium text-zinc-700">
+              <label style={{ display: "block", marginBottom: "8px", fontSize: "14px", fontWeight: 500, color: "#42526E" }}>
                 調査対象地域 *
               </label>
-              <input
+              <TextField
                 required
                 type="text"
                 value={location}
-                onChange={(e) => setLocation(e.target.value)}
+                onChange={(e) => setLocation((e.target as HTMLInputElement).value)}
                 placeholder="例：東京、大阪、名古屋"
-                className="w-full rounded-lg border border-zinc-200 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200"
+                style={{ width: "100%" }}
               />
             </div>
           )}
@@ -234,14 +270,14 @@ export function MarketResearch() {
           {researchType === "price_research" && (
             <>
               <div>
-                <label className="mb-2 block text-sm font-medium text-zinc-700">
+                <label style={{ display: "block", marginBottom: "8px", fontSize: "14px", fontWeight: 500, color: "#42526E" }}>
                   調査対象施術 *
                 </label>
-                <div className="flex gap-2">
-                  <input
+                <div style={{ display: "flex", gap: "8px", marginBottom: "8px" }}>
+                  <TextField
                     type="text"
                     value={treatmentInput}
-                    onChange={(e) => setTreatmentInput(e.target.value)}
+                    onChange={(e) => setTreatmentInput((e.target as HTMLInputElement).value)}
                     onKeyDown={(e) => {
                       if (e.key === "Enter") {
                         e.preventDefault();
@@ -249,46 +285,43 @@ export function MarketResearch() {
                       }
                     }}
                     placeholder="例：ダーマペン4"
-                    className="flex-1 rounded-lg border border-zinc-200 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200"
+                    style={{ flex: 1 }}
                   />
-                  <button
+                  <Button
                     type="button"
+                    appearance="default"
                     onClick={handleAddTreatment}
-                    className="rounded-lg bg-blue-100 px-4 py-2 text-sm font-medium text-blue-700 hover:bg-blue-200"
                   >
                     追加
-                  </button>
+                  </Button>
                 </div>
                 {treatments.length > 0 && (
-                  <div className="mt-2 flex flex-wrap gap-2">
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: "8px" }}>
                     {treatments.map((treatment) => (
-                      <span
-                        key={treatment}
-                        className="inline-flex items-center gap-1 rounded-full bg-blue-50 px-3 py-1 text-sm text-blue-700"
-                      >
-                        {treatment}
-                        <button
-                          type="button"
+                      <div key={treatment} style={{ display: "flex", alignItems: "center", gap: "4px" }}>
+                        <Tag text={treatment} />
+                        <Button
+                          appearance="subtle-link"
                           onClick={() => handleRemoveTreatment(treatment)}
-                          className="text-blue-500 hover:text-blue-700"
+                          style={{ padding: "0", minWidth: "auto" }}
                         >
                           ×
-                        </button>
-                      </span>
+                        </Button>
+                      </div>
                     ))}
                   </div>
                 )}
               </div>
 
               <div>
-                <label className="mb-2 block text-sm font-medium text-zinc-700">
+                <label style={{ display: "block", marginBottom: "8px", fontSize: "14px", fontWeight: 500, color: "#42526E" }}>
                   調査対象都市 *
                 </label>
-                <div className="flex gap-2">
-                  <input
+                <div style={{ display: "flex", gap: "8px", marginBottom: "8px" }}>
+                  <TextField
                     type="text"
                     value={cityInput}
-                    onChange={(e) => setCityInput(e.target.value)}
+                    onChange={(e) => setCityInput((e.target as HTMLInputElement).value)}
                     onKeyDown={(e) => {
                       if (e.key === "Enter") {
                         e.preventDefault();
@@ -296,32 +329,29 @@ export function MarketResearch() {
                       }
                     }}
                     placeholder="例：東京、大阪、名古屋"
-                    className="flex-1 rounded-lg border border-zinc-200 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200"
+                    style={{ flex: 1 }}
                   />
-                  <button
+                  <Button
                     type="button"
+                    appearance="default"
                     onClick={handleAddCity}
-                    className="rounded-lg bg-blue-100 px-4 py-2 text-sm font-medium text-blue-700 hover:bg-blue-200"
                   >
                     追加
-                  </button>
+                  </Button>
                 </div>
                 {cities.length > 0 && (
-                  <div className="mt-2 flex flex-wrap gap-2">
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: "8px" }}>
                     {cities.map((city) => (
-                      <span
-                        key={city}
-                        className="inline-flex items-center gap-1 rounded-full bg-blue-50 px-3 py-1 text-sm text-blue-700"
-                      >
-                        {city}
-                        <button
-                          type="button"
+                      <div key={city} style={{ display: "flex", alignItems: "center", gap: "4px" }}>
+                        <Tag text={city} />
+                        <Button
+                          appearance="subtle-link"
                           onClick={() => handleRemoveCity(city)}
-                          className="text-blue-500 hover:text-blue-700"
+                          style={{ padding: "0", minWidth: "auto" }}
                         >
                           ×
-                        </button>
-                      </span>
+                        </Button>
+                      </div>
                     ))}
                   </div>
                 )}
@@ -332,107 +362,92 @@ export function MarketResearch() {
           {researchType === "competitor_analysis" && (
             <>
               <div>
-                <label className="mb-2 block text-sm font-medium text-zinc-700">
+                <label style={{ display: "block", marginBottom: "8px", fontSize: "14px", fontWeight: 500, color: "#42526E" }}>
                   調査対象地域 *
                 </label>
-                <input
+                <TextField
                   required
                   type="text"
                   value={location}
-                  onChange={(e) => setLocation(e.target.value)}
+                  onChange={(e) => setLocation((e.target as HTMLInputElement).value)}
                   placeholder="例：東京 新宿区"
-                  className="w-full rounded-lg border border-zinc-200 px-3 py-2 text-sm text-zinc-900 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200"
+                  style={{ width: "100%" }}
                 />
               </div>
               <div>
-                <label className="mb-2 block text-sm font-medium text-zinc-700">
+                <label style={{ display: "block", marginBottom: "8px", fontSize: "14px", fontWeight: 500, color: "#42526E" }}>
                   調査半径 (km)
                 </label>
-                <input
+                <TextField
                   type="number"
                   min="1"
                   max="20"
-                  value={radius}
-                  onChange={(e) => setRadius(Number.parseInt(e.target.value, 10))}
-                  className="w-full rounded-lg border border-zinc-200 px-3 py-2 text-sm text-zinc-900 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200"
+                  value={radius.toString()}
+                  onChange={(e) => setRadius(Number.parseInt((e.target as HTMLInputElement).value, 10) || 5)}
+                  style={{ width: "100%" }}
                 />
               </div>
             </>
           )}
 
-          {feedback.type && (
-            <div
-              className={`rounded-lg px-4 py-2 text-sm ${
-                feedback.type === "success"
-                  ? "bg-green-50 text-green-700"
-                  : "bg-red-50 text-red-700"
-              }`}
-            >
-              {feedback.message}
-            </div>
-          )}
-
-          <button
+          <Button
             type="submit"
-            disabled={
-              trendMutation.isPending ||
-              priceMutation.isPending ||
-              competitorMutation.isPending
-            }
-            className="inline-flex items-center justify-center rounded-lg bg-blue-600 px-5 py-2 text-sm font-medium text-white transition hover:bg-blue-500 disabled:cursor-not-allowed disabled:opacity-60"
+            appearance="primary"
+            isDisabled={isPending}
           >
-            {trendMutation.isPending ||
-            priceMutation.isPending ||
-            competitorMutation.isPending
-              ? "調査中..."
-              : "調査を開始"}
-          </button>
+            {isPending ? "調査中..." : "調査を開始"}
+          </Button>
         </form>
       </section>
 
-      <section className="rounded-2xl border border-zinc-200 bg-white p-6 shadow-sm">
-        <h2 className="mb-4 text-lg font-semibold text-zinc-900">
+      {/* 調査結果履歴 */}
+      <section style={{ padding: "24px", background: "#FFFFFF", borderRadius: "8px", border: "1px solid #DFE1E6" }}>
+        <h2 style={{ fontSize: "16px", fontWeight: 600, marginBottom: "16px", color: "#172B4D" }}>
           調査結果履歴
         </h2>
         {resultsQuery.isLoading && (
-          <p className="text-sm text-zinc-500">読み込み中...</p>
+          <div style={{ display: "flex", alignItems: "center", gap: "8px", padding: "16px" }}>
+            <Spinner size="small" />
+            <span style={{ fontSize: "14px", color: "#6B778C" }}>読み込み中...</span>
+          </div>
         )}
         {resultsQuery.error && (
-          <p className="text-sm text-red-600">
+          <Banner appearance="error">
             エラー: {resultsQuery.error.message}
-          </p>
+          </Banner>
         )}
         {resultsQuery.data && resultsQuery.data.length === 0 && (
-          <p className="text-sm text-zinc-500">
-            まだ調査結果がありません
-          </p>
+          <EmptyState
+            header="まだ調査結果がありません"
+            description="上記のフォームから調査を開始してください"
+          />
         )}
         {resultsQuery.data && resultsQuery.data.length > 0 && (
-          <div className="space-y-4">
+          <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
             {resultsQuery.data.map((result) => (
               <div
                 key={result.id}
-                className="rounded-lg border border-zinc-200 p-4"
+                style={{ padding: "16px", borderRadius: "8px", border: "1px solid #DFE1E6" }}
               >
-                <div className="flex items-start justify-between">
-                  <div className="flex-1">
-                    <div className="mb-2 flex items-center gap-2">
-                      <span className="rounded-full bg-blue-100 px-2.5 py-1 text-xs font-semibold text-blue-700">
+                <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between" }}>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "8px", flexWrap: "wrap" }}>
+                      <Badge appearance="added">
                         {getResearchTypeLabel(result.researchType)}
-                      </span>
-                      <span className="text-xs text-zinc-500">
+                      </Badge>
+                      <span style={{ fontSize: "12px", color: "#6B778C" }}>
                         {result.location}
                       </span>
-                      <span className="text-xs text-zinc-500">
+                      <span style={{ fontSize: "12px", color: "#6B778C" }}>
                         {new Date(result.createdAt).toLocaleString("ja-JP")}
                       </span>
                     </div>
                     {result.processedData && (
-                      <details className="mt-2">
-                        <summary className="cursor-pointer text-sm font-medium text-zinc-700 hover:text-zinc-900">
+                      <details style={{ marginTop: "8px" }}>
+                        <summary style={{ cursor: "pointer", fontSize: "14px", fontWeight: 500, color: "#42526E", listStyle: "none" }}>
                           結果を表示
                         </summary>
-                        <div className="mt-2 max-h-60 overflow-auto whitespace-pre-wrap rounded bg-zinc-50 p-3 text-sm text-zinc-900">
+                        <div style={{ marginTop: "8px", maxHeight: "240px", overflow: "auto", whiteSpace: "pre-wrap", padding: "12px", borderRadius: "4px", background: "#F4F5F7", fontSize: "14px", color: "#172B4D" }}>
                           {result.processedData}
                         </div>
                       </details>
@@ -449,4 +464,3 @@ export function MarketResearch() {
 }
 
 export default MarketResearch;
-

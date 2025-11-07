@@ -2,6 +2,8 @@ import type { Metadata } from "next";
 import { Inter, JetBrains_Mono } from "next/font/google";
 
 import { TRPCReactProvider } from "@/trpc/provider";
+import { AtlassianProvider } from "@/components/AtlassianProvider";
+import { Navigation } from "@/components/Navigation";
 
 import "./globals.css";
 
@@ -29,7 +31,12 @@ export default function RootLayout({
   return (
     <html lang="ja">
       <body className={`${inter.variable} ${jetbrainsMono.variable} antialiased`}>
-        <TRPCReactProvider>{children}</TRPCReactProvider>
+        <AtlassianProvider>
+          <TRPCReactProvider>
+            <Navigation />
+            {children}
+          </TRPCReactProvider>
+        </AtlassianProvider>
       </body>
     </html>
   );

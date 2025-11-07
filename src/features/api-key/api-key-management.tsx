@@ -1,8 +1,12 @@
 "use client";
 
 import { useState } from "react";
+import Button from "@atlaskit/button";
+import TextField from "@atlaskit/textfield";
+import Banner from "@atlaskit/banner";
+import Badge from "@atlaskit/badge";
+import Spinner from "@atlaskit/spinner";
 import { api } from "@/trpc/react";
-import { TRPCClientError } from "@trpc/client";
 
 export default function ApiKeyManagement() {
   const [formData, setFormData] = useState({
@@ -17,23 +21,33 @@ export default function ApiKeyManagement() {
     claude: false,
     openai: false,
   });
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   const { data: status, refetch } = api.apiKey.getApiKeyStatus.useQuery();
+  const healthCheckQuery = api.workflow.checkAIHealth.useQuery(undefined, {
+    refetchOnMount: false,
+    refetchOnWindowFocus: false,
+  });
+  const [isTestingConnection, setIsTestingConnection] = useState(false);
   const setApiKeys = api.apiKey.setApiKeys.useMutation({
     onSuccess: () => {
-      alert("APIキーを設定しました。変更を反映するには、サーバーを再起動してください。");
+      setSuccessMessage("APIキーを設定しました。変更を反映するには、サーバーを再起動してください。");
+      setErrorMessage(null);
       refetch();
-      // フォームをクリア
       setFormData({
         geminiApiKey: "",
         grokApiKey: "",
         claudeApiKey: "",
         openaiApiKey: "",
       });
+      setTimeout(() => setSuccessMessage(null), 5000);
     },
     onError: (error: unknown) => {
       const message = error instanceof Error ? error.message : "エラーが発生しました";
-      alert(`エラー: ${message}`);
+      setErrorMessage(`エラー: ${message}`);
+      setSuccessMessage(null);
+      setTimeout(() => setErrorMessage(null), 5000);
     },
   });
 
@@ -55,7 +69,8 @@ export default function ApiKeyManagement() {
     }
 
     if (Object.keys(keysToUpdate).length === 0) {
-      alert("少なくとも1つのAPIキーを入力してください。");
+      setErrorMessage("少なくとも1つのAPIキーを入力してください。");
+      setTimeout(() => setErrorMessage(null), 5000);
       return;
     }
 
@@ -66,221 +81,379 @@ export default function ApiKeyManagement() {
     setShowKeys((prev) => ({ ...prev, [key]: !prev[key] }));
   };
 
+  const handleTestConnection = async () => {
+    setIsTestingConnection(true);
+    try {
+      await healthCheckQuery.refetch();
+      setTimeout(() => setIsTestingConnection(false), 1000);
+    } catch (error) {
+      setIsTestingConnection(false);
+    }
+  };
+
+  const getAIStatusBadgeAppearance = (agent: string) => {
+    if (!healthCheckQuery.data) return "removed";
+    const agentStatus = healthCheckQuery.data.find((s) => s.agent === agent);
+    if (!agentStatus) return "removed";
+    switch (agentStatus.status) {
+      case "healthy":
+        return "added";
+      case "unhealthy":
+        return "removed";
+      default:
+        return "default";
+    }
+  };
+
+  const getAIStatusText = (agent: string) => {
+    if (!healthCheckQuery.data) return "未確認";
+    const agentStatus = healthCheckQuery.data.find((s) => s.agent === agent);
+    if (!agentStatus) return "未確認";
+    switch (agentStatus.status) {
+      case "healthy":
+        return "接続成功";
+      case "unhealthy":
+        return "接続失敗";
+      default:
+        return "確認中";
+    }
+  };
+
   return (
-    <div className="mx-auto flex w-full max-w-4xl flex-col gap-10 py-12">
-      <header className="space-y-2">
-        <h1 className="text-2xl font-semibold text-zinc-900">APIキー設定</h1>
-        <p className="text-sm text-zinc-600">
+    <div style={{ maxWidth: "800px", margin: "0 auto", padding: "48px 16px" }}>
+      <header style={{ marginBottom: "40px" }}>
+        <h1 style={{ fontSize: "24px", fontWeight: 600, marginBottom: "8px", color: "#172B4D" }}>
+          APIキー設定
+        </h1>
+        <p style={{ fontSize: "14px", color: "#6B778C" }}>
           AIサービスのAPIキーを設定してください。変更を反映するにはサーバーを再起動してください。
         </p>
       </header>
 
+      {/* メッセージ表示 */}
+      {successMessage && (
+        <Banner appearance="announcement">
+          {successMessage}
+        </Banner>
+      )}
+      {errorMessage && (
+        <Banner appearance="error">
+          {errorMessage}
+        </Banner>
+      )}
+
       {/* APIキーの状態表示 */}
-      <section className="rounded-2xl border border-zinc-200 bg-white p-6 shadow-sm">
-        <h2 className="mb-4 text-lg font-semibold text-zinc-900">現在の設定状態</h2>
-        <div className="grid gap-4 sm:grid-cols-2">
-          <div className="flex items-center justify-between rounded-lg border border-zinc-200 p-4">
-            <div className="flex items-center gap-3">
-              <div
-                className={`size-3 rounded-full ${status?.gemini ? "bg-green-500" : "bg-red-500"}`}
-              />
-              <span className="text-sm font-medium text-zinc-700">Gemini API</span>
+      <section style={{ marginBottom: "32px", padding: "24px", background: "#FFFFFF", borderRadius: "8px", border: "1px solid #DFE1E6" }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "16px" }}>
+          <h2 style={{ fontSize: "16px", fontWeight: 600, color: "#172B4D", margin: 0 }}>
+            現在の設定状態
+          </h2>
+          <Button
+            appearance="default"
+            onClick={handleTestConnection}
+            isDisabled={isTestingConnection || healthCheckQuery.isFetching}
+          >
+            {isTestingConnection || healthCheckQuery.isFetching ? (
+              <>
+                <Spinner size="small" />
+                <span style={{ marginLeft: "8px" }}>接続確認中...</span>
+              </>
+            ) : (
+              "接続を確認"
+            )}
+          </Button>
+        </div>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(250px, 1fr))", gap: "16px" }}>
+          <div style={{ padding: "16px", borderRadius: "8px", border: "1px solid #DFE1E6" }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "8px" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+                <div
+                  style={{
+                    width: "12px",
+                    height: "12px",
+                    borderRadius: "50%",
+                    backgroundColor: status?.gemini ? "#36B37E" : "#DE350B",
+                  }}
+                />
+                <span style={{ fontSize: "14px", fontWeight: 500, color: "#42526E" }}>Gemini API</span>
+              </div>
+              <Badge appearance={status?.gemini ? "added" : "removed"}>
+                {status?.gemini ? "設定済み" : "未設定"}
+              </Badge>
             </div>
-            <span className="text-xs text-zinc-500">
-              {status?.gemini ? "設定済み" : "未設定"}
-            </span>
+            {healthCheckQuery.data && (
+              <div style={{ marginTop: "8px" }}>
+                <Badge appearance={getAIStatusBadgeAppearance("gemini")}>
+                  {getAIStatusText("gemini")}
+                </Badge>
+                {healthCheckQuery.data.find((s) => s.agent === "gemini")?.error && (
+                  <p style={{ fontSize: "12px", color: "#DE350B", marginTop: "4px" }}>
+                    {healthCheckQuery.data.find((s) => s.agent === "gemini")?.error}
+                  </p>
+                )}
+              </div>
+            )}
           </div>
-          <div className="flex items-center justify-between rounded-lg border border-zinc-200 p-4">
-            <div className="flex items-center gap-3">
-              <div
-                className={`size-3 rounded-full ${status?.grok ? "bg-green-500" : "bg-red-500"}`}
-              />
-              <span className="text-sm font-medium text-zinc-700">Grok API</span>
+          <div style={{ padding: "16px", borderRadius: "8px", border: "1px solid #DFE1E6" }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "8px" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+                <div
+                  style={{
+                    width: "12px",
+                    height: "12px",
+                    borderRadius: "50%",
+                    backgroundColor: status?.grok ? "#36B37E" : "#DE350B",
+                  }}
+                />
+                <span style={{ fontSize: "14px", fontWeight: 500, color: "#42526E" }}>Grok API</span>
+              </div>
+              <Badge appearance={status?.grok ? "added" : "removed"}>
+                {status?.grok ? "設定済み" : "未設定"}
+              </Badge>
             </div>
-            <span className="text-xs text-zinc-500">{status?.grok ? "設定済み" : "未設定"}</span>
+            {healthCheckQuery.data && (
+              <div style={{ marginTop: "8px" }}>
+                <Badge appearance={getAIStatusBadgeAppearance("grok")}>
+                  {getAIStatusText("grok")}
+                </Badge>
+                {healthCheckQuery.data.find((s) => s.agent === "grok")?.error && (
+                  <p style={{ fontSize: "12px", color: "#DE350B", marginTop: "4px" }}>
+                    {healthCheckQuery.data.find((s) => s.agent === "grok")?.error}
+                  </p>
+                )}
+              </div>
+            )}
           </div>
-          <div className="flex items-center justify-between rounded-lg border border-zinc-200 p-4">
-            <div className="flex items-center gap-3">
-              <div
-                className={`size-3 rounded-full ${status?.claude ? "bg-green-500" : "bg-red-500"}`}
-              />
-              <span className="text-sm font-medium text-zinc-700">Claude API</span>
+          <div style={{ padding: "16px", borderRadius: "8px", border: "1px solid #DFE1E6" }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "8px" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+                <div
+                  style={{
+                    width: "12px",
+                    height: "12px",
+                    borderRadius: "50%",
+                    backgroundColor: status?.claude ? "#36B37E" : "#DE350B",
+                  }}
+                />
+                <span style={{ fontSize: "14px", fontWeight: 500, color: "#42526E" }}>Claude API</span>
+              </div>
+              <Badge appearance={status?.claude ? "added" : "removed"}>
+                {status?.claude ? "設定済み" : "未設定"}
+              </Badge>
             </div>
-            <span className="text-xs text-zinc-500">
-              {status?.claude ? "設定済み" : "未設定"}
-            </span>
+            {healthCheckQuery.data && (
+              <div style={{ marginTop: "8px" }}>
+                <Badge appearance={getAIStatusBadgeAppearance("claude")}>
+                  {getAIStatusText("claude")}
+                </Badge>
+                {healthCheckQuery.data.find((s) => s.agent === "claude")?.error && (
+                  <p style={{ fontSize: "12px", color: "#DE350B", marginTop: "4px" }}>
+                    {healthCheckQuery.data.find((s) => s.agent === "claude")?.error}
+                  </p>
+                )}
+              </div>
+            )}
           </div>
-          <div className="flex items-center justify-between rounded-lg border border-zinc-200 p-4">
-            <div className="flex items-center gap-3">
-              <div
-                className={`size-3 rounded-full ${status?.openai ? "bg-green-500" : "bg-red-500"}`}
-              />
-              <span className="text-sm font-medium text-zinc-700">OpenAI API</span>
+          <div style={{ padding: "16px", borderRadius: "8px", border: "1px solid #DFE1E6" }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "8px" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+                <div
+                  style={{
+                    width: "12px",
+                    height: "12px",
+                    borderRadius: "50%",
+                    backgroundColor: status?.openai ? "#36B37E" : "#DE350B",
+                  }}
+                />
+                <span style={{ fontSize: "14px", fontWeight: 500, color: "#42526E" }}>OpenAI API</span>
+              </div>
+              <Badge appearance={status?.openai ? "added" : "removed"}>
+                {status?.openai ? "設定済み" : "未設定"}
+              </Badge>
             </div>
-            <span className="text-xs text-zinc-500">
-              {status?.openai ? "設定済み" : "未設定"}
-            </span>
+            {healthCheckQuery.data && (
+              <div style={{ marginTop: "8px" }}>
+                <Badge appearance={getAIStatusBadgeAppearance("chatgpt")}>
+                  {getAIStatusText("chatgpt")}
+                </Badge>
+                {healthCheckQuery.data.find((s) => s.agent === "chatgpt")?.error && (
+                  <p style={{ fontSize: "12px", color: "#DE350B", marginTop: "4px" }}>
+                    {healthCheckQuery.data.find((s) => s.agent === "chatgpt")?.error}
+                  </p>
+                )}
+              </div>
+            )}
           </div>
         </div>
+        {healthCheckQuery.error && (
+          <div style={{ marginTop: "16px" }}>
+            <Banner appearance="error">
+              接続確認エラー: {healthCheckQuery.error.message}
+            </Banner>
+          </div>
+        )}
       </section>
 
       {/* APIキー設定フォーム */}
-      <section className="rounded-2xl border border-zinc-200 bg-white p-8 shadow-sm">
-        <h2 className="mb-6 text-lg font-semibold text-zinc-900">新しいAPIキーを設定</h2>
-        <form onSubmit={handleSubmit} className="space-y-6">
+      <section style={{ marginBottom: "32px", padding: "32px", background: "#FFFFFF", borderRadius: "8px", border: "1px solid #DFE1E6" }}>
+        <h2 style={{ fontSize: "16px", fontWeight: 600, marginBottom: "24px", color: "#172B4D" }}>
+          新しいAPIキーを設定
+        </h2>
+        <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: "24px" }}>
           {/* Gemini API Key */}
-          <label className="flex flex-col gap-2">
-            <div className="flex items-center gap-2">
-              <span className="text-sm font-medium text-zinc-700">Gemini API Key</span>
+          <div>
+            <label style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "8px" }}>
+              <span style={{ fontSize: "14px", fontWeight: 500, color: "#42526E" }}>Gemini API Key</span>
               <a
                 href="https://makersuite.google.com/app/apikey"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="text-xs text-blue-600 hover:underline"
+                style={{ fontSize: "12px", color: "#0052CC", textDecoration: "none" }}
               >
                 (取得方法)
               </a>
-            </div>
-            <div className="relative">
-              <input
+            </label>
+            <div style={{ position: "relative" }}>
+              <TextField
                 type={showKeys.gemini ? "text" : "password"}
                 placeholder="AIza..."
                 value={formData.geminiApiKey}
                 onChange={(e) =>
-                  setFormData((prev) => ({ ...prev, geminiApiKey: e.target.value }))
+                  setFormData((prev) => ({ ...prev, geminiApiKey: (e.target as HTMLInputElement).value }))
                 }
-                className="w-full rounded-lg border border-zinc-200 px-3 py-2 pr-10 text-sm text-zinc-900 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200"
+                style={{ width: "100%" }}
               />
-              <button
-                type="button"
+              <Button
+                appearance="subtle"
                 onClick={() => toggleShowKey("gemini")}
-                className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-zinc-500 hover:text-zinc-700"
+                style={{ position: "absolute", right: "8px", top: "50%", transform: "translateY(-50%)" }}
               >
                 {showKeys.gemini ? "非表示" : "表示"}
-              </button>
+              </Button>
             </div>
-          </label>
+          </div>
 
           {/* Grok API Key */}
-          <label className="flex flex-col gap-2">
-            <div className="flex items-center gap-2">
-              <span className="text-sm font-medium text-zinc-700">Grok API Key</span>
+          <div>
+            <label style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "8px" }}>
+              <span style={{ fontSize: "14px", fontWeight: 500, color: "#42526E" }}>Grok API Key</span>
               <a
                 href="https://console.x.ai/"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="text-xs text-blue-600 hover:underline"
+                style={{ fontSize: "12px", color: "#0052CC", textDecoration: "none" }}
               >
                 (取得方法)
               </a>
-            </div>
-            <div className="relative">
-              <input
+            </label>
+            <div style={{ position: "relative" }}>
+              <TextField
                 type={showKeys.grok ? "text" : "password"}
                 placeholder="xai-..."
                 value={formData.grokApiKey}
                 onChange={(e) =>
-                  setFormData((prev) => ({ ...prev, grokApiKey: e.target.value }))
+                  setFormData((prev) => ({ ...prev, grokApiKey: (e.target as HTMLInputElement).value }))
                 }
-                className="w-full rounded-lg border border-zinc-200 px-3 py-2 pr-10 text-sm text-zinc-900 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200"
+                style={{ width: "100%" }}
               />
-              <button
-                type="button"
+              <Button
+                appearance="subtle"
                 onClick={() => toggleShowKey("grok")}
-                className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-zinc-500 hover:text-zinc-700"
+                style={{ position: "absolute", right: "8px", top: "50%", transform: "translateY(-50%)" }}
               >
                 {showKeys.grok ? "非表示" : "表示"}
-              </button>
+              </Button>
             </div>
-          </label>
+          </div>
 
           {/* Claude API Key */}
-          <label className="flex flex-col gap-2">
-            <div className="flex items-center gap-2">
-              <span className="text-sm font-medium text-zinc-700">Claude API Key</span>
+          <div>
+            <label style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "8px" }}>
+              <span style={{ fontSize: "14px", fontWeight: 500, color: "#42526E" }}>Claude API Key</span>
               <a
                 href="https://console.anthropic.com/"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="text-xs text-blue-600 hover:underline"
+                style={{ fontSize: "12px", color: "#0052CC", textDecoration: "none" }}
               >
                 (取得方法)
               </a>
-            </div>
-            <div className="relative">
-              <input
+            </label>
+            <div style={{ position: "relative" }}>
+              <TextField
                 type={showKeys.claude ? "text" : "password"}
                 placeholder="sk-ant-..."
                 value={formData.claudeApiKey}
                 onChange={(e) =>
-                  setFormData((prev) => ({ ...prev, claudeApiKey: e.target.value }))
+                  setFormData((prev) => ({ ...prev, claudeApiKey: (e.target as HTMLInputElement).value }))
                 }
-                className="w-full rounded-lg border border-zinc-200 px-3 py-2 pr-10 text-sm text-zinc-900 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200"
+                style={{ width: "100%" }}
               />
-              <button
-                type="button"
+              <Button
+                appearance="subtle"
                 onClick={() => toggleShowKey("claude")}
-                className="absolute right-2 text-xs text-zinc-500 hover:text-zinc-700"
+                style={{ position: "absolute", right: "8px", top: "50%", transform: "translateY(-50%)" }}
               >
                 {showKeys.claude ? "非表示" : "表示"}
-              </button>
+              </Button>
             </div>
-          </label>
+          </div>
 
           {/* OpenAI API Key */}
-          <label className="flex flex-col gap-2">
-            <div className="flex items-center gap-2">
-              <span className="text-sm font-medium text-zinc-700">OpenAI API Key</span>
+          <div>
+            <label style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "8px" }}>
+              <span style={{ fontSize: "14px", fontWeight: 500, color: "#42526E" }}>OpenAI API Key</span>
               <a
                 href="https://platform.openai.com/api-keys"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="text-xs text-blue-600 hover:underline"
+                style={{ fontSize: "12px", color: "#0052CC", textDecoration: "none" }}
               >
                 (取得方法)
               </a>
-            </div>
-            <div className="relative">
-              <input
+            </label>
+            <div style={{ position: "relative" }}>
+              <TextField
                 type={showKeys.openai ? "text" : "password"}
                 placeholder="sk-..."
                 value={formData.openaiApiKey}
                 onChange={(e) =>
-                  setFormData((prev) => ({ ...prev, openaiApiKey: e.target.value }))
+                  setFormData((prev) => ({ ...prev, openaiApiKey: (e.target as HTMLInputElement).value }))
                 }
-                className="w-full rounded-lg border border-zinc-200 px-3 py-2 pr-10 text-sm text-zinc-900 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200"
+                style={{ width: "100%" }}
               />
-              <button
-                type="button"
+              <Button
+                appearance="subtle"
                 onClick={() => toggleShowKey("openai")}
-                className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-zinc-500 hover:text-zinc-700"
+                style={{ position: "absolute", right: "8px", top: "50%", transform: "translateY(-50%)" }}
               >
                 {showKeys.openai ? "非表示" : "表示"}
-              </button>
+              </Button>
             </div>
-          </label>
+          </div>
 
-          <button
+          <Button
             type="submit"
-            disabled={setApiKeys.isPending}
-            className="inline-flex items-center justify-center rounded-lg bg-blue-600 px-5 py-2 text-sm font-medium text-white transition hover:bg-blue-500 disabled:cursor-not-allowed disabled:opacity-60"
+            appearance="primary"
+            isDisabled={setApiKeys.isPending}
           >
             {setApiKeys.isPending ? "設定中..." : "APIキーを設定"}
-          </button>
+          </Button>
         </form>
       </section>
 
       {/* 注意事項 */}
-      <section className="rounded-2xl border border-amber-200 bg-amber-50 p-6">
-        <h3 className="mb-2 text-sm font-semibold text-amber-900">⚠️ 重要な注意事項</h3>
-        <ul className="space-y-1 text-xs text-amber-800">
-          <li>• APIキーを設定した後は、サーバーを再起動してください</li>
-          <li>• APIキーは安全に管理し、他人に共有しないでください</li>
-          <li>• .envファイルは.gitignoreに含まれており、バージョン管理されません</li>
-          <li>• 本番環境では環境変数の直接編集は推奨されません</li>
-        </ul>
-      </section>
+      <Banner appearance="warning">
+        <div>
+          <strong>⚠️ 重要な注意事項</strong>
+          <ul style={{ marginTop: "8px", paddingLeft: "20px" }}>
+            <li>APIキーを設定した後は、サーバーを再起動してください</li>
+            <li>APIキーは安全に管理し、他人に共有しないでください</li>
+            <li>.envファイルは.gitignoreに含まれており、バージョン管理されません</li>
+            <li>本番環境では環境変数の直接編集は推奨されません</li>
+          </ul>
+        </div>
+      </Banner>
     </div>
   );
 }
-

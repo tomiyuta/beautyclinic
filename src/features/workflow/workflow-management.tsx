@@ -1,7 +1,12 @@
 "use client";
 
 import { useState } from "react";
-
+import Button from "@atlaskit/button";
+import TextField from "@atlaskit/textfield";
+import Banner from "@atlaskit/banner";
+import Badge from "@atlaskit/badge";
+import Spinner from "@atlaskit/spinner";
+import EmptyState from "@atlaskit/empty-state";
 import { api } from "@/trpc/react";
 import { TRPCClientError } from "@trpc/client";
 
@@ -17,7 +22,7 @@ export function WorkflowManagement() {
   const utils = api.useUtils();
 
   const healthCheckQuery = api.workflow.checkAIHealth.useQuery(undefined, {
-    refetchInterval: 30000, // 30秒ごとに更新
+    refetchInterval: 30000,
   });
 
   const workflowMutation = api.workflow.executeFullAnalysis.useMutation({
@@ -26,12 +31,14 @@ export function WorkflowManagement() {
         type: "success",
         message: "ワークフローが開始されました",
       });
+      setTimeout(() => setFeedback({ type: null, message: "" }), 5000);
       void utils.workflow.list.invalidate({ userId: USER_ID_PLACEHOLDER });
       setLocation("");
     },
     onError: (error: unknown) => {
       const message = error instanceof Error ? error.message : "エラーが発生しました";
       setFeedback({ type: "error", message });
+      setTimeout(() => setFeedback({ type: null, message: "" }), 5000);
     },
   });
 
@@ -50,6 +57,7 @@ export function WorkflowManagement() {
         type: "error",
         message: "場所を入力してください",
       });
+      setTimeout(() => setFeedback({ type: null, message: "" }), 5000);
       return;
     }
 
@@ -61,81 +69,85 @@ export function WorkflowManagement() {
     } catch (error) {
       if (error instanceof TRPCClientError) {
         setFeedback({ type: "error", message: error.message });
+        setTimeout(() => setFeedback({ type: null, message: "" }), 5000);
       }
     }
   };
 
-  const getStatusColor = (status: string) => {
+  const getStatusBadgeAppearance = (status: string) => {
     switch (status) {
       case "completed":
-        return "bg-green-100 text-green-700";
+        return "added";
       case "running":
-        return "bg-yellow-100 text-yellow-700";
+        return "default";
       case "failed":
-        return "bg-red-100 text-red-700";
+        return "removed";
       default:
-        return "bg-zinc-100 text-zinc-500";
+        return "removed";
     }
   };
 
-  const getAIStatusColor = (status: string) => {
+  const getAIStatusBadgeAppearance = (status: string) => {
     switch (status) {
       case "healthy":
-        return "bg-green-100 text-green-700";
+        return "added";
       case "unhealthy":
-        return "bg-red-100 text-red-700";
+        return "removed";
       default:
-        return "bg-yellow-100 text-yellow-700";
+        return "default";
     }
   };
 
   return (
-    <div className="mx-auto flex w-full max-w-4xl flex-col gap-10 py-12">
-      <header className="space-y-2">
-        <h1 className="text-2xl font-semibold text-zinc-900">ワークフロー管理</h1>
-        <p className="text-sm text-zinc-600">
+    <div style={{ maxWidth: "1000px", margin: "0 auto", padding: "48px 16px" }}>
+      <header style={{ marginBottom: "40px" }}>
+        <h1 style={{ fontSize: "24px", fontWeight: 600, marginBottom: "8px", color: "#172B4D" }}>
+          ワークフロー管理
+        </h1>
+        <p style={{ fontSize: "14px", color: "#6B778C" }}>
           AIエージェント間の協調動作を管理し、統合ワークフローを実行します
         </p>
       </header>
 
       {/* AIヘルスチェック */}
-      <section className="rounded-2xl border border-zinc-200 bg-white p-6 shadow-sm">
-        <h2 className="mb-4 text-lg font-semibold text-zinc-900">
+      <section style={{ marginBottom: "32px", padding: "24px", background: "#FFFFFF", borderRadius: "8px", border: "1px solid #DFE1E6" }}>
+        <h2 style={{ fontSize: "16px", fontWeight: 600, marginBottom: "16px", color: "#172B4D" }}>
           AIエージェント状態
         </h2>
         {healthCheckQuery.isLoading && (
-          <p className="text-sm text-zinc-500">確認中...</p>
+          <div style={{ display: "flex", alignItems: "center", gap: "8px", padding: "16px" }}>
+            <Spinner size="small" />
+            <span style={{ fontSize: "14px", color: "#6B778C" }}>確認中...</span>
+          </div>
         )}
         {healthCheckQuery.error && (
-          <p className="text-sm text-red-600">
+          <Banner appearance="error">
             エラー: {healthCheckQuery.error.message}
-          </p>
+          </Banner>
         )}
         {healthCheckQuery.data && (
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "12px" }}>
             {healthCheckQuery.data.map((status: any) => (
               <div
                 key={status.agent}
-                className="rounded-lg border border-zinc-200 p-3"
+                style={{ padding: "12px", borderRadius: "8px", border: "1px solid #DFE1E6" }}
               >
-                <div className="mb-2 flex items-center justify-between">
-                  <span className="text-sm font-medium text-zinc-700">
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "8px" }}>
+                  <span style={{ fontSize: "14px", fontWeight: 500, color: "#42526E" }}>
                     {status.agent.toUpperCase()}
                   </span>
-                  <span
-                    className={`rounded-full px-2 py-1 text-xs font-semibold ${getAIStatusColor(status.status)}`}
-                  >
+                  <Badge appearance={getAIStatusBadgeAppearance(status.status)}>
                     {status.status === "healthy"
                       ? "正常"
                       : status.status === "unhealthy"
                         ? "異常"
                         : "不明"}
-                  </span>
+                  </Badge>
                 </div>
                 {status.error && (
-                  <p className="text-xs text-red-600">{status.error}</p>
+                  <p style={{ fontSize: "12px", color: "#DE350B", marginBottom: "4px" }}>{status.error}</p>
                 )}
-                <p className="text-xs text-zinc-500">
+                <p style={{ fontSize: "12px", color: "#6B778C" }}>
                   最終確認:{" "}
                   {new Date(status.lastChecked).toLocaleTimeString("ja-JP")}
                 </p>
@@ -146,26 +158,26 @@ export function WorkflowManagement() {
       </section>
 
       {/* ワークフロー実行 */}
-      <section className="rounded-2xl border border-zinc-200 bg-white p-8 shadow-sm">
-        <h2 className="mb-4 text-lg font-semibold text-zinc-900">
+      <section style={{ marginBottom: "32px", padding: "32px", background: "#FFFFFF", borderRadius: "8px", border: "1px solid #DFE1E6" }}>
+        <h2 style={{ fontSize: "16px", fontWeight: 600, marginBottom: "16px", color: "#172B4D" }}>
           統合分析ワークフローの実行
         </h2>
-        <form className="space-y-4" onSubmit={handleExecuteWorkflow}>
+        <form onSubmit={handleExecuteWorkflow} style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
           <div>
-            <label className="mb-2 block text-sm font-medium text-zinc-700">
+            <label style={{ display: "block", marginBottom: "8px", fontSize: "14px", fontWeight: 500, color: "#42526E" }}>
               所在地 *
             </label>
-            <input
-              required
+            <TextField
+              isRequired
               type="text"
               value={location}
-              onChange={(e) => setLocation(e.target.value)}
+              onChange={(e) => setLocation((e.target as HTMLInputElement).value)}
               placeholder="例：東京 新宿区"
-              className="w-full rounded-lg border border-zinc-200 px-3 py-2 text-sm text-zinc-900 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200"
+              style={{ width: "100%" }}
             />
           </div>
-          <div className="rounded-lg bg-blue-50 p-4">
-            <p className="text-xs text-blue-700">
+          <div style={{ padding: "16px", borderRadius: "8px", background: "#E3FCEF" }}>
+            <p style={{ fontSize: "12px", color: "#006644", margin: 0 }}>
               <strong>ワークフロー内容:</strong>
               <br />
               1. 市場調査（トレンド分析・価格調査）
@@ -176,74 +188,72 @@ export function WorkflowManagement() {
             </p>
           </div>
           {feedback.type && (
-            <div
-              className={`rounded-lg px-4 py-2 text-sm ${
-                feedback.type === "success"
-                  ? "bg-green-50 text-green-700"
-                  : "bg-red-50 text-red-700"
-              }`}
-            >
-              {feedback.message}
+            <div>
+              <Banner appearance={feedback.type === "success" ? "announcement" : "error"}>
+                {feedback.message}
+              </Banner>
             </div>
           )}
-          <button
+          <Button
             type="submit"
-            disabled={workflowMutation.isPending}
-            className="inline-flex items-center justify-center rounded-lg bg-blue-600 px-5 py-2 text-sm font-medium text-white transition hover:bg-blue-500 disabled:cursor-not-allowed disabled:opacity-60"
+            appearance="primary"
+            isDisabled={workflowMutation.isPending}
           >
             {workflowMutation.isPending
               ? "実行中..."
               : "ワークフローを実行"}
-          </button>
+          </Button>
         </form>
       </section>
 
       {/* ワークフロー履歴 */}
-      <section className="rounded-2xl border border-zinc-200 bg-white p-6 shadow-sm">
-        <h2 className="mb-4 text-lg font-semibold text-zinc-900">
+      <section style={{ padding: "24px", background: "#FFFFFF", borderRadius: "8px", border: "1px solid #DFE1E6" }}>
+        <h2 style={{ fontSize: "16px", fontWeight: 600, marginBottom: "16px", color: "#172B4D" }}>
           ワークフロー実行履歴
         </h2>
         {workflowsQuery.isLoading && (
-          <p className="text-sm text-zinc-500">読み込み中...</p>
+          <div style={{ display: "flex", alignItems: "center", gap: "8px", padding: "16px" }}>
+            <Spinner size="small" />
+            <span style={{ fontSize: "14px", color: "#6B778C" }}>読み込み中...</span>
+          </div>
         )}
         {workflowsQuery.error && (
-          <p className="text-sm text-red-600">
+          <Banner appearance="error">
             エラー: {workflowsQuery.error.message}
-          </p>
+          </Banner>
         )}
         {workflowsQuery.data && workflowsQuery.data.length === 0 && (
-          <p className="text-sm text-zinc-500">
-            まだワークフロー実行がありません
-          </p>
+          <EmptyState
+            header="まだワークフロー実行がありません"
+            description="上記のフォームからワークフローを実行してください"
+          />
         )}
         {workflowsQuery.data && workflowsQuery.data.length > 0 && (
-          <div className="space-y-4">
+          <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
             {workflowsQuery.data.map((workflow: any) => (
               <div
                 key={workflow.id}
-                className="rounded-lg border border-zinc-200 p-4"
+                style={{ padding: "16px", borderRadius: "8px", border: "1px solid #DFE1E6" }}
               >
-                <div className="mb-2 flex items-center justify-between">
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "8px" }}>
                   <div>
-                    <span className="text-sm font-semibold text-zinc-900">
+                    <span style={{ fontSize: "14px", fontWeight: 600, color: "#172B4D" }}>
                       {workflow.workflowType}
                     </span>
-                    <span className="ml-2 text-xs text-zinc-500">
+                    <span style={{ marginLeft: "8px", fontSize: "12px", color: "#6B778C" }}>
                       {new Date(workflow.startedAt).toLocaleString("ja-JP")}
                     </span>
                   </div>
-                  <span
-                    className={`rounded-full px-2.5 py-1 text-xs font-semibold ${getStatusColor(workflow.status)}`}
-                  >
+                  <Badge appearance={getStatusBadgeAppearance(workflow.status)}>
                     {workflow.status === "completed"
                       ? "完了"
                       : workflow.status === "running"
                         ? "実行中"
                         : "失敗"}
-                  </span>
+                  </Badge>
                 </div>
                 {Array.isArray(workflow.steps) && (
-                  <div className="mt-3 space-y-2">
+                  <div style={{ marginTop: "12px", display: "flex", flexDirection: "column", gap: "8px" }}>
                     {workflow.steps.map((step: unknown) => {
                       if (
                         typeof step === "object" &&
@@ -259,21 +269,19 @@ export function WorkflowManagement() {
                         return (
                           <div
                             key={stepObj.name}
-                            className="flex items-center justify-between rounded bg-zinc-50 px-3 py-2 text-xs"
+                            style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 12px", borderRadius: "4px", background: "#F4F5F7" }}
                           >
-                            <span className="text-zinc-700">
+                            <span style={{ fontSize: "12px", color: "#42526E" }}>
                               {stepObj.name}
                               {stepObj.aiAgent && (
-                                <span className="ml-2 text-zinc-500">
+                                <span style={{ marginLeft: "8px", fontSize: "12px", color: "#6B778C" }}>
                                   ({stepObj.aiAgent})
                                 </span>
                               )}
                             </span>
-                            <span
-                              className={`rounded-full px-2 py-0.5 text-xs ${getStatusColor(stepObj.status)}`}
-                            >
+                            <Badge appearance={getStatusBadgeAppearance(stepObj.status)}>
                               {stepObj.status}
-                            </span>
+                            </Badge>
                           </div>
                         );
                       }
@@ -282,7 +290,7 @@ export function WorkflowManagement() {
                   </div>
                 )}
                 {workflow.errorMessage && (
-                  <p className="mt-2 text-xs text-red-600">
+                  <p style={{ marginTop: "8px", fontSize: "12px", color: "#DE350B" }}>
                     エラー: {workflow.errorMessage}
                   </p>
                 )}
@@ -296,4 +304,3 @@ export function WorkflowManagement() {
 }
 
 export default WorkflowManagement;
-

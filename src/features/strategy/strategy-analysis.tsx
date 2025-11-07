@@ -1,7 +1,13 @@
 "use client";
 
 import { useState } from "react";
-
+import Button from "@atlaskit/button";
+import TextField from "@atlaskit/textfield";
+import Checkbox from "@atlaskit/checkbox";
+import Banner from "@atlaskit/banner";
+import Badge from "@atlaskit/badge";
+import Spinner from "@atlaskit/spinner";
+import EmptyState from "@atlaskit/empty-state";
 import { api } from "@/trpc/react";
 import { TRPCClientError } from "@trpc/client";
 
@@ -25,6 +31,7 @@ export function StrategyAnalysis() {
           type: "success",
           message: "総合分析が完了しました",
         });
+        setTimeout(() => setFeedback({ type: null, message: "" }), 5000);
         void utils.strategy.list.invalidate({ userId: USER_ID_PLACEHOLDER });
         setLocation("");
       },
@@ -34,6 +41,7 @@ export function StrategyAnalysis() {
           type: "error", 
           message
         });
+        setTimeout(() => setFeedback({ type: null, message: "" }), 5000);
       },
     });
 
@@ -44,6 +52,7 @@ export function StrategyAnalysis() {
           type: "success",
           message: "価格設定提案が完了しました",
         });
+        setTimeout(() => setFeedback({ type: null, message: "" }), 5000);
       },
       onError: (error: unknown) => {
         const message = error instanceof Error ? error.message : "エラーが発生しました。もう一度お試しください。";
@@ -51,6 +60,7 @@ export function StrategyAnalysis() {
           type: "error", 
           message
         });
+        setTimeout(() => setFeedback({ type: null, message: "" }), 5000);
       },
     });
 
@@ -60,9 +70,11 @@ export function StrategyAnalysis() {
         type: "success",
         message: "キャンペーン案が生成されました",
       });
+      setTimeout(() => setFeedback({ type: null, message: "" }), 5000);
     },
     onError: (error) => {
       setFeedback({ type: "error", message: error.message });
+      setTimeout(() => setFeedback({ type: null, message: "" }), 5000);
     },
   });
 
@@ -73,6 +85,7 @@ export function StrategyAnalysis() {
           type: "success",
           message: "新施術提案が完了しました",
         });
+        setTimeout(() => setFeedback({ type: null, message: "" }), 5000);
       },
       onError: (error: unknown) => {
         const message = error instanceof Error ? error.message : "エラーが発生しました。もう一度お試しください。";
@@ -80,6 +93,7 @@ export function StrategyAnalysis() {
           type: "error", 
           message
         });
+        setTimeout(() => setFeedback({ type: null, message: "" }), 5000);
       },
     });
 
@@ -102,6 +116,7 @@ export function StrategyAnalysis() {
         type: "error",
         message: "場所を入力してください",
       });
+      setTimeout(() => setFeedback({ type: null, message: "" }), 5000);
       return;
     }
 
@@ -115,6 +130,7 @@ export function StrategyAnalysis() {
     } catch (error) {
       if (error instanceof TRPCClientError) {
         setFeedback({ type: "error", message: error.message });
+        setTimeout(() => setFeedback({ type: null, message: "" }), 5000);
       }
     }
   };
@@ -128,6 +144,7 @@ export function StrategyAnalysis() {
     } catch (error) {
       if (error instanceof TRPCClientError) {
         setFeedback({ type: "error", message: error.message });
+        setTimeout(() => setFeedback({ type: null, message: "" }), 5000);
       }
     }
   };
@@ -141,6 +158,7 @@ export function StrategyAnalysis() {
     } catch (error) {
       if (error instanceof TRPCClientError) {
         setFeedback({ type: "error", message: error.message });
+        setTimeout(() => setFeedback({ type: null, message: "" }), 5000);
       }
     }
   };
@@ -154,112 +172,108 @@ export function StrategyAnalysis() {
     } catch (error) {
       if (error instanceof TRPCClientError) {
         setFeedback({ type: "error", message: error.message });
+        setTimeout(() => setFeedback({ type: null, message: "" }), 5000);
       }
     }
   };
 
   return (
-    <div className="mx-auto flex w-full max-w-4xl flex-col gap-10 py-12">
-      <header className="space-y-2">
-        <h1 className="text-2xl font-semibold text-zinc-900">戦略分析</h1>
-        <p className="text-sm text-zinc-600">
+    <div style={{ maxWidth: "1000px", margin: "0 auto", padding: "48px 16px" }}>
+      <header style={{ marginBottom: "40px" }}>
+        <h1 style={{ fontSize: "24px", fontWeight: 600, marginBottom: "8px", color: "#172B4D" }}>
+          戦略分析
+        </h1>
+        <p style={{ fontSize: "14px", color: "#6B778C" }}>
           収集したデータを分析し、戦略的な提案を受けることができます
         </p>
       </header>
 
       {feedback.type && (
-        <div
-          className={`rounded-lg px-4 py-2 text-sm ${
-            feedback.type === "success"
-              ? "bg-green-50 text-green-700"
-              : "bg-red-50 text-red-700"
-          }`}
-        >
-          {feedback.message}
+        <div style={{ marginBottom: "16px" }}>
+          <Banner appearance={feedback.type === "success" ? "announcement" : "error"}>
+            {feedback.message}
+          </Banner>
         </div>
       )}
 
-      <section className="space-y-6">
+      <section style={{ display: "flex", flexDirection: "column", gap: "24px" }}>
         {/* 総合分析 */}
-        <div className="rounded-2xl border border-zinc-200 bg-white p-8 shadow-sm">
-          <h2 className="mb-4 text-lg font-semibold text-zinc-900">
+        <div style={{ padding: "32px", background: "#FFFFFF", borderRadius: "8px", border: "1px solid #DFE1E6" }}>
+          <h2 style={{ fontSize: "16px", fontWeight: 600, marginBottom: "16px", color: "#172B4D" }}>
             総合分析
           </h2>
-          <form onSubmit={handleAnalyzeMarketPosition} className="space-y-4">
+          <form onSubmit={handleAnalyzeMarketPosition} style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
             <div>
-              <label className="mb-2 block text-sm font-medium text-zinc-700">
+              <label style={{ display: "block", marginBottom: "8px", fontSize: "14px", fontWeight: 500, color: "#42526E" }}>
                 所在地 *
               </label>
-              <input
-                required
+              <TextField
+                isRequired
                 type="text"
                 value={location}
-                onChange={(e) => setLocation(e.target.value)}
+                onChange={(e) => setLocation((e.target as HTMLInputElement).value)}
                 placeholder="例：東京 新宿区"
-                className="w-full rounded-lg border border-zinc-200 px-3 py-2 text-sm text-zinc-900 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200"
+                style={{ width: "100%" }}
               />
             </div>
-            <div className="space-y-2">
-              <label className="flex items-center gap-2">
-                <input
-                  type="checkbox"
-                  checked={includeMarketData}
+            <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                <Checkbox
+                  isChecked={includeMarketData}
                   onChange={(e) => setIncludeMarketData(e.target.checked)}
-                  className="size-4 rounded border-zinc-300 text-blue-600 focus:ring-blue-500"
                 />
-                <span className="text-sm text-zinc-700">
+                <label style={{ fontSize: "14px", color: "#42526E" }}>
                   市場調査データを含める
-                </span>
-              </label>
-              <label className="flex items-center gap-2">
-                <input
-                  type="checkbox"
-                  checked={includeSNSData}
+                </label>
+              </div>
+              <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                <Checkbox
+                  isChecked={includeSNSData}
                   onChange={(e) => setIncludeSNSData(e.target.checked)}
-                  className="size-4 rounded border-zinc-300 text-blue-600 focus:ring-blue-500"
                 />
-                <span className="text-sm text-zinc-700">
+                <label style={{ fontSize: "14px", color: "#42526E" }}>
                   SNS調査データを含める
-                </span>
-              </label>
+                </label>
+              </div>
             </div>
-            <button
+            <Button
               type="submit"
-              disabled={marketPositionMutation.isPending}
-              className="inline-flex items-center justify-center rounded-lg bg-blue-600 px-5 py-2 text-sm font-medium text-white transition hover:bg-blue-500 disabled:cursor-not-allowed disabled:opacity-60"
+              appearance="primary"
+              isDisabled={marketPositionMutation.isPending}
             >
               {marketPositionMutation.isPending
                 ? "分析中..."
                 : "総合分析を実行"}
-            </button>
+            </Button>
           </form>
         </div>
 
         {/* 個別分析機能 */}
-        <div className="grid gap-6 sm:grid-cols-2">
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))", gap: "24px" }}>
           {/* 価格設定提案 */}
-          <div className="rounded-2xl border border-zinc-200 bg-white p-6 shadow-sm">
-            <h3 className="mb-3 text-base font-semibold text-zinc-900">
+          <div style={{ padding: "24px", background: "#FFFFFF", borderRadius: "8px", border: "1px solid #DFE1E6" }}>
+            <h3 style={{ fontSize: "14px", fontWeight: 600, marginBottom: "12px", color: "#172B4D" }}>
               価格設定提案
             </h3>
-            <p className="mb-4 text-xs text-zinc-600">
+            <p style={{ marginBottom: "16px", fontSize: "12px", color: "#6B778C" }}>
               市場価格データと比較して、最適な価格設定を提案します
             </p>
-            <button
+            <Button
               onClick={handleGeneratePriceRecommendations}
-              disabled={priceRecommendationMutation.isPending}
-              className="w-full rounded-lg bg-blue-100 px-4 py-2 text-sm font-medium text-blue-700 transition hover:bg-blue-200 disabled:cursor-not-allowed disabled:opacity-60"
+              appearance="default"
+              isDisabled={priceRecommendationMutation.isPending}
+              style={{ width: "100%" }}
             >
               {priceRecommendationMutation.isPending
                 ? "生成中..."
                 : "価格提案を生成"}
-            </button>
+            </Button>
             {priceRecommendationMutation.data && (
-              <details className="mt-4">
-                <summary className="cursor-pointer text-sm font-medium text-zinc-700">
+              <details style={{ marginTop: "16px" }}>
+                <summary style={{ cursor: "pointer", fontSize: "14px", fontWeight: 500, color: "#42526E", listStyle: "none" }}>
                   結果を表示
                 </summary>
-                <div className="mt-2 whitespace-pre-wrap rounded bg-zinc-50 p-3 text-sm text-zinc-900">
+                <div style={{ marginTop: "8px", whiteSpace: "pre-wrap", borderRadius: "4px", background: "#F4F5F7", padding: "12px", fontSize: "14px", color: "#172B4D" }}>
                   {typeof priceRecommendationMutation.data.result === "string"
                     ? priceRecommendationMutation.data.result
                     : String(priceRecommendationMutation.data.result)}
@@ -269,26 +283,27 @@ export function StrategyAnalysis() {
           </div>
 
           {/* キャンペーン案生成 */}
-          <div className="rounded-2xl border border-zinc-200 bg-white p-6 shadow-sm">
-            <h3 className="mb-3 text-base font-semibold text-zinc-900">
+          <div style={{ padding: "24px", background: "#FFFFFF", borderRadius: "8px", border: "1px solid #DFE1E6" }}>
+            <h3 style={{ fontSize: "14px", fontWeight: 600, marginBottom: "12px", color: "#172B4D" }}>
               キャンペーン案生成
             </h3>
-            <p className="mb-4 text-xs text-zinc-600">
+            <p style={{ marginBottom: "16px", fontSize: "12px", color: "#6B778C" }}>
               トレンドデータから効果的な月次キャンペーン案を2つ以上提案します
             </p>
-            <button
+            <Button
               onClick={handleGenerateCampaigns}
-              disabled={campaignMutation.isPending}
-              className="w-full rounded-lg bg-blue-100 px-4 py-2 text-sm font-medium text-blue-700 transition hover:bg-blue-200 disabled:cursor-not-allowed disabled:opacity-60"
+              appearance="default"
+              isDisabled={campaignMutation.isPending}
+              style={{ width: "100%" }}
             >
               {campaignMutation.isPending ? "生成中..." : "キャンペーン案を生成"}
-            </button>
+            </Button>
             {campaignMutation.data && (
-              <details className="mt-4">
-                <summary className="cursor-pointer text-sm font-medium text-zinc-700">
+              <details style={{ marginTop: "16px" }}>
+                <summary style={{ cursor: "pointer", fontSize: "14px", fontWeight: 500, color: "#42526E", listStyle: "none" }}>
                   結果を表示
                 </summary>
-                <div className="mt-2 whitespace-pre-wrap rounded bg-zinc-50 p-3 text-sm text-zinc-900">
+                <div style={{ marginTop: "8px", whiteSpace: "pre-wrap", borderRadius: "4px", background: "#F4F5F7", padding: "12px", fontSize: "14px", color: "#172B4D" }}>
                   {typeof campaignMutation.data.result === "string"
                     ? campaignMutation.data.result
                     : String(campaignMutation.data.result)}
@@ -298,28 +313,29 @@ export function StrategyAnalysis() {
           </div>
 
           {/* 新施術提案 */}
-          <div className="rounded-2xl border border-zinc-200 bg-white p-6 shadow-sm sm:col-span-2">
-            <h3 className="mb-3 text-base font-semibold text-zinc-900">
+          <div style={{ padding: "24px", background: "#FFFFFF", borderRadius: "8px", border: "1px solid #DFE1E6", gridColumn: "1 / -1" }}>
+            <h3 style={{ fontSize: "14px", fontWeight: 600, marginBottom: "12px", color: "#172B4D" }}>
               新施術導入提案
             </h3>
-            <p className="mb-4 text-xs text-zinc-600">
+            <p style={{ marginBottom: "16px", fontSize: "12px", color: "#6B778C" }}>
               市場トレンドとSNSトレンドから、未導入の有望な施術を提案します
             </p>
-            <button
+            <Button
               onClick={handleSuggestNewTreatments}
-              disabled={newTreatmentMutation.isPending}
-              className="w-full rounded-lg bg-blue-100 px-4 py-2 text-sm font-medium text-blue-700 transition hover:bg-blue-200 disabled:cursor-not-allowed disabled:opacity-60"
+              appearance="default"
+              isDisabled={newTreatmentMutation.isPending}
+              style={{ width: "100%" }}
             >
               {newTreatmentMutation.isPending
                 ? "生成中..."
                 : "新施術提案を生成"}
-            </button>
+            </Button>
             {newTreatmentMutation.data && (
-              <details className="mt-4">
-                <summary className="cursor-pointer text-sm font-medium text-zinc-700">
+              <details style={{ marginTop: "16px" }}>
+                <summary style={{ cursor: "pointer", fontSize: "14px", fontWeight: 500, color: "#42526E", listStyle: "none" }}>
                   結果を表示
                 </summary>
-                <div className="mt-2 whitespace-pre-wrap rounded bg-zinc-50 p-3 text-sm text-zinc-900">
+                <div style={{ marginTop: "8px", whiteSpace: "pre-wrap", borderRadius: "4px", background: "#F4F5F7", padding: "12px", fontSize: "14px", color: "#172B4D" }}>
                   {typeof newTreatmentMutation.data.result === "string"
                     ? newTreatmentMutation.data.result
                     : String(newTreatmentMutation.data.result)}
@@ -331,91 +347,87 @@ export function StrategyAnalysis() {
       </section>
 
       {/* 戦略提案履歴 */}
-      <section className="rounded-2xl border border-zinc-200 bg-white p-6 shadow-sm">
-        <h2 className="mb-4 text-lg font-semibold text-zinc-900">
+      <section style={{ marginTop: "32px", padding: "24px", background: "#FFFFFF", borderRadius: "8px", border: "1px solid #DFE1E6" }}>
+        <h2 style={{ fontSize: "16px", fontWeight: 600, marginBottom: "16px", color: "#172B4D" }}>
           戦略提案履歴
         </h2>
         {strategiesQuery.isLoading && (
-          <p className="text-sm text-zinc-500">読み込み中...</p>
+          <div style={{ display: "flex", alignItems: "center", gap: "8px", padding: "16px" }}>
+            <Spinner size="small" />
+            <span style={{ fontSize: "14px", color: "#6B778C" }}>読み込み中...</span>
+          </div>
         )}
         {strategiesQuery.error && (
-          <p className="text-sm text-red-600">
+          <Banner appearance="error">
             エラー: {strategiesQuery.error.message}
-          </p>
+          </Banner>
         )}
         {strategiesQuery.data && strategiesQuery.data.length === 0 && (
-          <p className="text-sm text-zinc-500">
-            まだ戦略提案がありません
-          </p>
+          <EmptyState
+            header="まだ戦略提案がありません"
+            description="上記の分析機能を使用すると、ここに履歴が表示されます"
+          />
         )}
         {strategiesQuery.data && strategiesQuery.data.length > 0 && (
-          <div className="space-y-4">
+          <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
             {strategiesQuery.data.map((strategy) => (
               <div
                 key={strategy.id}
-                className="rounded-lg border border-zinc-200 p-4"
+                style={{ padding: "16px", borderRadius: "8px", border: "1px solid #DFE1E6" }}
               >
-                <div className="mb-2 flex items-center justify-between">
-                  <span className="text-xs text-zinc-500">
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "8px" }}>
+                  <span style={{ fontSize: "12px", color: "#6B778C" }}>
                     {new Date(strategy.createdAt).toLocaleString("ja-JP")}
                   </span>
-                  <span
-                    className={`rounded-full px-2.5 py-1 text-xs font-semibold ${
-                      strategy.implementationStatus === "completed"
-                        ? "bg-green-100 text-green-700"
-                        : strategy.implementationStatus === "in_progress"
-                          ? "bg-yellow-100 text-yellow-700"
-                          : "bg-zinc-100 text-zinc-500"
-                    }`}
-                  >
+                  <Badge appearance={strategy.implementationStatus === "completed" ? "added" : strategy.implementationStatus === "in_progress" ? "default" : "removed"}>
                     {strategy.implementationStatus === "completed"
                       ? "完了"
                       : strategy.implementationStatus === "in_progress"
                         ? "進行中"
                         : "未着手"}
-                  </span>
+                  </Badge>
                 </div>
-                <details className="mt-2">
-                  <summary className="cursor-pointer text-sm font-medium text-zinc-700 hover:text-zinc-900">
+                <details style={{ marginTop: "8px" }}>
+                  <summary style={{ cursor: "pointer", fontSize: "14px", fontWeight: 500, color: "#42526E", listStyle: "none" }}>
                     提案内容を表示
                   </summary>
-                  <div className="mt-3 space-y-3">
+                  <div style={{ marginTop: "12px", display: "flex", flexDirection: "column", gap: "12px" }}>
                     {strategy.priceRecommendations && (
                       <div>
-                        <h4 className="text-sm font-medium text-zinc-700">
+                        <h4 style={{ fontSize: "14px", fontWeight: 500, color: "#42526E", marginBottom: "4px" }}>
                           価格設定提案
                         </h4>
-                        <div className="mt-1 max-h-40 overflow-auto whitespace-pre-wrap rounded bg-zinc-50 p-3 text-sm text-zinc-900">
+                        <div style={{ maxHeight: "160px", overflow: "auto", whiteSpace: "pre-wrap", borderRadius: "4px", background: "#F4F5F7", padding: "12px", fontSize: "14px", color: "#172B4D" }}>
                           {strategy.priceRecommendations}
                         </div>
                       </div>
                     )}
                     {strategy.campaignProposals && (
                       <div>
-                        <h4 className="text-sm font-medium text-zinc-700">
+                        <h4 style={{ fontSize: "14px", fontWeight: 500, color: "#42526E", marginBottom: "4px" }}>
                           キャンペーン案
                         </h4>
-                        <div className="mt-1 max-h-40 overflow-auto whitespace-pre-wrap rounded bg-zinc-50 p-3 text-sm text-zinc-900">
+                        <div style={{ maxHeight: "160px", overflow: "auto", whiteSpace: "pre-wrap", borderRadius: "4px", background: "#F4F5F7", padding: "12px", fontSize: "14px", color: "#172B4D" }}>
                           {strategy.campaignProposals}
                         </div>
                       </div>
                     )}
                     {strategy.newTreatmentSuggestions && (
                       <div>
-                        <h4 className="text-sm font-medium text-zinc-700">
+                        <h4 style={{ fontSize: "14px", fontWeight: 500, color: "#42526E", marginBottom: "4px" }}>
                           新施術提案
                         </h4>
-                        <div className="mt-1 max-h-40 overflow-auto whitespace-pre-wrap rounded bg-zinc-50 p-3 text-sm text-zinc-900">
+                        <div style={{ maxHeight: "160px", overflow: "auto", whiteSpace: "pre-wrap", borderRadius: "4px", background: "#F4F5F7", padding: "12px", fontSize: "14px", color: "#172B4D" }}>
                           {strategy.newTreatmentSuggestions}
                         </div>
                       </div>
                     )}
                     {strategy.marketingStrategy && (
                       <div>
-                        <h4 className="text-sm font-medium text-zinc-700">
+                        <h4 style={{ fontSize: "14px", fontWeight: 500, color: "#42526E", marginBottom: "4px" }}>
                           マーケティング戦略
                         </h4>
-                        <div className="mt-1 max-h-40 overflow-auto whitespace-pre-wrap rounded bg-zinc-50 p-3 text-sm text-zinc-900">
+                        <div style={{ maxHeight: "160px", overflow: "auto", whiteSpace: "pre-wrap", borderRadius: "4px", background: "#F4F5F7", padding: "12px", fontSize: "14px", color: "#172B4D" }}>
                           {strategy.marketingStrategy}
                         </div>
                       </div>
@@ -432,4 +444,3 @@ export function StrategyAnalysis() {
 }
 
 export default StrategyAnalysis;
-

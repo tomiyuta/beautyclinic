@@ -1,11 +1,30 @@
 "use client";
 
 import { useState } from "react";
-
+import Button from "@atlaskit/button";
+import Textarea from "@atlaskit/textarea";
+import Select from "@atlaskit/select";
+import Banner from "@atlaskit/banner";
+import Badge from "@atlaskit/badge";
+import Spinner from "@atlaskit/spinner";
+import EmptyState from "@atlaskit/empty-state";
 import { api } from "@/trpc/react";
 import { TRPCClientError } from "@trpc/client";
 
 const USER_ID_PLACEHOLDER = 1;
+
+const exportFormatOptions = [
+  { label: "JSON", value: "json" },
+  { label: "テキスト", value: "text" },
+  { label: "PDF", value: "pdf" },
+  { label: "Excel", value: "excel" },
+];
+
+const implementationStatusOptions = [
+  { label: "未着手", value: "pending" },
+  { label: "進行中", value: "in_progress" },
+  { label: "完了", value: "completed" },
+];
 
 export function StrategyManagement() {
   const [selectedStrategyId, setSelectedStrategyId] = useState<number | null>(
@@ -34,6 +53,7 @@ export function StrategyManagement() {
           type: "success",
           message: "フィードバックが保存されました",
         });
+        setTimeout(() => setFeedbackMessage({ type: null, message: "" }), 5000);
         void strategiesQuery.refetch();
         setFeedback("");
         setSelectedStrategyId(null);
@@ -41,6 +61,7 @@ export function StrategyManagement() {
       onError: (error: unknown) => {
         const message = error instanceof Error ? error.message : "エラーが発生しました";
         setFeedbackMessage({ type: "error", message });
+        setTimeout(() => setFeedbackMessage({ type: null, message: "" }), 5000);
       },
     });
 
@@ -62,6 +83,7 @@ export function StrategyManagement() {
         type: "error",
         message: "エクスポートする戦略を選択してください",
       });
+      setTimeout(() => setFeedbackMessage({ type: null, message: "" }), 5000);
       return;
     }
 
@@ -122,6 +144,7 @@ export function StrategyManagement() {
           type: "success",
           message: "エクスポートが完了しました",
         });
+        setTimeout(() => setFeedbackMessage({ type: null, message: "" }), 5000);
       }
     } catch (error) {
       if (error instanceof TRPCClientError) {
@@ -132,6 +155,7 @@ export function StrategyManagement() {
           message: "エクスポートに失敗しました",
         });
       }
+      setTimeout(() => setFeedbackMessage({ type: null, message: "" }), 5000);
     }
   };
 
@@ -145,6 +169,7 @@ export function StrategyManagement() {
         type: "error",
         message: "戦略を選択してください",
       });
+      setTimeout(() => setFeedbackMessage({ type: null, message: "" }), 5000);
       return;
     }
 
@@ -153,6 +178,7 @@ export function StrategyManagement() {
         type: "error",
         message: "フィードバックを入力してください",
       });
+      setTimeout(() => setFeedbackMessage({ type: null, message: "" }), 5000);
       return;
     }
 
@@ -166,231 +192,206 @@ export function StrategyManagement() {
     } catch (error) {
       if (error instanceof TRPCClientError) {
         setFeedbackMessage({ type: "error", message: error.message });
+        setTimeout(() => setFeedbackMessage({ type: null, message: "" }), 5000);
       }
     }
   };
 
+  const strategyOptions = strategiesQuery.data?.map((strategy) => ({
+    label: `${new Date(strategy.createdAt).toLocaleString("ja-JP")} - ${strategy.implementationStatus}`,
+    value: strategy.id.toString(),
+  })) || [];
+
+  const feedbackStrategyOptions = strategiesQuery.data?.map((strategy) => ({
+    label: new Date(strategy.createdAt).toLocaleString("ja-JP"),
+    value: strategy.id.toString(),
+  })) || [];
+
   return (
-    <div className="mx-auto flex w-full max-w-4xl flex-col gap-10 py-12">
-      <header className="space-y-2">
-        <h1 className="text-2xl font-semibold text-zinc-900">戦略管理</h1>
-        <p className="text-sm text-zinc-600">
+    <div style={{ maxWidth: "1000px", margin: "0 auto", padding: "48px 16px" }}>
+      <header style={{ marginBottom: "40px" }}>
+        <h1 style={{ fontSize: "24px", fontWeight: 600, marginBottom: "8px", color: "#172B4D" }}>
+          戦略管理
+        </h1>
+        <p style={{ fontSize: "14px", color: "#6B778C" }}>
           戦略提案の履歴を管理し、フィードバックを記録できます
         </p>
       </header>
 
       {feedbackMessage.type && (
-        <div
-          className={`rounded-lg px-4 py-2 text-sm ${
-            feedbackMessage.type === "success"
-              ? "bg-green-50 text-green-700"
-              : "bg-red-50 text-red-700"
-          }`}
-        >
-          {feedbackMessage.message}
+        <div style={{ marginBottom: "16px" }}>
+          <Banner appearance={feedbackMessage.type === "success" ? "announcement" : "error"}>
+            {feedbackMessage.message}
+          </Banner>
         </div>
       )}
 
       {/* エクスポート */}
-      <section className="rounded-2xl border border-zinc-200 bg-white p-6 shadow-sm">
-        <h2 className="mb-4 text-lg font-semibold text-zinc-900">
+      <section style={{ marginBottom: "32px", padding: "24px", background: "#FFFFFF", borderRadius: "8px", border: "1px solid #DFE1E6" }}>
+        <h2 style={{ fontSize: "16px", fontWeight: 600, marginBottom: "16px", color: "#172B4D" }}>
           戦略書のエクスポート
         </h2>
-        <div className="space-y-4">
+        <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
           <div>
-            <label className="mb-2 block text-sm font-medium text-zinc-700">
+            <label style={{ display: "block", marginBottom: "8px", fontSize: "14px", fontWeight: 500, color: "#42526E" }}>
               戦略を選択
             </label>
-            <select
-              value={selectedStrategyId || ""}
-              onChange={(e) =>
+            <Select
+              options={strategyOptions}
+              value={selectedStrategyId ? strategyOptions.find(opt => opt.value === selectedStrategyId.toString()) : null}
+              onChange={(option) =>
                 setSelectedStrategyId(
-                  e.target.value ? Number.parseInt(e.target.value, 10) : null,
+                  option?.value ? Number.parseInt(option.value, 10) : null,
                 )
               }
-              className="w-full rounded-lg border border-zinc-200 px-3 py-2 text-sm text-zinc-900 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200"
-            >
-              <option value="">選択してください</option>
-              {strategiesQuery.data?.map((strategy) => (
-                <option key={strategy.id} value={strategy.id}>
-                  {new Date(strategy.createdAt).toLocaleString("ja-JP")} -{" "}
-                  {strategy.implementationStatus}
-                </option>
-              ))}
-            </select>
+              placeholder="選択してください"
+            />
           </div>
           <div>
-            <label className="mb-2 block text-sm font-medium text-zinc-700">
+            <label style={{ display: "block", marginBottom: "8px", fontSize: "14px", fontWeight: 500, color: "#42526E" }}>
               出力形式
             </label>
-            <select
-              value={exportFormat}
-              onChange={(e) =>
+            <Select
+              options={exportFormatOptions}
+              value={exportFormatOptions.find(opt => opt.value === exportFormat)}
+              onChange={(option) =>
                 setExportFormat(
-                  e.target.value as "json" | "text" | "pdf" | "excel",
+                  (option?.value as typeof exportFormat) || "json",
                 )
               }
-              className="w-full rounded-lg border border-zinc-200 px-3 py-2 text-sm text-zinc-900 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200"
-            >
-              <option value="json">JSON</option>
-              <option value="text">テキスト</option>
-              <option value="pdf">PDF</option>
-              <option value="excel">Excel</option>
-            </select>
+            />
           </div>
-          <button
+          <Button
             onClick={handleExport}
-            disabled={!selectedStrategyId}
-            className="inline-flex items-center justify-center rounded-lg bg-blue-600 px-5 py-2 text-sm font-medium text-white transition hover:bg-blue-500 disabled:cursor-not-allowed disabled:opacity-60"
+            isDisabled={!selectedStrategyId}
+            appearance="primary"
           >
             エクスポート
-          </button>
+          </Button>
         </div>
       </section>
 
       {/* フィードバック */}
-      <section className="rounded-2xl border border-zinc-200 bg-white p-6 shadow-sm">
-        <h2 className="mb-4 text-lg font-semibold text-zinc-900">
+      <section style={{ marginBottom: "32px", padding: "24px", background: "#FFFFFF", borderRadius: "8px", border: "1px solid #DFE1E6" }}>
+        <h2 style={{ fontSize: "16px", fontWeight: 600, marginBottom: "16px", color: "#172B4D" }}>
           フィードバックの登録
         </h2>
-        <form className="space-y-4" onSubmit={handleSubmitFeedback}>
+        <form onSubmit={handleSubmitFeedback} style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
           <div>
-            <label className="mb-2 block text-sm font-medium text-zinc-700">
+            <label style={{ display: "block", marginBottom: "8px", fontSize: "14px", fontWeight: 500, color: "#42526E" }}>
               戦略を選択 *
             </label>
-            <select
-              required
-              value={selectedStrategyId || ""}
-              onChange={(e) =>
+            <Select
+              isRequired
+              options={feedbackStrategyOptions}
+              value={selectedStrategyId ? feedbackStrategyOptions.find(opt => opt.value === selectedStrategyId.toString()) : null}
+              onChange={(option) =>
                 setSelectedStrategyId(
-                  e.target.value ? Number.parseInt(e.target.value, 10) : null,
+                  option?.value ? Number.parseInt(option.value, 10) : null,
                 )
               }
-              className="w-full rounded-lg border border-zinc-200 px-3 py-2 text-sm text-zinc-900 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200"
-            >
-              <option value="">選択してください</option>
-              {strategiesQuery.data?.map((strategy) => (
-                <option key={strategy.id} value={strategy.id}>
-                  {new Date(strategy.createdAt).toLocaleString("ja-JP")}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div>
-            <label className="mb-2 block text-sm font-medium text-zinc-700">
-              フィードバック *
-            </label>
-            <textarea
-              required
-              value={feedback}
-              onChange={(e) => setFeedback(e.target.value)}
-              rows={4}
-              placeholder="戦略提案に対するフィードバックを入力してください"
-              className="w-full rounded-lg border border-zinc-200 px-3 py-2 text-sm text-zinc-900 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200"
+              placeholder="選択してください"
             />
           </div>
           <div>
-            <label className="mb-2 block text-sm font-medium text-zinc-700">
+            <label style={{ display: "block", marginBottom: "8px", fontSize: "14px", fontWeight: 500, color: "#42526E" }}>
+              フィードバック *
+            </label>
+            <Textarea
+              isRequired
+              value={feedback}
+              onChange={(e) => setFeedback((e.target as HTMLTextAreaElement).value)}
+              placeholder="戦略提案に対するフィードバックを入力してください"
+              minimumRows={4}
+              style={{ width: "100%" }}
+            />
+          </div>
+          <div>
+            <label style={{ display: "block", marginBottom: "8px", fontSize: "14px", fontWeight: 500, color: "#42526E" }}>
               実装ステータス
             </label>
-            <select
-              value={implementationStatus}
-              onChange={(e) =>
+            <Select
+              options={implementationStatusOptions}
+              value={implementationStatusOptions.find(opt => opt.value === implementationStatus)}
+              onChange={(option) =>
                 setImplementationStatus(
-                  e.target.value as "pending" | "in_progress" | "completed",
+                  (option?.value as typeof implementationStatus) || "pending",
                 )
               }
-              className="w-full rounded-lg border border-zinc-200 px-3 py-2 text-sm text-zinc-900 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200"
-            >
-              <option value="pending">未着手</option>
-              <option value="in_progress">進行中</option>
-              <option value="completed">完了</option>
-            </select>
+            />
           </div>
-          <button
+          <Button
             type="submit"
-            disabled={updateFeedbackMutation.isPending}
-            className="inline-flex items-center justify-center rounded-lg bg-blue-600 px-5 py-2 text-sm font-medium text-white transition hover:bg-blue-500 disabled:cursor-not-allowed disabled:opacity-60"
+            appearance="primary"
+            isDisabled={updateFeedbackMutation.isPending}
           >
             {updateFeedbackMutation.isPending
               ? "保存中..."
               : "フィードバックを保存"}
-          </button>
+          </Button>
         </form>
       </section>
 
       {/* 戦略履歴 */}
-      <section className="rounded-2xl border border-zinc-200 bg-white p-6 shadow-sm">
-        <h2 className="mb-4 text-lg font-semibold text-zinc-900">
+      <section style={{ padding: "24px", background: "#FFFFFF", borderRadius: "8px", border: "1px solid #DFE1E6" }}>
+        <h2 style={{ fontSize: "16px", fontWeight: 600, marginBottom: "16px", color: "#172B4D" }}>
           戦略提案履歴
         </h2>
         {strategiesQuery.isLoading && (
-          <p className="text-sm text-zinc-500">読み込み中...</p>
+          <div style={{ display: "flex", alignItems: "center", gap: "8px", padding: "16px" }}>
+            <Spinner size="small" />
+            <span style={{ fontSize: "14px", color: "#6B778C" }}>読み込み中...</span>
+          </div>
         )}
         {strategiesQuery.error && (
-          <p className="text-sm text-red-600">
+          <Banner appearance="error">
             エラー: {strategiesQuery.error.message}
-          </p>
+          </Banner>
         )}
         {strategiesQuery.data && strategiesQuery.data.length === 0 && (
-          <p className="text-sm text-zinc-500">
-            まだ戦略提案がありません
-          </p>
+          <EmptyState
+            header="まだ戦略提案がありません"
+            description="戦略分析を実行すると、ここに履歴が表示されます"
+          />
         )}
         {strategiesQuery.data && strategiesQuery.data.length > 0 && (
-          <div className="space-y-4">
+          <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
             {strategiesQuery.data.map((strategy) => (
               <div
                 key={strategy.id}
-                className="rounded-lg border border-zinc-200 p-4"
+                style={{ padding: "16px", borderRadius: "8px", border: "1px solid #DFE1E6" }}
               >
-                <div className="mb-2 flex items-center justify-between">
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "8px" }}>
                   <div>
-                    <span className="text-sm font-semibold text-zinc-900">
+                    <span style={{ fontSize: "14px", fontWeight: 600, color: "#172B4D" }}>
                       戦略提案 #{strategy.id}
                     </span>
-                    <span className="ml-2 text-xs text-zinc-500">
+                    <span style={{ marginLeft: "8px", fontSize: "12px", color: "#6B778C" }}>
                       {new Date(strategy.createdAt).toLocaleString("ja-JP")}
                     </span>
                   </div>
-                  <span
-                    className={`rounded-full px-2.5 py-1 text-xs font-semibold ${
-                      strategy.implementationStatus === "completed"
-                        ? "bg-green-100 text-green-700"
-                        : strategy.implementationStatus === "in_progress"
-                          ? "bg-yellow-100 text-yellow-700"
-                          : "bg-zinc-100 text-zinc-500"
-                    }`}
-                  >
+                  <Badge appearance={strategy.implementationStatus === "completed" ? "added" : strategy.implementationStatus === "in_progress" ? "default" : "removed"}>
                     {strategy.implementationStatus === "completed"
                       ? "完了"
                       : strategy.implementationStatus === "in_progress"
                         ? "進行中"
                         : "未着手"}
-                  </span>
+                  </Badge>
                 </div>
                 {"summary" in strategy && strategy.summary && (
-                  <div className="mb-2 flex flex-wrap gap-2 text-xs">
-                    <span className="rounded-full bg-blue-50 px-2 py-1 text-blue-700">
-                      価格提案: {strategy.summary.priceRecommendationsCount}件
-                    </span>
-                    <span className="rounded-full bg-purple-50 px-2 py-1 text-purple-700">
-                      キャンペーン案: {strategy.summary.campaignProposalsCount}件
-                    </span>
-                    <span className="rounded-full bg-green-50 px-2 py-1 text-green-700">
-                      新施術提案: {strategy.summary.newTreatmentSuggestionsCount}件
-                    </span>
-                    <span className="rounded-full bg-orange-50 px-2 py-1 text-orange-700">
-                      生成コンテンツ: {strategy.summary.totalContents}件
-                    </span>
+                  <div style={{ marginBottom: "8px", display: "flex", flexWrap: "wrap", gap: "8px" }}>
+                    <Badge appearance="added">価格提案: {strategy.summary.priceRecommendationsCount}件</Badge>
+                    <Badge appearance="default">キャンペーン案: {strategy.summary.campaignProposalsCount}件</Badge>
+                    <Badge appearance="added">新施術提案: {strategy.summary.newTreatmentSuggestionsCount}件</Badge>
+                    <Badge appearance="default">生成コンテンツ: {strategy.summary.totalContents}件</Badge>
                   </div>
                 )}
                 {strategy.userFeedback && (
-                  <div className="mt-2 rounded bg-zinc-50 p-2">
-                    <p className="text-xs font-medium text-zinc-700">
+                  <div style={{ marginTop: "8px", padding: "8px", borderRadius: "4px", background: "#F4F5F7" }}>
+                    <p style={{ fontSize: "12px", fontWeight: 500, color: "#42526E", marginBottom: "4px" }}>
                       フィードバック:
                     </p>
-                    <p className="text-xs text-zinc-600">
+                    <p style={{ fontSize: "12px", color: "#6B778C" }}>
                       {strategy.userFeedback}
                     </p>
                   </div>
@@ -398,21 +399,18 @@ export function StrategyManagement() {
                 {"relatedContents" in strategy &&
                   Array.isArray(strategy.relatedContents) &&
                   strategy.relatedContents.length > 0 && (
-                    <div className="mt-2 rounded bg-blue-50 p-2">
-                      <p className="text-xs font-medium text-blue-700 mb-1">
+                    <div style={{ marginTop: "8px", padding: "8px", borderRadius: "4px", background: "#E3FCEF" }}>
+                      <p style={{ fontSize: "12px", fontWeight: 500, color: "#006644", marginBottom: "4px" }}>
                         関連生成コンテンツ ({strategy.relatedContents.length}件):
                       </p>
-                      <div className="flex flex-wrap gap-1">
+                      <div style={{ display: "flex", flexWrap: "wrap", gap: "4px" }}>
                         {strategy.relatedContents.map((content: {
                           id: number;
                           contentType: string;
                           title: string;
                           status: string;
                         }) => (
-                          <span
-                            key={content.id}
-                            className="rounded bg-white px-2 py-0.5 text-xs text-blue-600"
-                          >
+                          <Badge key={content.id} appearance="added">
                             {content.contentType === "instagram_lp"
                               ? "LP"
                               : content.contentType === "website_article"
@@ -420,28 +418,28 @@ export function StrategyManagement() {
                                 : "コピー"}
                             : {content.title.substring(0, 20)}
                             {content.title.length > 20 ? "..." : ""}
-                          </span>
+                          </Badge>
                         ))}
                       </div>
                     </div>
                   )}
-                <details className="mt-2">
-                  <summary className="cursor-pointer text-sm font-medium text-zinc-700 hover:text-zinc-900">
+                <details style={{ marginTop: "8px" }}>
+                  <summary style={{ cursor: "pointer", fontSize: "14px", fontWeight: 500, color: "#42526E", listStyle: "none" }}>
                     詳細を表示
                   </summary>
-                  <div className="mt-2 space-y-2 text-xs">
+                  <div style={{ marginTop: "8px", display: "flex", flexDirection: "column", gap: "8px" }}>
                     {strategy.priceRecommendations && (
                       <div>
-                        <strong>価格設定提案:</strong>
-                        <div className="mt-1 whitespace-pre-wrap rounded bg-zinc-50 p-2 text-xs text-zinc-900">
+                        <strong style={{ fontSize: "12px", color: "#172B4D" }}>価格設定提案:</strong>
+                        <div style={{ marginTop: "4px", whiteSpace: "pre-wrap", borderRadius: "4px", background: "#F4F5F7", padding: "8px", fontSize: "12px", color: "#172B4D" }}>
                           {strategy.priceRecommendations}
                         </div>
                       </div>
                     )}
                     {strategy.campaignProposals && (
                       <div>
-                        <strong>キャンペーン案:</strong>
-                        <div className="mt-1 whitespace-pre-wrap rounded bg-zinc-50 p-2 text-xs text-zinc-900">
+                        <strong style={{ fontSize: "12px", color: "#172B4D" }}>キャンペーン案:</strong>
+                        <div style={{ marginTop: "4px", whiteSpace: "pre-wrap", borderRadius: "4px", background: "#F4F5F7", padding: "8px", fontSize: "12px", color: "#172B4D" }}>
                           {strategy.campaignProposals}
                         </div>
                       </div>
@@ -458,4 +456,3 @@ export function StrategyManagement() {
 }
 
 export default StrategyManagement;
-

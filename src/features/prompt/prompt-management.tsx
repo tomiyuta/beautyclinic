@@ -1,6 +1,14 @@
 "use client";
 
 import { useState } from "react";
+import Button from "@atlaskit/button";
+import TextField from "@atlaskit/textfield";
+import Textarea from "@atlaskit/textarea";
+import Banner from "@atlaskit/banner";
+import Badge from "@atlaskit/badge";
+import Checkbox from "@atlaskit/checkbox";
+import Spinner from "@atlaskit/spinner";
+import EmptyState from "@atlaskit/empty-state";
 import { api } from "@/trpc/react";
 import { TRPCClientError } from "@trpc/client";
 import type { PromptTemplate } from "@/generated/prisma/client";
@@ -105,13 +113,15 @@ export default function PromptManagement() {
   });
   const upsertPrompt = api.prompt.upsert.useMutation({
     onSuccess: () => {
-      alert("プロンプトを保存しました");
+      setSuccessMessage("プロンプトを保存しました");
+      setTimeout(() => setSuccessMessage(""), 5000);
       void refetch();
       setEditingPrompt(null);
     },
     onError: (error: unknown) => {
       const message = error instanceof Error ? error.message : "プロンプトの保存に失敗しました";
-      alert(`エラー: ${message}`);
+      setErrorMessage(`エラー: ${message}`);
+      setTimeout(() => setErrorMessage(""), 5000);
     },
   });
 
@@ -122,6 +132,8 @@ export default function PromptManagement() {
     prompt: "",
     isActive: true,
   });
+  const [successMessage, setSuccessMessage] = useState("");
+  const [errorMessage, setErrorMessage] = useState("");
 
   const handleEdit = (promptType: PromptType) => {
     const prompt = prompts?.find((p: PromptTemplate) => p.promptType === promptType);
@@ -140,7 +152,8 @@ export default function PromptManagement() {
     e.preventDefault();
     const info = PROMPT_INFO[promptType];
     if (!info) {
-      alert("無効なプロンプトタイプです");
+      setErrorMessage("無効なプロンプトタイプです");
+      setTimeout(() => setErrorMessage(""), 5000);
       return;
     }
     upsertPrompt.mutate({
@@ -176,39 +189,70 @@ export default function PromptManagement() {
     {} as Record<"claude" | "gemini" | "grok" | "chatgpt", PromptTemplate[]>,
   ) || {} as Record<"claude" | "gemini" | "grok" | "chatgpt", PromptTemplate[]>;
 
+  const getAgentName = (agent: string) => {
+    switch (agent) {
+      case "claude":
+        return "Claude";
+      case "gemini":
+        return "Gemini";
+      case "grok":
+        return "Grok";
+      case "chatgpt":
+        return "ChatGPT";
+      default:
+        return agent;
+    }
+  };
+
   return (
-    <div className="mx-auto flex w-full max-w-4xl flex-col gap-10 py-12">
-      <header className="space-y-2">
-        <h1 className="text-2xl font-semibold text-zinc-900">プロンプト管理</h1>
-        <p className="text-sm text-zinc-600">
+    <div style={{ maxWidth: "1000px", margin: "0 auto", padding: "48px 16px" }}>
+      <header style={{ marginBottom: "40px" }}>
+        <h1 style={{ fontSize: "24px", fontWeight: 600, marginBottom: "8px", color: "#172B4D" }}>
+          プロンプト管理
+        </h1>
+        <p style={{ fontSize: "14px", color: "#6B778C" }}>
           各AIサービスへの指示文を管理できます。変更はすぐに反映されます。
         </p>
       </header>
 
+      {successMessage && (
+        <div style={{ marginBottom: "16px" }}>
+          <Banner appearance="announcement">
+            {successMessage}
+          </Banner>
+        </div>
+      )}
+      {errorMessage && (
+        <div style={{ marginBottom: "16px" }}>
+          <Banner appearance="error">
+            {errorMessage}
+          </Banner>
+        </div>
+      )}
+
       {isLoading ? (
-        <div className="rounded-2xl border border-zinc-200 bg-white p-8 shadow-sm">
-          <p className="text-sm text-zinc-600">読み込み中...</p>
+        <div style={{ padding: "32px", background: "#FFFFFF", borderRadius: "8px", border: "1px solid #DFE1E6", display: "flex", alignItems: "center", gap: "8px" }}>
+          <Spinner size="small" />
+          <span style={{ fontSize: "14px", color: "#6B778C" }}>読み込み中...</span>
         </div>
       ) : error ? (
-        <div className="rounded-2xl border border-red-200 bg-red-50 p-8 shadow-sm">
-          <p className="text-sm font-medium text-red-900">
-            エラー: {error.message || "データの取得に失敗しました"}
-          </p>
-          <button
-            onClick={() => void refetch()}
-            className="mt-4 rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-500"
-          >
+        <div style={{ padding: "32px", background: "#FFFFFF", borderRadius: "8px", border: "1px solid #DE350B" }}>
+          <div style={{ marginBottom: "16px" }}>
+            <Banner appearance="error">
+              エラー: {error.message || "データの取得に失敗しました"}
+            </Banner>
+          </div>
+          <Button appearance="primary" onClick={() => void refetch()}>
             再試行
-          </button>
+          </Button>
         </div>
       ) : !prompts || prompts.length === 0 ? (
-        <div className="rounded-2xl border border-zinc-200 bg-white p-8 shadow-sm">
-          <p className="text-sm text-zinc-600">
-            プロンプトが登録されていません。初期設定を実行してください。
-          </p>
-        </div>
+        <EmptyState
+          header="プロンプトが登録されていません"
+          description="初期設定を実行してください"
+        />
       ) : (
-        <div className="space-y-8">
+        <div style={{ display: "flex", flexDirection: "column", gap: "32px" }}>
           {(["claude", "gemini", "grok", "chatgpt"] as const).map((agent) => {
             const agentPrompts = groupedPrompts[agent] || [];
             if (!agentPrompts || agentPrompts.length === 0) return null;
@@ -216,18 +260,12 @@ export default function PromptManagement() {
             return (
               <section
                 key={agent}
-                className="rounded-2xl border border-zinc-200 bg-white p-6 shadow-sm"
+                style={{ padding: "24px", background: "#FFFFFF", borderRadius: "8px", border: "1px solid #DFE1E6" }}
               >
-                <h2 className="mb-4 text-lg font-semibold text-zinc-900 capitalize">
-                  {agent === "claude"
-                    ? "Claude"
-                    : agent === "gemini"
-                      ? "Gemini"
-                      : agent === "grok"
-                        ? "Grok"
-                        : "ChatGPT"}
+                <h2 style={{ fontSize: "16px", fontWeight: 600, marginBottom: "16px", color: "#172B4D", textTransform: "capitalize" }}>
+                  {getAgentName(agent)}
                 </h2>
-                <div className="space-y-4">
+                <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
                   {agentPrompts.map((prompt: PromptTemplate) => {
                     if (!prompt || !prompt.promptType) return null;
                     const info = PROMPT_INFO[prompt.promptType as PromptType];
@@ -237,126 +275,114 @@ export default function PromptManagement() {
                     return (
                       <div
                         key={prompt.id}
-                        className="rounded-lg border border-zinc-200 p-4"
+                        style={{ padding: "16px", borderRadius: "8px", border: "1px solid #DFE1E6" }}
                       >
                         {isEditing ? (
                           <form
                             onSubmit={(e) =>
                               handleSubmit(e, prompt.promptType as PromptType)
                             }
-                            className="space-y-4"
+                            style={{ display: "flex", flexDirection: "column", gap: "16px" }}
                           >
                             <div>
-                              <label className="mb-2 block text-sm font-medium text-zinc-700">
+                              <label style={{ display: "block", marginBottom: "8px", fontSize: "14px", fontWeight: 500, color: "#42526E" }}>
                                 プロンプト名
                               </label>
-                              <input
+                              <TextField
+                                isRequired
                                 type="text"
                                 value={formData.name}
                                 onChange={(e) =>
-                                  setFormData((prev) => ({ ...prev, name: e.target.value }))
+                                  setFormData((prev) => ({ ...prev, name: (e.target as HTMLInputElement).value }))
                                 }
-                                className="w-full rounded-lg border border-zinc-200 px-3 py-2 text-sm text-zinc-900 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200"
-                                required
+                                style={{ width: "100%" }}
                               />
                             </div>
                             <div>
-                              <label className="mb-2 block text-sm font-medium text-zinc-700">
+                              <label style={{ display: "block", marginBottom: "8px", fontSize: "14px", fontWeight: 500, color: "#42526E" }}>
                                 説明
                               </label>
-                              <input
+                              <TextField
                                 type="text"
                                 value={formData.description}
                                 onChange={(e) =>
-                                  setFormData((prev) => ({ ...prev, description: e.target.value }))
+                                  setFormData((prev) => ({ ...prev, description: (e.target as HTMLInputElement).value }))
                                 }
-                                className="w-full rounded-lg border border-zinc-200 px-3 py-2 text-sm text-zinc-900 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200"
+                                style={{ width: "100%" }}
                               />
                             </div>
                             <div>
-                              <label className="mb-2 block text-sm font-medium text-zinc-700">
+                              <label style={{ display: "block", marginBottom: "8px", fontSize: "14px", fontWeight: 500, color: "#42526E" }}>
                                 プロンプト内容
                               </label>
-                              <textarea
+                              <Textarea
+                                isRequired
                                 value={formData.prompt}
                                 onChange={(e) =>
-                                  setFormData((prev) => ({ ...prev, prompt: e.target.value }))
+                                  setFormData((prev) => ({ ...prev, prompt: (e.target as HTMLTextAreaElement).value }))
                                 }
-                                rows={15}
-                                className="w-full rounded-lg border border-zinc-200 px-3 py-2 font-mono text-sm text-zinc-900 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200"
-                                required
+                                minimumRows={15}
+                                style={{ width: "100%", fontFamily: "monospace" }}
                               />
                             </div>
-                            <div className="flex items-center gap-2">
-                              <input
-                                type="checkbox"
-                                id={`active-${prompt.id}`}
-                                checked={formData.isActive}
+                            <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                              <Checkbox
+                                isChecked={formData.isActive}
                                 onChange={(e) =>
                                   setFormData((prev) => ({ ...prev, isActive: e.target.checked }))
                                 }
-                                className="h-4 w-4 rounded border-zinc-300 text-blue-600 focus:ring-blue-500"
                               />
-                              <label
-                                htmlFor={`active-${prompt.id}`}
-                                className="text-sm text-zinc-700"
-                              >
+                              <label style={{ fontSize: "14px", color: "#42526E" }}>
                                 有効
                               </label>
                             </div>
-                            <div className="flex gap-2">
-                              <button
+                            <div style={{ display: "flex", gap: "8px" }}>
+                              <Button
                                 type="submit"
-                                disabled={upsertPrompt.isPending}
-                                className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-blue-500 disabled:cursor-not-allowed disabled:opacity-60"
+                                appearance="primary"
+                                isDisabled={upsertPrompt.isPending}
                               >
                                 {upsertPrompt.isPending ? "保存中..." : "保存"}
-                              </button>
-                              <button
+                              </Button>
+                              <Button
                                 type="button"
+                                appearance="default"
                                 onClick={handleCancel}
-                                className="rounded-lg border border-zinc-300 px-4 py-2 text-sm font-medium text-zinc-700 transition hover:bg-zinc-50"
                               >
                                 キャンセル
-                              </button>
+                              </Button>
                             </div>
                           </form>
                         ) : (
                           <>
-                            <div className="flex items-start justify-between">
-                              <div className="flex-1">
-                                <h3 className="text-base font-semibold text-zinc-900">
+                            <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between" }}>
+                              <div style={{ flex: 1 }}>
+                                <h3 style={{ fontSize: "16px", fontWeight: 600, color: "#172B4D" }}>
                                   {prompt.name || info.name}
                                 </h3>
                                 {prompt.description && (
-                                  <p className="mt-1 text-sm text-zinc-600">
+                                  <p style={{ marginTop: "4px", fontSize: "14px", color: "#6B778C" }}>
                                     {prompt.description}
                                   </p>
                                 )}
-                                <div className="mt-2 flex items-center gap-2">
-                                  <span
-                                    className={`rounded-full px-2 py-1 text-xs font-medium ${
-                                      prompt.isActive
-                                        ? "bg-green-100 text-green-800"
-                                        : "bg-red-100 text-red-800"
-                                    }`}
-                                  >
+                                <div style={{ marginTop: "8px", display: "flex", alignItems: "center", gap: "8px" }}>
+                                  <Badge appearance={prompt.isActive ? "added" : "removed"}>
                                     {prompt.isActive ? "有効" : "無効"}
-                                  </span>
+                                  </Badge>
                                 </div>
                               </div>
-                              <button
+                              <Button
+                                appearance="default"
                                 onClick={() => handleEdit(prompt.promptType as PromptType)}
-                                className="rounded-lg border border-zinc-300 px-4 py-2 text-sm font-medium text-zinc-700 transition hover:bg-zinc-50"
                               >
                                 編集
-                              </button>
+                              </Button>
                             </div>
-                            <div className="mt-4 rounded-lg bg-zinc-50 p-3">
-                              <p className="mb-2 text-xs font-medium text-zinc-600">
+                            <div style={{ marginTop: "16px", padding: "12px", borderRadius: "8px", background: "#F4F5F7" }}>
+                              <p style={{ marginBottom: "8px", fontSize: "12px", fontWeight: 500, color: "#6B778C" }}>
                                 プロンプト内容（プレビュー）
                               </p>
-                              <pre className="max-h-40 overflow-auto whitespace-pre-wrap break-words font-mono text-xs text-zinc-700">
+                              <pre style={{ maxHeight: "160px", overflow: "auto", whiteSpace: "pre-wrap", wordBreak: "break-word", fontFamily: "monospace", fontSize: "12px", color: "#42526E", margin: 0 }}>
                                 {prompt.prompt && prompt.prompt.length > 200
                                   ? `${prompt.prompt.substring(0, 200)}...`
                                   : prompt.prompt || "(プロンプトが設定されていません)"}
@@ -375,16 +401,20 @@ export default function PromptManagement() {
       )}
 
       {/* 注意事項 */}
-      <section className="rounded-2xl border border-amber-200 bg-amber-50 p-6">
-        <h3 className="mb-2 text-sm font-semibold text-amber-900">⚠️ 重要な注意事項</h3>
-        <ul className="space-y-1 text-xs text-amber-800">
-          <li>• プロンプトを変更すると、AIの出力形式や内容が変わります</li>
-          <li>• 変更後は実際の動作を確認してください</li>
-          <li>• プレースホルダー（例: {"${location}"}）はそのまま残してください</li>
-        </ul>
+      <section style={{ marginTop: "32px", padding: "24px", borderRadius: "8px", border: "1px solid #FFC400", background: "#FFF7E6" }}>
+        <Banner appearance="warning">
+          <div>
+            <strong style={{ display: "block", marginBottom: "8px", fontSize: "14px", fontWeight: 600, color: "#172B4D" }}>
+              ⚠️ 重要な注意事項
+            </strong>
+            <ul style={{ margin: 0, paddingLeft: "20px", fontSize: "12px", color: "#42526E" }}>
+              <li>プロンプトを変更すると、AIの出力形式や内容が変わります</li>
+              <li>変更後は実際の動作を確認してください</li>
+              <li>プレースホルダー（例: {"${location}"}）はそのまま残してください</li>
+            </ul>
+          </div>
+        </Banner>
       </section>
     </div>
   );
 }
-
-
