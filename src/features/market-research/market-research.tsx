@@ -35,10 +35,11 @@ export function MarketResearch() {
       });
       setLocation("");
     },
-    onError: (error) => {
+    onError: (error: unknown) => {
+      const message = error instanceof Error ? error.message : "エラーが発生しました。もう一度お試しください。";
       setFeedback({ 
         type: "error", 
-        message: error.message || "エラーが発生しました。もう一度お試しください。" 
+        message
       });
     },
   });
@@ -55,10 +56,11 @@ export function MarketResearch() {
       setTreatments([]);
       setCities([]);
     },
-    onError: (error) => {
+    onError: (error: unknown) => {
+      const message = error instanceof Error ? error.message : "エラーが発生しました。もう一度お試しください。";
       setFeedback({ 
         type: "error", 
-        message: error.message || "エラーが発生しました。もう一度お試しください。" 
+        message
       });
     },
   });
@@ -76,8 +78,9 @@ export function MarketResearch() {
         setLocation("");
         setRadius(5);
       },
-      onError: (error) => {
-        setFeedback({ type: "error", message: error.message });
+      onError: (error: unknown) => {
+        const message = error instanceof Error ? error.message : "エラーが発生しました";
+        setFeedback({ type: "error", message });
       },
     });
 

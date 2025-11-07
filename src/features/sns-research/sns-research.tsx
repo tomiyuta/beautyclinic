@@ -33,10 +33,11 @@ export function SNSResearch() {
       });
       setKeywords([]);
     },
-    onError: (error) => {
+    onError: (error: unknown) => {
+      const message = error instanceof Error ? error.message : "エラーが発生しました。もう一度お試しください。";
       setFeedback({ 
         type: "error", 
-        message: error.message || "エラーが発生しました。もう一度お試しください。" 
+        message
       });
     },
   });
@@ -52,10 +53,11 @@ export function SNSResearch() {
       });
       setKeywords([]);
     },
-    onError: (error) => {
+    onError: (error: unknown) => {
+      const message = error instanceof Error ? error.message : "エラーが発生しました。もう一度お試しください。";
       setFeedback({ 
         type: "error", 
-        message: error.message || "エラーが発生しました。もう一度お試しください。" 
+        message
       });
     },
   });
@@ -71,10 +73,11 @@ export function SNSResearch() {
       });
       setKeywords([]);
     },
-    onError: (error) => {
+    onError: (error: unknown) => {
+      const message = error instanceof Error ? error.message : "エラーが発生しました。もう一度お試しください。";
       setFeedback({ 
         type: "error", 
-        message: error.message || "エラーが発生しました。もう一度お試しください。" 
+        message
       });
     },
   });
@@ -292,7 +295,7 @@ export function SNSResearch() {
         )}
         {resultsQuery.data && resultsQuery.data.length > 0 && (
           <div className="space-y-4">
-            {resultsQuery.data.map((result) => (
+            {resultsQuery.data.map((result: any) => (
               <div
                 key={result.id}
                 className="rounded-lg border border-zinc-200 p-4"

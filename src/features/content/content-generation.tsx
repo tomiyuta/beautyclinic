@@ -240,8 +240,9 @@ export function ContentGeneration() {
       void utils.content.list.invalidate({ userId: USER_ID_PLACEHOLDER });
       resetForm();
     },
-    onError: (error) => {
-      setFeedback({ type: "error", message: error.message });
+    onError: (error: unknown) => {
+      const message = error instanceof Error ? error.message : "エラーが発生しました";
+      setFeedback({ type: "error", message });
     },
   });
 
@@ -254,8 +255,9 @@ export function ContentGeneration() {
       void utils.content.list.invalidate({ userId: USER_ID_PLACEHOLDER });
       resetForm();
     },
-    onError: (error) => {
-      setFeedback({ type: "error", message: error.message });
+    onError: (error: unknown) => {
+      const message = error instanceof Error ? error.message : "エラーが発生しました";
+      setFeedback({ type: "error", message });
     },
   });
 
@@ -268,8 +270,9 @@ export function ContentGeneration() {
       void utils.content.list.invalidate({ userId: USER_ID_PLACEHOLDER });
       resetForm();
     },
-    onError: (error) => {
-      setFeedback({ type: "error", message: error.message });
+    onError: (error: unknown) => {
+      const message = error instanceof Error ? error.message : "エラーが発生しました";
+      setFeedback({ type: "error", message });
     },
   });
 
@@ -695,7 +698,7 @@ export function ContentGeneration() {
                     className="prose prose-sm max-w-none whitespace-pre-line"
                   >
                     {typeof (previewContent.data as Record<string, unknown>).result === "string"
-                      ? (previewContent.data as Record<string, unknown>).result
+                      ? (previewContent.data as Record<string, unknown>).result as React.ReactNode
                       : String((previewContent.data as Record<string, unknown>).result)}
                   </div>
                 )}
@@ -706,7 +709,7 @@ export function ContentGeneration() {
                 {"result" in (previewContent.data as Record<string, unknown>) && (
                   <div className="whitespace-pre-line text-sm leading-relaxed text-zinc-700">
                     {typeof (previewContent.data as Record<string, unknown>).result === "string"
-                      ? (previewContent.data as Record<string, unknown>).result
+                      ? (previewContent.data as Record<string, unknown>).result as React.ReactNode
                       : String((previewContent.data as Record<string, unknown>).result)}
                   </div>
                 )}

@@ -42,8 +42,9 @@ export function ProductManagement() {
       setForm(defaultFormState);
       await utils.product.list.invalidate({ userId: USER_ID_PLACEHOLDER });
     },
-    onError: (error) => {
-      setFeedback({ type: "error", message: error.message });
+    onError: (error: unknown) => {
+      const message = error instanceof Error ? error.message : "エラーが発生しました";
+      setFeedback({ type: "error", message });
     },
   });
 
@@ -52,8 +53,9 @@ export function ProductManagement() {
       setFeedback({ type: "success", message: "商品を削除しました" });
       await utils.product.list.invalidate({ userId: USER_ID_PLACEHOLDER });
     },
-    onError: (error) => {
-      setFeedback({ type: "error", message: error.message });
+    onError: (error: unknown) => {
+      const message = error instanceof Error ? error.message : "エラーが発生しました";
+      setFeedback({ type: "error", message });
     },
   });
 
@@ -274,7 +276,7 @@ export function ProductManagement() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-zinc-200">
-                {productsQuery.data.map((product) => (
+                {productsQuery.data.map((product: ClinicProduct) => (
                   <tr key={product.id}>
                     <td className="px-4 py-3 text-zinc-900">{product.name}</td>
                     <td className="px-4 py-3 text-zinc-600">

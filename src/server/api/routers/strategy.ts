@@ -80,9 +80,9 @@ export const strategyRouter = router({
               return {
                 platform: result.platform,
                 text: result.trendData,
-              };
+              } as Record<string, unknown>;
             })
-            .filter((data: unknown): data is Record<string, unknown> => data !== null);
+            .filter((data): data is Record<string, unknown> => data !== null) as Array<Record<string, unknown>>;
         }
 
         // Claude APIで総合分析を実行
@@ -167,7 +167,7 @@ export const strategyRouter = router({
           .map((result) => {
             if (result.processedData) {
               // テキスト形式として扱う
-              return { text: result.processedData };
+              return { text: result.processedData } as Record<string, unknown>;
             }
             return null;
           })

@@ -38,8 +38,9 @@ export function StrategyManagement() {
         setFeedback("");
         setSelectedStrategyId(null);
       },
-      onError: (error) => {
-        setFeedbackMessage({ type: "error", message: error.message });
+      onError: (error: unknown) => {
+        const message = error instanceof Error ? error.message : "エラーが発生しました";
+        setFeedbackMessage({ type: "error", message });
       },
     });
 

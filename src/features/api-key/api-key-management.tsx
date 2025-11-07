@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { api } from "@/trpc/react";
+import { TRPCClientError } from "@trpc/client";
 
 export default function ApiKeyManagement() {
   const [formData, setFormData] = useState({
@@ -30,8 +31,9 @@ export default function ApiKeyManagement() {
         openaiApiKey: "",
       });
     },
-    onError: (error) => {
-      alert(`エラー: ${error.message}`);
+    onError: (error: unknown) => {
+      const message = error instanceof Error ? error.message : "エラーが発生しました";
+      alert(`エラー: ${message}`);
     },
   });
 

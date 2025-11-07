@@ -29,8 +29,9 @@ export function WorkflowManagement() {
       void utils.workflow.list.invalidate({ userId: USER_ID_PLACEHOLDER });
       setLocation("");
     },
-    onError: (error) => {
-      setFeedback({ type: "error", message: error.message });
+    onError: (error: unknown) => {
+      const message = error instanceof Error ? error.message : "エラーが発生しました";
+      setFeedback({ type: "error", message });
     },
   });
 
@@ -112,7 +113,7 @@ export function WorkflowManagement() {
         )}
         {healthCheckQuery.data && (
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-            {healthCheckQuery.data.map((status) => (
+            {healthCheckQuery.data.map((status: any) => (
               <div
                 key={status.agent}
                 className="rounded-lg border border-zinc-200 p-3"
@@ -217,7 +218,7 @@ export function WorkflowManagement() {
         )}
         {workflowsQuery.data && workflowsQuery.data.length > 0 && (
           <div className="space-y-4">
-            {workflowsQuery.data.map((workflow) => (
+            {workflowsQuery.data.map((workflow: any) => (
               <div
                 key={workflow.id}
                 className="rounded-lg border border-zinc-200 p-4"

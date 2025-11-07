@@ -2,6 +2,8 @@
 
 import { useState } from "react";
 import { api } from "@/trpc/react";
+import { TRPCClientError } from "@trpc/client";
+import type { PromptTemplate } from "@/generated/prisma/client";
 
 type PromptType =
   | "claude_analyze_market_position"
@@ -107,8 +109,9 @@ export default function PromptManagement() {
       void refetch();
       setEditingPrompt(null);
     },
-    onError: (error) => {
-      alert(`エラー: ${error.message || "プロンプトの保存に失敗しました"}`);
+    onError: (error: unknown) => {
+      const message = error instanceof Error ? error.message : "プロンプトの保存に失敗しました";
+      alert(`エラー: ${message}`);
     },
   });
 
@@ -121,7 +124,7 @@ export default function PromptManagement() {
   });
 
   const handleEdit = (promptType: PromptType) => {
-    const prompt = prompts?.find((p) => p.promptType === promptType);
+    const prompt = prompts?.find((p: PromptTemplate) => p.promptType === promptType);
     if (prompt) {
       setFormData({
         name: prompt.name || "",
@@ -160,8 +163,8 @@ export default function PromptManagement() {
     });
   };
 
-  const groupedPrompts = prompts?.reduce(
-    (acc, prompt) => {
+  const groupedPrompts: Record<"claude" | "gemini" | "grok" | "chatgpt", PromptTemplate[]> = prompts?.reduce(
+    (acc: Record<"claude" | "gemini" | "grok" | "chatgpt", PromptTemplate[]>, prompt: PromptTemplate) => {
       if (!prompt || !prompt.aiAgent) return acc;
       const agent = prompt.aiAgent as "claude" | "gemini" | "grok" | "chatgpt";
       if (!acc[agent]) {
@@ -170,8 +173,8 @@ export default function PromptManagement() {
       acc[agent]!.push(prompt);
       return acc;
     },
-    {} as Record<"claude" | "gemini" | "grok" | "chatgpt", typeof prompts>,
-  ) || {};
+    {} as Record<"claude" | "gemini" | "grok" | "chatgpt", PromptTemplate[]>,
+  ) || {} as Record<"claude" | "gemini" | "grok" | "chatgpt", PromptTemplate[]>;
 
   return (
     <div className="mx-auto flex w-full max-w-4xl flex-col gap-10 py-12">
@@ -225,7 +228,7 @@ export default function PromptManagement() {
                         : "ChatGPT"}
                 </h2>
                 <div className="space-y-4">
-                  {agentPrompts.map((prompt) => {
+                  {agentPrompts.map((prompt: PromptTemplate) => {
                     if (!prompt || !prompt.promptType) return null;
                     const info = PROMPT_INFO[prompt.promptType as PromptType];
                     if (!info) return null;

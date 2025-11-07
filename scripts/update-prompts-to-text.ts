@@ -1,4 +1,5 @@
 import { PrismaClient } from "../src/generated/prisma/client";
+import { PromptType } from "../src/generated/prisma/enums";
 import dotenv from "dotenv";
 
 dotenv.config();
@@ -311,7 +312,7 @@ async function main() {
   for (const promptData of updatedPrompts) {
     try {
       await prisma.promptTemplate.update({
-        where: { promptType: promptData.promptType },
+        where: { promptType: promptData.promptType as PromptType },
         data: {
           prompt: promptData.prompt,
         },

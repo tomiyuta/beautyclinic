@@ -28,10 +28,11 @@ export function StrategyAnalysis() {
         void utils.strategy.list.invalidate({ userId: USER_ID_PLACEHOLDER });
         setLocation("");
       },
-      onError: (error) => {
+      onError: (error: unknown) => {
+        const message = error instanceof Error ? error.message : "エラーが発生しました。もう一度お試しください。";
         setFeedback({ 
           type: "error", 
-          message: error.message || "エラーが発生しました。もう一度お試しください。" 
+          message
         });
       },
     });
@@ -44,10 +45,11 @@ export function StrategyAnalysis() {
           message: "価格設定提案が完了しました",
         });
       },
-      onError: (error) => {
+      onError: (error: unknown) => {
+        const message = error instanceof Error ? error.message : "エラーが発生しました。もう一度お試しください。";
         setFeedback({ 
           type: "error", 
-          message: error.message || "エラーが発生しました。もう一度お試しください。" 
+          message
         });
       },
     });
@@ -72,10 +74,11 @@ export function StrategyAnalysis() {
           message: "新施術提案が完了しました",
         });
       },
-      onError: (error) => {
+      onError: (error: unknown) => {
+        const message = error instanceof Error ? error.message : "エラーが発生しました。もう一度お試しください。";
         setFeedback({ 
           type: "error", 
-          message: error.message || "エラーが発生しました。もう一度お試しください。" 
+          message
         });
       },
     });
