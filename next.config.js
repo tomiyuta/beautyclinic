@@ -21,6 +21,23 @@ const nextConfig = {
       'node_modules',
     ];
     
+    // Reactの解決を明示的に設定
+    if (!config.resolve.alias) {
+      config.resolve.alias = {};
+    }
+    
+    // node_modulesのパスを解決
+    const path = require('path');
+    const nodeModulesPath = path.resolve(__dirname, 'node_modules');
+    
+    // Reactのパスを明示的に設定
+    if (!config.resolve.alias.react) {
+      config.resolve.alias.react = path.resolve(nodeModulesPath, 'react');
+    }
+    if (!config.resolve.alias['react-dom']) {
+      config.resolve.alias['react-dom'] = path.resolve(nodeModulesPath, 'react-dom');
+    }
+    
     return config;
   },
 };
