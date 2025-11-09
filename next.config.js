@@ -16,6 +16,17 @@ const nextConfig = {
     
     return config;
   },
+  
+  // Prismaのバイナリファイルをビルドに含める
+  experimental: {
+    outputFileTracingIncludes: {
+      '/api/trpc/**': [
+        './src/generated/prisma/**/*.node',
+        './node_modules/.prisma/client/**/*.node',
+        './node_modules/@prisma/client/**/*.node',
+      ],
+    },
+  },
 };
 
 module.exports = nextConfig;
