@@ -9,14 +9,13 @@ if (!apiKey) {
 const genAI = apiKey ? new GoogleGenerativeAI(apiKey) : null;
 
 // 利用可能なモデル名のリスト（優先順位順）
-// -latest サフィックスはAPIでサポートされていないため削除
-// Gemini 2.0モデルも候補に追加（利用可能な場合）
+// 2025年6月時点で利用可能なモデル
 const DEFAULT_MODEL_CANDIDATES = [
-  "gemini-2.0-flash-exp",      // Gemini 2.0（実験的）
-  "gemini-1.5-flash",          // Gemini 1.5 Flash（最も一般的）
-  "gemini-1.5-flash-002",     // Gemini 1.5 Flash 002
-  "gemini-1.5-pro",            // Gemini 1.5 Pro
-  "gemini-1.5-pro-002",        // Gemini 1.5 Pro 002
+  "gemini-2.5-flash",                    // Gemini 2.5 Flash（安定版）
+  "gemini-2.5-flash-preview-05-20",      // Gemini 2.5 Flash Preview
+  "gemini-2.5-pro-preview-05-06",        // Gemini 2.5 Pro Preview
+  "gemini-2.5-pro-preview-03-25",        // Gemini 2.5 Pro Preview（旧版）
+  "gemini-2.5-flash-lite-preview-06-17", // Gemini 2.5 Flash-Lite Preview
 ];
 
 // 成功したモデル名をキャッシュ（サーバー起動中は保持）
@@ -89,7 +88,12 @@ export async function callGemini(prompt: string): Promise<string> {
           console.log(`[${i + 1}/${candidatesToTry.length}] Trying Gemini model: ${modelName}`);
         }
         
+        // Google Search統合を試行（利用可能なモデルの場合）
+        // Gemini 2.5以降では、Google Search統合は別の方法で実装される可能性があるため、
+        // まずは通常のモデル呼び出しを試行
         const model = genAI.getGenerativeModel({ model: modelName });
+        const useGoogleSearch = false; // 現在は無効化（将来の実装で有効化可能）
+        
         const result = await model.generateContent(prompt);
         const response = await result.response;
         const text = response.text();
@@ -97,7 +101,7 @@ export async function callGemini(prompt: string): Promise<string> {
         // 初回成功時にモデル名をキャッシュ
         if (!cachedModelName) {
           cachedModelName = modelName;
-          console.log(`✓ Gemini model auto-selected and cached: ${modelName}`);
+          console.log(`✓ Gemini model auto-selected and cached: ${modelName}${useGoogleSearch ? " (with Google Search)" : ""}`);
         }
         
         return text;
@@ -678,20 +682,57 @@ export function extractJSONFromResponse(response: string): string {
 }
 
 export async function researchTrendAnalysis(location: string): Promise<string> {
+  // 現在の日付を取得（最新情報を取得するため）
+  const currentDate = new Date();
+  const currentYear = currentDate.getFullYear();
+  const currentMonth = currentDate.getMonth() + 1; // 0-11なので+1
+  const currentDateStr = `${currentYear}年${currentMonth}月`;
+
+  // Web検索を実行して最新情報を取得
+  let webSearchResults = "";
+  try {
+    const { performWebSearch, formatSearchResults, generateTrendSearchQuery } = await import("./web-search");
+    const searchQuery = generateTrendSearchQuery(location, currentYear, currentMonth);
+    console.log(`[Trend Analysis] Web検索実行: ${searchQuery}`);
+    const searchResults = await performWebSearch(searchQuery, 10);
+    webSearchResults = formatSearchResults(searchResults);
+    console.log(`[Trend Analysis] Web検索結果: ${searchResults.length}件取得`);
+  } catch (error) {
+    console.warn("[Trend Analysis] Web検索に失敗しましたが、続行します:", error);
+    webSearchResults = `【注意】Web検索APIが設定されていないため、最新情報の取得に制限があります。\n${error instanceof Error ? error.message : "Unknown error"}\n`;
+  }
+
   const defaultPrompt = `あなたは美容皮膚科クリニックの市場調査専門家です。
 ${location}で現在流行している美容施術・治療について調査してください。
 
-以下の観点から分析してください：
+【重要】以下のWeb検索結果を基に、最新の情報を分析してください。
+現在の日付は${currentDateStr}です。${currentYear}年${currentMonth}月時点の最新情報を優先的に使用してください。
+
+${webSearchResults}
+
+【分析指示】
+以下の観点から、上記のWeb検索結果を基に分析してください：
 1. 人気の高い施術（ダーマペン、ボツリヌス注射、ヒアルロン酸注入など）
 2. 各施術の平均価格帯
 3. 新しく注目されている施術や技術
 4. 顧客ニーズの傾向
 
+【重要】
+- Web検索結果に含まれる最新の情報を優先的に使用してください
+- 2024年以前の古い情報は使用しないでください
+- 情報の出典（URL）を可能な限り明記してください
+- 調査結果のタイトルや冒頭には「${currentDateStr}時点のWeb情報に基づき実施」と記載してください
+
 わかりやすく読みやすい形式で調査結果をまとめてください。最後に、トレンド分析の総括を記載してください。`;
 
   const { getPrompt, replacePlaceholders } = await import("./prompt-helper");
   const template = await getPrompt("gemini_research_trend_analysis", defaultPrompt);
-  const prompt = replacePlaceholders(template, { location });
+  const prompt = replacePlaceholders(template, { 
+    location,
+    currentDate: currentDateStr,
+    currentYear: currentYear.toString(),
+    currentMonth: currentMonth.toString()
+  });
   
   return callGemini(prompt);
 }
@@ -700,19 +741,52 @@ export async function researchPriceComparison(
   treatments: string[],
   cities: string[],
 ): Promise<string> {
+  // 現在の日付を取得（最新情報を取得するため）
+  const currentDate = new Date();
+  const currentYear = currentDate.getFullYear();
+  const currentMonth = currentDate.getMonth() + 1; // 0-11なので+1
+  const currentDateStr = `${currentYear}年${currentMonth}月`;
+
+  // Web検索を実行して最新情報を取得
+  let webSearchResults = "";
+  try {
+    const { performWebSearch, formatSearchResults, generatePriceSearchQuery } = await import("./web-search");
+    const searchQuery = generatePriceSearchQuery(treatments, cities, currentYear, currentMonth);
+    console.log(`[Price Comparison] Web検索実行: ${searchQuery}`);
+    const searchResults = await performWebSearch(searchQuery, 10);
+    webSearchResults = formatSearchResults(searchResults);
+    console.log(`[Price Comparison] Web検索結果: ${searchResults.length}件取得`);
+  } catch (error) {
+    console.warn("[Price Comparison] Web検索に失敗しましたが、続行します:", error);
+    webSearchResults = `【注意】Web検索APIが設定されていないため、最新情報の取得に制限があります。\n${error instanceof Error ? error.message : "Unknown error"}\n`;
+  }
+
   const defaultPrompt = `あなたは美容皮膚科クリニックの価格調査専門家です。
 以下の都市の美容クリニックでの施術価格を調査してください：
 
 都市: ${cities.join(", ")}
 施術: ${treatments.join(", ")}
 
-各都市・各施術について、以下の情報を含めてわかりやすくまとめてください：
+【重要】以下のWeb検索結果を基に、最新の価格情報を分析してください。
+現在の日付は${currentDateStr}です。${currentYear}年${currentMonth}月時点の最新情報を優先的に使用してください。
+
+${webSearchResults}
+
+【分析指示】
+各都市・各施術について、上記のWeb検索結果を基に以下の情報を含めてわかりやすくまとめてください：
 
 - 都市名
 - 施術名
 - 平均価格（数値）
 - 価格帯の説明
 - 調査件数（推定）
+- 情報の出典（URL）
+
+【重要】
+- Web検索結果に含まれる最新の価格情報を優先的に使用してください
+- 2024年以前の古い情報は使用しないでください
+- 情報の出典（URL）を可能な限り明記してください
+- 調査結果のタイトルや冒頭には「${currentDateStr}時点のWeb情報に基づき実施」と記載してください
 
 最後に、価格比較の総括を記載してください。`;
 
@@ -720,7 +794,10 @@ export async function researchPriceComparison(
   const template = await getPrompt("gemini_research_price_comparison", defaultPrompt);
   const prompt = replacePlaceholders(template, { 
     cities: cities.join(", "),
-    treatments: treatments.join(", ")
+    treatments: treatments.join(", "),
+    currentDate: currentDateStr,
+    currentYear: currentYear.toString(),
+    currentMonth: currentMonth.toString()
   });
   
   return callGemini(prompt);
@@ -730,11 +807,31 @@ export async function analyzeInstagramTrends(
   keywords: string[],
   timeRange: "last_week" | "last_month" | "last_3months" = "last_month",
 ): Promise<string> {
+  // 現在の日付を取得（最新情報を取得するため）
+  const currentDate = new Date();
+  const currentYear = currentDate.getFullYear();
+  const currentMonth = currentDate.getMonth() + 1;
+  const currentDateStr = `${currentYear}年${currentMonth}月`;
+
   const timeRangeText = {
     last_week: "過去1週間",
     last_month: "過去1ヶ月",
     last_3months: "過去3ヶ月",
   }[timeRange];
+
+  // Web検索を実行して最新情報を取得
+  let webSearchResults = "";
+  try {
+    const { performWebSearch, formatSearchResults, generateInstagramTrendSearchQuery } = await import("./web-search");
+    const searchQuery = generateInstagramTrendSearchQuery(keywords, currentYear, currentMonth);
+    console.log(`[Instagram Trends] Web検索実行: ${searchQuery}`);
+    const searchResults = await performWebSearch(searchQuery, 10);
+    webSearchResults = formatSearchResults(searchResults);
+    console.log(`[Instagram Trends] Web検索結果: ${searchResults.length}件取得`);
+  } catch (error) {
+    console.warn("[Instagram Trends] Web検索に失敗しましたが、続行します:", error);
+    webSearchResults = `【注意】Web検索APIが設定されていないため、最新情報の取得に制限があります。\n${error instanceof Error ? error.message : "Unknown error"}\n`;
+  }
 
   const defaultPrompt = `あなたはInstagramマーケティングの専門家です。
 Instagramで以下のキーワードに関連する最新のトレンドを調査してください：
@@ -742,12 +839,24 @@ Instagramで以下のキーワードに関連する最新のトレンドを調�
 キーワード: ${keywords.join(", ")}
 期間: ${timeRangeText}
 
-以下の観点から分析してください：
+【重要】以下のWeb検索結果を基に、最新のInstagramトレンドを分析してください。
+現在の日付は${currentDateStr}です。${currentYear}年${currentMonth}月時点の最新情報を優先的に使用してください。
+
+${webSearchResults}
+
+【分析指示】
+以下の観点から、上記のWeb検索結果を基に分析してください：
 1. 人気のハッシュタグ
 2. 影響力のあるアカウントやインフルエンサー
 3. 人気の投稿タイプ（写真、リール、ストーリー）
 4. エンゲージメント（いいね、コメント）の傾向
 5. ビジュアルトレンド（配色、スタイルなど）
+
+【重要】
+- Web検索結果に含まれる最新の情報を優先的に使用してください
+- 2024年以前の古い情報は使用しないでください
+- 情報の出典（URL）を可能な限り明記してください
+- 調査結果のタイトルや冒頭には「${currentDateStr}時点のWeb情報に基づき実施」と記載してください
 
 わかりやすく読みやすい形式で、調査結果をまとめてください。最後に、トレンド分析の総括を記載してください。`;
 
@@ -765,11 +874,31 @@ export async function analyzeYouTubeTrends(
   keywords: string[],
   timeRange: "last_week" | "last_month" | "last_3months" = "last_month",
 ): Promise<string> {
+  // 現在の日付を取得（最新情報を取得するため）
+  const currentDate = new Date();
+  const currentYear = currentDate.getFullYear();
+  const currentMonth = currentDate.getMonth() + 1;
+  const currentDateStr = `${currentYear}年${currentMonth}月`;
+
   const timeRangeText = {
     last_week: "過去1週間",
     last_month: "過去1ヶ月",
     last_3months: "過去3ヶ月",
   }[timeRange];
+
+  // Web検索を実行して最新情報を取得
+  let webSearchResults = "";
+  try {
+    const { performWebSearch, formatSearchResults, generateYouTubeTrendSearchQuery } = await import("./web-search");
+    const searchQuery = generateYouTubeTrendSearchQuery(keywords, currentYear, currentMonth);
+    console.log(`[YouTube Trends] Web検索実行: ${searchQuery}`);
+    const searchResults = await performWebSearch(searchQuery, 10);
+    webSearchResults = formatSearchResults(searchResults);
+    console.log(`[YouTube Trends] Web検索結果: ${searchResults.length}件取得`);
+  } catch (error) {
+    console.warn("[YouTube Trends] Web検索に失敗しましたが、続行します:", error);
+    webSearchResults = `【注意】Web検索APIが設定されていないため、最新情報の取得に制限があります。\n${error instanceof Error ? error.message : "Unknown error"}\n`;
+  }
 
   const defaultPrompt = `あなたはYouTubeマーケティングの専門家です。
 YouTubeで以下のキーワードに関連する最新のトレンドを調査してください：
@@ -777,12 +906,24 @@ YouTubeで以下のキーワードに関連する最新のトレンドを調査�
 キーワード: ${keywords.join(", ")}
 期間: ${timeRangeText}
 
-以下の観点から分析してください：
+【重要】以下のWeb検索結果を基に、最新のYouTubeトレンドを分析してください。
+現在の日付は${currentDateStr}です。${currentYear}年${currentMonth}月時点の最新情報を優先的に使用してください。
+
+${webSearchResults}
+
+【分析指示】
+以下の観点から、上記のWeb検索結果を基に分析してください：
 1. 人気の動画タイトルやキーワード
 2. 影響力のあるチャンネルやクリエイター
 3. 人気の動画ジャンルやフォーマット
 4. エンゲージメント（視聴回数、いいね、コメント）の傾向
 5. 動画の長さや構成のトレンド
+
+【重要】
+- Web検索結果に含まれる最新の情報を優先的に使用してください
+- 2024年以前の古い情報は使用しないでください
+- 情報の出典（URL）を可能な限り明記してください
+- 調査結果のタイトルや冒頭には「${currentDateStr}時点のWeb情報に基づき実施」と記載してください
 
 わかりやすく読みやすい形式で、調査結果をまとめてください。最後に、トレンド分析の総括を記載してください。`;
 
@@ -800,14 +941,46 @@ export async function researchCompetitorAnalysis(
   location: string,
   radius: number = 5,
 ): Promise<string> {
+  // 現在の日付を取得（最新情報を取得するため）
+  const currentDate = new Date();
+  const currentYear = currentDate.getFullYear();
+  const currentMonth = currentDate.getMonth() + 1;
+  const currentDateStr = `${currentYear}年${currentMonth}月`;
+
+  // Web検索を実行して最新情報を取得
+  let webSearchResults = "";
+  try {
+    const { performWebSearch, formatSearchResults, generateCompetitorSearchQuery } = await import("./web-search");
+    const searchQuery = generateCompetitorSearchQuery(location, radius, currentYear, currentMonth);
+    console.log(`[Competitor Analysis] Web検索実行: ${searchQuery}`);
+    const searchResults = await performWebSearch(searchQuery, 10);
+    webSearchResults = formatSearchResults(searchResults);
+    console.log(`[Competitor Analysis] Web検索結果: ${searchResults.length}件取得`);
+  } catch (error) {
+    console.warn("[Competitor Analysis] Web検索に失敗しましたが、続行します:", error);
+    webSearchResults = `【注意】Web検索APIが設定されていないため、最新情報の取得に制限があります。\n${error instanceof Error ? error.message : "Unknown error"}\n`;
+  }
+
   const defaultPrompt = `あなたは美容皮膚科クリニックの競合調査専門家です。
 ${location}周辺${radius}km圏内の競合クリニックについて調査してください。
 
-以下の情報を収集してください：
+【重要】以下のWeb検索結果を基に、最新の競合情報を分析してください。
+現在の日付は${currentDateStr}です。${currentYear}年${currentMonth}月時点の最新情報を優先的に使用してください。
+
+${webSearchResults}
+
+【分析指示】
+以下の情報を、上記のWeb検索結果を基に収集してください：
 1. 競合クリニックの名前と場所
 2. 提供している主要な施術・治療
 3. 各施術の価格設定
 4. 特徴や強み
+
+【重要】
+- Web検索結果に含まれる最新の情報を優先的に使用してください
+- 2024年以前の古い情報は使用しないでください
+- 情報の出典（URL）を可能な限り明記してください
+- 調査結果のタイトルや冒頭には「${currentDateStr}時点のWeb情報に基づき実施」と記載してください
 
 各競合クリニックについて、わかりやすく読みやすい形式でまとめてください。最後に、競合分析の総括を記載してください。`;
 

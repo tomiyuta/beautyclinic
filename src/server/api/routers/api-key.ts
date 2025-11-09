@@ -8,6 +8,9 @@ const apiKeyInput = z.object({
   grokApiKey: z.string().optional(),
   claudeApiKey: z.string().optional(),
   openaiApiKey: z.string().optional(),
+  serpApiKey: z.string().optional(),
+  googleCustomSearchApiKey: z.string().optional(),
+  googleCustomSearchEngineId: z.string().optional(),
 });
 
 export const apiKeyRouter = router({
@@ -57,6 +60,15 @@ export const apiKeyRouter = router({
       if (input.openaiApiKey !== undefined) {
         envMap.set("OPENAI_API_KEY", input.openaiApiKey);
       }
+      if (input.serpApiKey !== undefined) {
+        envMap.set("SERP_API_KEY", input.serpApiKey);
+      }
+      if (input.googleCustomSearchApiKey !== undefined) {
+        envMap.set("GOOGLE_CUSTOM_SEARCH_API_KEY", input.googleCustomSearchApiKey);
+      }
+      if (input.googleCustomSearchEngineId !== undefined) {
+        envMap.set("GOOGLE_CUSTOM_SEARCH_ENGINE_ID", input.googleCustomSearchEngineId);
+      }
 
       // DATABASE_URLは保持（既に存在する場合）
       if (!envMap.has("DATABASE_URL")) {
@@ -68,7 +80,7 @@ export const apiKeyRouter = router({
 
       // .envファイルを再構築
       let newEnvContent = "# Environment variables\n";
-      newEnvContent += "# API Keys\n";
+      newEnvContent += "# AI API Keys\n";
       if (envMap.has("GEMINI_API_KEY")) {
         newEnvContent += `GEMINI_API_KEY="${envMap.get("GEMINI_API_KEY")}"\n`;
       }
@@ -82,6 +94,17 @@ export const apiKeyRouter = router({
         newEnvContent += `OPENAI_API_KEY="${envMap.get("OPENAI_API_KEY")}"\n`;
       }
       newEnvContent += "\n";
+      newEnvContent += "# Web Search API Keys (for latest information retrieval)\n";
+      if (envMap.has("SERP_API_KEY")) {
+        newEnvContent += `SERP_API_KEY="${envMap.get("SERP_API_KEY")}"\n`;
+      }
+      if (envMap.has("GOOGLE_CUSTOM_SEARCH_API_KEY")) {
+        newEnvContent += `GOOGLE_CUSTOM_SEARCH_API_KEY="${envMap.get("GOOGLE_CUSTOM_SEARCH_API_KEY")}"\n`;
+      }
+      if (envMap.has("GOOGLE_CUSTOM_SEARCH_ENGINE_ID")) {
+        newEnvContent += `GOOGLE_CUSTOM_SEARCH_ENGINE_ID="${envMap.get("GOOGLE_CUSTOM_SEARCH_ENGINE_ID")}"\n`;
+      }
+      newEnvContent += "\n";
       
       // DATABASE_URLとその他の環境変数を追加
       if (envMap.has("DATABASE_URL")) {
@@ -91,7 +114,7 @@ export const apiKeyRouter = router({
       // その他の環境変数（TURBOPACKなど）
       for (const [key, value] of envMap.entries()) {
         if (
-          !["GEMINI_API_KEY", "GROK_API_KEY", "CLAUDE_API_KEY", "OPENAI_API_KEY", "DATABASE_URL"].includes(key)
+          !["GEMINI_API_KEY", "GROK_API_KEY", "CLAUDE_API_KEY", "OPENAI_API_KEY", "DATABASE_URL", "SERP_API_KEY", "GOOGLE_CUSTOM_SEARCH_API_KEY", "GOOGLE_CUSTOM_SEARCH_ENGINE_ID"].includes(key)
         ) {
           newEnvContent += `${key}="${value}"\n`;
         }
@@ -123,6 +146,8 @@ export const apiKeyRouter = router({
           grok: false,
           claude: false,
           openai: false,
+          serp: false,
+          googleCustomSearch: false,
         };
       }
 
@@ -130,12 +155,17 @@ export const apiKeyRouter = router({
       const grokSet = /GROK_API_KEY=["']([^"']+)["']/.test(envContent);
       const claudeSet = /CLAUDE_API_KEY=["']([^"']+)["']/.test(envContent);
       const openaiSet = /OPENAI_API_KEY=["']([^"']+)["']/.test(envContent);
+      const serpSet = /SERP_API_KEY=["']([^"']+)["']/.test(envContent);
+      const googleCustomSearchSet = /GOOGLE_CUSTOM_SEARCH_API_KEY=["']([^"']+)["']/.test(envContent) && 
+                                    /GOOGLE_CUSTOM_SEARCH_ENGINE_ID=["']([^"']+)["']/.test(envContent);
 
       return {
         gemini: geminiSet,
         grok: grokSet,
         claude: claudeSet,
         openai: openaiSet,
+        serp: serpSet,
+        googleCustomSearch: googleCustomSearchSet,
       };
     } catch (error) {
       console.error("Failed to read API key status:", error);
@@ -144,6 +174,8 @@ export const apiKeyRouter = router({
         grok: false,
         claude: false,
         openai: false,
+        serp: false,
+        googleCustomSearch: false,
       };
     }
   }),

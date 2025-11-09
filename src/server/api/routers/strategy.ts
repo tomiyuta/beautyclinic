@@ -17,21 +17,33 @@ export const strategyRouter = router({
       z.object({
         userId: z.number().int().positive(),
         location: z.string().min(1, "場所を入力してください"),
+        productIds: z.array(z.number().int().positive()).optional(),
         includeMarketData: z.boolean().optional().default(true),
         includeSNSData: z.boolean().optional().default(true),
       }),
     )
     .mutation(async ({ input }) => {
       try {
-        // 商品データを取得
-        const products = await db.clinicProduct.findMany({
-          where: { userId: input.userId },
-        });
+        // 商品データを取得（productIdsが指定されている場合はそれを使用、そうでない場合は全商品）
+        let products;
+        if (input.productIds && input.productIds.length > 0) {
+          products = await db.clinicProduct.findMany({
+            where: {
+              userId: input.userId,
+              id: { in: input.productIds },
+              isActive: true,
+            },
+          });
+        } else {
+          products = await db.clinicProduct.findMany({
+            where: { userId: input.userId, isActive: true },
+          });
+        }
 
         if (products.length === 0) {
           throw new TRPCError({
             code: "BAD_REQUEST",
-            message: "分析する商品がありません。まず商品を登録してください。",
+            message: "分析する商品がありません。商品を選択するか、まず商品を登録してください。",
           });
         }
 

@@ -14,12 +14,14 @@ export default function ApiKeyManagement() {
     grokApiKey: "",
     claudeApiKey: "",
     openaiApiKey: "",
+    serpApiKey: "",
   });
   const [showKeys, setShowKeys] = useState({
     gemini: false,
     grok: false,
     claude: false,
     openai: false,
+    serp: false,
   });
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -40,6 +42,7 @@ export default function ApiKeyManagement() {
         grokApiKey: "",
         claudeApiKey: "",
         openaiApiKey: "",
+        serpApiKey: "",
       });
       setTimeout(() => setSuccessMessage(null), 5000);
     },
@@ -66,6 +69,9 @@ export default function ApiKeyManagement() {
     }
     if (formData.openaiApiKey.trim()) {
       keysToUpdate.openaiApiKey = formData.openaiApiKey.trim();
+    }
+    if (formData.serpApiKey.trim()) {
+      keysToUpdate.serpApiKey = formData.serpApiKey.trim();
     }
 
     if (Object.keys(keysToUpdate).length === 0) {
@@ -284,6 +290,27 @@ export default function ApiKeyManagement() {
               </div>
             )}
           </div>
+          <div style={{ padding: "16px", borderRadius: "8px", border: "1px solid #DFE1E6" }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "8px" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+                <div
+                  style={{
+                    width: "12px",
+                    height: "12px",
+                    borderRadius: "50%",
+                    backgroundColor: status?.serp ? "#36B37E" : "#DE350B",
+                  }}
+                />
+                <span style={{ fontSize: "14px", fontWeight: 500, color: "#42526E" }}>SerpAPI (Web検索)</span>
+              </div>
+              <Badge appearance={status?.serp ? "added" : "removed"}>
+                {status?.serp ? "設定済み" : "未設定"}
+              </Badge>
+            </div>
+            <p style={{ fontSize: "12px", color: "#6B778C", marginTop: "8px", margin: 0 }}>
+              最新情報取得用のWeb検索API
+            </p>
+          </div>
         </div>
         {healthCheckQuery.error && (
           <div style={{ marginTop: "16px" }}>
@@ -430,6 +457,42 @@ export default function ApiKeyManagement() {
                 {showKeys.openai ? "非表示" : "表示"}
               </Button>
             </div>
+          </div>
+
+          {/* SerpAPI Key */}
+          <div>
+            <label style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "8px" }}>
+              <span style={{ fontSize: "14px", fontWeight: 500, color: "#42526E" }}>SerpAPI Key (Web検索用)</span>
+              <a
+                href="https://serpapi.com/"
+                target="_blank"
+                rel="noopener noreferrer"
+                style={{ fontSize: "12px", color: "#0052CC", textDecoration: "none" }}
+              >
+                (取得方法)
+              </a>
+            </label>
+            <div style={{ position: "relative" }}>
+              <TextField
+                type={showKeys.serp ? "text" : "password"}
+                placeholder="serpapi..."
+                value={formData.serpApiKey}
+                onChange={(e) =>
+                  setFormData((prev) => ({ ...prev, serpApiKey: (e.target as HTMLInputElement).value }))
+                }
+                style={{ width: "100%" }}
+              />
+              <Button
+                appearance="subtle"
+                onClick={() => toggleShowKey("serp")}
+                style={{ position: "absolute", right: "8px", top: "50%", transform: "translateY(-50%)" }}
+              >
+                {showKeys.serp ? "非表示" : "表示"}
+              </Button>
+            </div>
+            <p style={{ fontSize: "12px", color: "#6B778C", marginTop: "4px", margin: 0 }}>
+              最新情報を取得するために使用されます。トレンド分析・価格調査で最新のWeb情報を取得できます。
+            </p>
           </div>
 
           <Button

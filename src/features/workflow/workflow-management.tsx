@@ -12,12 +12,22 @@ import { TRPCClientError } from "@trpc/client";
 
 const USER_ID_PLACEHOLDER = 1;
 
+interface WorkflowStep {
+  id: string;
+  name: string;
+  status: string;
+  aiAgent?: string;
+  result?: unknown;
+  error?: string;
+}
+
 export function WorkflowManagement() {
   const [location, setLocation] = useState("");
   const [feedback, setFeedback] = useState<{
     type: "success" | "error" | null;
     message: string;
   }>({ type: null, message: "" });
+  const [expandedSteps, setExpandedSteps] = useState<Set<string>>(new Set());
 
   const utils = api.useUtils();
 
@@ -96,6 +106,33 @@ export function WorkflowManagement() {
       default:
         return "default";
     }
+  };
+
+  const toggleStepExpansion = (stepId: string) => {
+    const newExpanded = new Set(expandedSteps);
+    if (newExpanded.has(stepId)) {
+      newExpanded.delete(stepId);
+    } else {
+      newExpanded.add(stepId);
+    }
+    setExpandedSteps(newExpanded);
+  };
+
+  const formatResult = (result: unknown): string => {
+    if (result === null || result === undefined) {
+      return "結果なし";
+    }
+    if (typeof result === "string") {
+      return result;
+    }
+    if (typeof result === "object") {
+      try {
+        return JSON.stringify(result, null, 2);
+      } catch {
+        return String(result);
+      }
+    }
+    return String(result);
   };
 
   return (
@@ -261,32 +298,129 @@ export function WorkflowManagement() {
                         "name" in step &&
                         "status" in step
                       ) {
-                        const stepObj = step as {
-                          name: string;
-                          status: string;
-                          aiAgent?: string;
-                        };
+                        const stepObj = step as WorkflowStep;
+                        const stepId = `${workflow.id}-${stepObj.id || stepObj.name}`;
+                        const isExpanded = expandedSteps.has(stepId);
+                        const hasResult = stepObj.result !== undefined && stepObj.result !== null;
+                        const hasError = stepObj.error !== undefined && stepObj.error !== null;
+
                         return (
                           <div
-                            key={stepObj.name}
-                            style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 12px", borderRadius: "4px", background: "#F4F5F7" }}
+                            key={stepId}
+                            style={{ borderRadius: "4px", border: "1px solid #DFE1E6", overflow: "hidden" }}
                           >
-                            <span style={{ fontSize: "12px", color: "#42526E" }}>
-                              {stepObj.name}
-                              {stepObj.aiAgent && (
-                                <span style={{ marginLeft: "8px", fontSize: "12px", color: "#6B778C" }}>
-                                  ({stepObj.aiAgent})
+                            <div
+                              style={{
+                                display: "flex",
+                                alignItems: "center",
+                                justifyContent: "space-between",
+                                padding: "8px 12px",
+                                background: "#F4F5F7",
+                                cursor: hasResult || hasError ? "pointer" : "default",
+                              }}
+                              onClick={() => {
+                                if (hasResult || hasError) {
+                                  toggleStepExpansion(stepId);
+                                }
+                              }}
+                            >
+                              <div style={{ display: "flex", alignItems: "center", gap: "8px", flex: 1 }}>
+                                <span style={{ fontSize: "12px", color: "#42526E", fontWeight: 500 }}>
+                                  {stepObj.name}
                                 </span>
-                              )}
-                            </span>
-                            <Badge appearance={getStatusBadgeAppearance(stepObj.status)}>
-                              {stepObj.status}
-                            </Badge>
+                                {stepObj.aiAgent && (
+                                  <Badge appearance="default">
+                                    {stepObj.aiAgent}
+                                  </Badge>
+                                )}
+                                {(hasResult || hasError) && (
+                                  <span style={{ fontSize: "10px", color: "#6B778C" }}>
+                                    {isExpanded ? "▼" : "▶"}
+                                  </span>
+                                )}
+                              </div>
+                              <Badge appearance={getStatusBadgeAppearance(stepObj.status)}>
+                                {stepObj.status === "completed"
+                                  ? "完了"
+                                  : stepObj.status === "running"
+                                    ? "実行中"
+                                    : stepObj.status === "failed"
+                                      ? "失敗"
+                                      : stepObj.status}
+                              </Badge>
+                            </div>
+                            {isExpanded && (
+                              <div style={{ padding: "12px", background: "#FFFFFF", borderTop: "1px solid #DFE1E6" }}>
+                                {hasError && (
+                                  <div style={{ marginBottom: "8px" }}>
+                                    <p style={{ fontSize: "12px", fontWeight: 600, color: "#DE350B", marginBottom: "4px" }}>
+                                      エラー:
+                                    </p>
+                                    <pre style={{
+                                      fontSize: "11px",
+                                      color: "#DE350B",
+                                      background: "#FFF4F4",
+                                      padding: "8px",
+                                      borderRadius: "4px",
+                                      margin: 0,
+                                      whiteSpace: "pre-wrap",
+                                      wordBreak: "break-word",
+                                    }}>
+                                      {stepObj.error}
+                                    </pre>
+                                  </div>
+                                )}
+                                {hasResult && (
+                                  <div>
+                                    <p style={{ fontSize: "12px", fontWeight: 600, color: "#172B4D", marginBottom: "4px" }}>
+                                      実行結果:
+                                    </p>
+                                    <pre style={{
+                                      fontSize: "11px",
+                                      color: "#42526E",
+                                      background: "#F4F5F7",
+                                      padding: "8px",
+                                      borderRadius: "4px",
+                                      margin: 0,
+                                      whiteSpace: "pre-wrap",
+                                      wordBreak: "break-word",
+                                      maxHeight: "300px",
+                                      overflow: "auto",
+                                    }}>
+                                      {formatResult(stepObj.result)}
+                                    </pre>
+                                  </div>
+                                )}
+                                {!hasResult && !hasError && (
+                                  <p style={{ fontSize: "12px", color: "#6B778C", fontStyle: "italic" }}>
+                                    結果データがありません
+                                  </p>
+                                )}
+                              </div>
+                            )}
                           </div>
                         );
                       }
                       return null;
                     })}
+                  </div>
+                )}
+                {workflow.results && Object.keys(workflow.results).length > 0 && (
+                  <div style={{ marginTop: "16px", padding: "12px", borderRadius: "4px", background: "#E3FCEF", border: "1px solid #B3D9C7" }}>
+                    <p style={{ fontSize: "12px", fontWeight: 600, color: "#006644", marginBottom: "8px" }}>
+                      ワークフロー全体の結果:
+                    </p>
+                    <pre style={{
+                      fontSize: "11px",
+                      color: "#006644",
+                      margin: 0,
+                      whiteSpace: "pre-wrap",
+                      wordBreak: "break-word",
+                      maxHeight: "200px",
+                      overflow: "auto",
+                    }}>
+                      {JSON.stringify(workflow.results, null, 2)}
+                    </pre>
                   </div>
                 )}
                 {workflow.errorMessage && (

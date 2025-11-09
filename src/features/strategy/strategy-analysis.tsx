@@ -8,6 +8,7 @@ import Banner from "@atlaskit/banner";
 import Badge from "@atlaskit/badge";
 import Spinner from "@atlaskit/spinner";
 import EmptyState from "@atlaskit/empty-state";
+import Link from "next/link";
 import { api } from "@/trpc/react";
 import { TRPCClientError } from "@trpc/client";
 
@@ -15,6 +16,7 @@ const USER_ID_PLACEHOLDER = 1;
 
 export function StrategyAnalysis() {
   const [location, setLocation] = useState("");
+  const [selectedProductIds, setSelectedProductIds] = useState<number[]>([]);
   const [includeMarketData, setIncludeMarketData] = useState(true);
   const [includeSNSData, setIncludeSNSData] = useState(true);
   const [feedback, setFeedback] = useState<{
@@ -105,6 +107,9 @@ export function StrategyAnalysis() {
     staleTime: 30000,
   });
 
+  // 商品一覧を取得
+  const productsQuery = api.product.list.useQuery({ userId: USER_ID_PLACEHOLDER });
+
   const handleAnalyzeMarketPosition = async (
     e: React.FormEvent<HTMLFormElement>,
   ) => {
@@ -120,10 +125,20 @@ export function StrategyAnalysis() {
       return;
     }
 
+    if (selectedProductIds.length === 0) {
+      setFeedback({
+        type: "error",
+        message: "分析する商品を1つ以上選択してください",
+      });
+      setTimeout(() => setFeedback({ type: null, message: "" }), 5000);
+      return;
+    }
+
     try {
       await marketPositionMutation.mutateAsync({
         userId: USER_ID_PLACEHOLDER,
         location: location.trim(),
+        productIds: selectedProductIds,
         includeMarketData,
         includeSNSData,
       });
@@ -133,6 +148,29 @@ export function StrategyAnalysis() {
         setTimeout(() => setFeedback({ type: null, message: "" }), 5000);
       }
     }
+  };
+
+  const handleProductToggle = (productId: number) => {
+    setSelectedProductIds((prev) => {
+      if (prev.includes(productId)) {
+        return prev.filter((id) => id !== productId);
+      } else {
+        return [...prev, productId];
+      }
+    });
+  };
+
+  const handleSelectAllProducts = () => {
+    if (productsQuery.data && productsQuery.data.length > 0) {
+      const allProductIds = productsQuery.data
+        .filter((p) => p.isActive)
+        .map((p) => p.id);
+      setSelectedProductIds(allProductIds);
+    }
+  };
+
+  const handleDeselectAllProducts = () => {
+    setSelectedProductIds([]);
   };
 
   const handleGeneratePriceRecommendations = async () => {
@@ -202,50 +240,128 @@ export function StrategyAnalysis() {
           <h2 style={{ fontSize: "16px", fontWeight: 600, marginBottom: "16px", color: "#172B4D" }}>
             総合分析
           </h2>
-          <form onSubmit={handleAnalyzeMarketPosition} style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
-            <div>
-              <label style={{ display: "block", marginBottom: "8px", fontSize: "14px", fontWeight: 500, color: "#42526E" }}>
-                所在地 *
-              </label>
-              <TextField
-                isRequired
-                type="text"
-                value={location}
-                onChange={(e) => setLocation((e.target as HTMLInputElement).value)}
-                placeholder="例：東京 新宿区"
-                style={{ width: "100%" }}
-              />
+          {productsQuery.isLoading && (
+            <div style={{ display: "flex", alignItems: "center", gap: "8px", padding: "16px" }}>
+              <Spinner size="small" />
+              <span style={{ fontSize: "14px", color: "#6B778C" }}>商品を読み込み中...</span>
             </div>
-            <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-              <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                <Checkbox
-                  isChecked={includeMarketData}
-                  onChange={(e) => setIncludeMarketData(e.target.checked)}
-                />
-                <label style={{ fontSize: "14px", color: "#42526E" }}>
-                  市場調査データを含める
-                </label>
+          )}
+          {productsQuery.error && (
+            <Banner appearance="error">
+              エラー: {productsQuery.error.message}
+            </Banner>
+          )}
+          {productsQuery.data && productsQuery.data.length === 0 && (
+            <Banner appearance="warning">
+              <div>
+                <p style={{ marginBottom: "8px", fontSize: "14px", fontWeight: 500 }}>
+                  分析する商品がありません。まず商品を登録してください。
+                </p>
+                <Link href="/" style={{ fontSize: "14px", color: "#0052CC", textDecoration: "none" }}>
+                  → 商品管理ページで商品を登録する
+                </Link>
               </div>
-              <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                <Checkbox
-                  isChecked={includeSNSData}
-                  onChange={(e) => setIncludeSNSData(e.target.checked)}
-                />
-                <label style={{ fontSize: "14px", color: "#42526E" }}>
-                  SNS調査データを含める
+            </Banner>
+          )}
+          {productsQuery.data && productsQuery.data.length > 0 && (
+            <form onSubmit={handleAnalyzeMarketPosition} style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
+              <div>
+                <label style={{ display: "block", marginBottom: "8px", fontSize: "14px", fontWeight: 500, color: "#42526E" }}>
+                  分析する商品 * (1つ以上選択)
                 </label>
+                <div style={{ padding: "12px", borderRadius: "4px", border: "1px solid #DFE1E6", background: "#F4F5F7", maxHeight: "200px", overflowY: "auto" }}>
+                  <div style={{ display: "flex", gap: "8px", marginBottom: "8px" }}>
+                    <Button
+                      type="button"
+                      appearance="subtle"
+                      onClick={handleSelectAllProducts}
+                      style={{ fontSize: "12px", padding: "4px 8px" }}
+                    >
+                      すべて選択
+                    </Button>
+                    <Button
+                      type="button"
+                      appearance="subtle"
+                      onClick={handleDeselectAllProducts}
+                      style={{ fontSize: "12px", padding: "4px 8px" }}
+                    >
+                      すべて解除
+                    </Button>
+                  </div>
+                  <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+                    {productsQuery.data
+                      .filter((p) => p.isActive)
+                      .map((product) => (
+                        <div key={product.id} style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                          <Checkbox
+                            isChecked={selectedProductIds.includes(product.id)}
+                            onChange={() => handleProductToggle(product.id)}
+                          />
+                          <label style={{ fontSize: "14px", color: "#42526E", cursor: "pointer", flex: 1 }}>
+                            {product.name}
+                            {product.category && (
+                              <span style={{ marginLeft: "8px", fontSize: "12px", color: "#6B778C" }}>
+                                ({product.category})
+                              </span>
+                            )}
+                          </label>
+                          <span style={{ fontSize: "12px", color: "#6B778C" }}>
+                            {product.sellingPrice.toLocaleString()}円
+                          </span>
+                        </div>
+                      ))}
+                  </div>
+                </div>
+                {selectedProductIds.length === 0 && (
+                  <p style={{ marginTop: "4px", fontSize: "12px", color: "#DE350B" }}>
+                    分析する商品を1つ以上選択してください
+                  </p>
+                )}
               </div>
-            </div>
-            <Button
-              type="submit"
-              appearance="primary"
-              isDisabled={marketPositionMutation.isPending}
-            >
-              {marketPositionMutation.isPending
-                ? "分析中..."
-                : "総合分析を実行"}
-            </Button>
-          </form>
+              <div>
+                <label style={{ display: "block", marginBottom: "8px", fontSize: "14px", fontWeight: 500, color: "#42526E" }}>
+                  所在地 *
+                </label>
+                <TextField
+                  isRequired
+                  type="text"
+                  value={location}
+                  onChange={(e) => setLocation((e.target as HTMLInputElement).value)}
+                  placeholder="例：東京 新宿区"
+                  style={{ width: "100%" }}
+                />
+              </div>
+              <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                  <Checkbox
+                    isChecked={includeMarketData}
+                    onChange={(e) => setIncludeMarketData(e.target.checked)}
+                  />
+                  <label style={{ fontSize: "14px", color: "#42526E" }}>
+                    市場調査データを含める
+                  </label>
+                </div>
+                <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                  <Checkbox
+                    isChecked={includeSNSData}
+                    onChange={(e) => setIncludeSNSData(e.target.checked)}
+                  />
+                  <label style={{ fontSize: "14px", color: "#42526E" }}>
+                    SNS調査データを含める
+                  </label>
+                </div>
+              </div>
+              <Button
+                type="submit"
+                appearance="primary"
+                isDisabled={marketPositionMutation.isPending || selectedProductIds.length === 0}
+              >
+                {marketPositionMutation.isPending
+                  ? "分析中..."
+                  : "総合分析を実行"}
+              </Button>
+            </form>
+          )}
         </div>
 
         {/* 個別分析機能 */}

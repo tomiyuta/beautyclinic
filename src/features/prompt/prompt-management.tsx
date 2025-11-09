@@ -117,6 +117,12 @@ export default function PromptManagement() {
       setTimeout(() => setSuccessMessage(""), 5000);
       void refetch();
       setEditingPrompt(null);
+      setFormData({
+        name: "",
+        description: "",
+        prompt: "",
+        isActive: true,
+      });
     },
     onError: (error: unknown) => {
       const message = error instanceof Error ? error.message : "プロンプトの保存に失敗しました";
@@ -137,15 +143,24 @@ export default function PromptManagement() {
 
   const handleEdit = (promptType: PromptType) => {
     const prompt = prompts?.find((p: PromptTemplate) => p.promptType === promptType);
+    const info = PROMPT_INFO[promptType];
     if (prompt) {
       setFormData({
-        name: prompt.name || "",
-        description: prompt.description || "",
+        name: prompt.name || info.name,
+        description: prompt.description || info.description,
         prompt: prompt.prompt || "",
         isActive: prompt.isActive ?? true,
       });
-      setEditingPrompt(promptType);
+    } else {
+      // 新規作成の場合
+      setFormData({
+        name: info.name,
+        description: info.description,
+        prompt: "",
+        isActive: true,
+      });
     }
+    setEditingPrompt(promptType);
   };
 
   const handleSubmit = (e: React.FormEvent, promptType: PromptType) => {
@@ -153,6 +168,16 @@ export default function PromptManagement() {
     const info = PROMPT_INFO[promptType];
     if (!info) {
       setErrorMessage("無効なプロンプトタイプです");
+      setTimeout(() => setErrorMessage(""), 5000);
+      return;
+    }
+    if (!formData.name.trim()) {
+      setErrorMessage("プロンプト名を入力してください");
+      setTimeout(() => setErrorMessage(""), 5000);
+      return;
+    }
+    if (!formData.prompt.trim()) {
+      setErrorMessage("プロンプト内容を入力してください");
       setTimeout(() => setErrorMessage(""), 5000);
       return;
     }
@@ -186,8 +211,8 @@ export default function PromptManagement() {
       acc[agent]!.push(prompt);
       return acc;
     },
-    {} as Record<"claude" | "gemini" | "grok" | "chatgpt", PromptTemplate[]>,
-  ) || {} as Record<"claude" | "gemini" | "grok" | "chatgpt", PromptTemplate[]>;
+    { claude: [], gemini: [], grok: [], chatgpt: [] } as Record<"claude" | "gemini" | "grok" | "chatgpt", PromptTemplate[]>,
+  ) || { claude: [], gemini: [], grok: [], chatgpt: [] };
 
   const getAgentName = (agent: string) => {
     switch (agent) {
@@ -205,7 +230,7 @@ export default function PromptManagement() {
   };
 
   return (
-    <div style={{ maxWidth: "1000px", margin: "0 auto", padding: "48px 16px" }}>
+    <div style={{ maxWidth: "1200px", margin: "0 auto", padding: "48px 16px" }}>
       <header style={{ marginBottom: "40px" }}>
         <h1 style={{ fontSize: "24px", fontWeight: 600, marginBottom: "8px", color: "#172B4D" }}>
           プロンプト管理
@@ -246,154 +271,294 @@ export default function PromptManagement() {
             再試行
           </Button>
         </div>
-      ) : !prompts || prompts.length === 0 ? (
-        <EmptyState
-          header="プロンプトが登録されていません"
-          description="初期設定を実行してください"
-        />
       ) : (
         <div style={{ display: "flex", flexDirection: "column", gap: "32px" }}>
           {(["claude", "gemini", "grok", "chatgpt"] as const).map((agent) => {
             const agentPrompts = groupedPrompts[agent] || [];
-            if (!agentPrompts || agentPrompts.length === 0) return null;
+            // このエージェントのすべてのプロンプトタイプを取得
+            const allPromptTypesForAgent = Object.entries(PROMPT_INFO)
+              .filter(([_, info]) => info.aiAgent === agent)
+              .map(([type]) => type as PromptType);
+            
+            // 登録済みのプロンプトタイプ
+            const registeredTypes = new Set(agentPrompts.map((p: PromptTemplate) => p.promptType));
+            
+            // 未登録のプロンプトタイプ
+            const unregisteredTypes = allPromptTypesForAgent.filter((type) => !registeredTypes.has(type));
+            
+            // 登録済みと未登録の両方がない場合は表示しない
+            if (agentPrompts.length === 0 && unregisteredTypes.length === 0) return null;
 
             return (
               <section
                 key={agent}
                 style={{ padding: "24px", background: "#FFFFFF", borderRadius: "8px", border: "1px solid #DFE1E6" }}
               >
-                <h2 style={{ fontSize: "16px", fontWeight: 600, marginBottom: "16px", color: "#172B4D", textTransform: "capitalize" }}>
+                <h2 style={{ fontSize: "18px", fontWeight: 600, marginBottom: "20px", color: "#172B4D" }}>
                   {getAgentName(agent)}
                 </h2>
-                <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
-                  {agentPrompts.map((prompt: PromptTemplate) => {
-                    if (!prompt || !prompt.promptType) return null;
-                    const info = PROMPT_INFO[prompt.promptType as PromptType];
-                    if (!info) return null;
-                    const isEditing = editingPrompt === prompt.promptType;
-
-                    return (
-                      <div
-                        key={prompt.id}
-                        style={{ padding: "16px", borderRadius: "8px", border: "1px solid #DFE1E6" }}
-                      >
-                        {isEditing ? (
-                          <form
-                            onSubmit={(e) =>
-                              handleSubmit(e, prompt.promptType as PromptType)
-                            }
-                            style={{ display: "flex", flexDirection: "column", gap: "16px" }}
-                          >
-                            <div>
-                              <label style={{ display: "block", marginBottom: "8px", fontSize: "14px", fontWeight: 500, color: "#42526E" }}>
-                                プロンプト名
-                              </label>
-                              <TextField
-                                isRequired
-                                type="text"
-                                value={formData.name}
-                                onChange={(e) =>
-                                  setFormData((prev) => ({ ...prev, name: (e.target as HTMLInputElement).value }))
-                                }
-                                style={{ width: "100%" }}
-                              />
-                            </div>
-                            <div>
-                              <label style={{ display: "block", marginBottom: "8px", fontSize: "14px", fontWeight: 500, color: "#42526E" }}>
-                                説明
-                              </label>
-                              <TextField
-                                type="text"
-                                value={formData.description}
-                                onChange={(e) =>
-                                  setFormData((prev) => ({ ...prev, description: (e.target as HTMLInputElement).value }))
-                                }
-                                style={{ width: "100%" }}
-                              />
-                            </div>
-                            <div>
-                              <label style={{ display: "block", marginBottom: "8px", fontSize: "14px", fontWeight: 500, color: "#42526E" }}>
-                                プロンプト内容
-                              </label>
-                              <Textarea
-                                isRequired
-                                value={formData.prompt}
-                                onChange={(e) =>
-                                  setFormData((prev) => ({ ...prev, prompt: (e.target as HTMLTextAreaElement).value }))
-                                }
-                                minimumRows={15}
-                                style={{ width: "100%", fontFamily: "monospace" }}
-                              />
-                            </div>
-                            <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                              <Checkbox
-                                isChecked={formData.isActive}
-                                onChange={(e) =>
-                                  setFormData((prev) => ({ ...prev, isActive: e.target.checked }))
-                                }
-                              />
-                              <label style={{ fontSize: "14px", color: "#42526E" }}>
-                                有効
-                              </label>
-                            </div>
-                            <div style={{ display: "flex", gap: "8px" }}>
-                              <Button
-                                type="submit"
-                                appearance="primary"
-                                isDisabled={upsertPrompt.isPending}
+                
+                {/* 未登録のプロンプトタイプを表示 */}
+                {unregisteredTypes.length > 0 && (
+                  <div style={{ marginBottom: "24px", padding: "16px", borderRadius: "8px", border: "1px solid #DFE1E6", background: "#F4F5F7" }}>
+                    <h3 style={{ fontSize: "14px", fontWeight: 600, marginBottom: "12px", color: "#42526E" }}>
+                      未登録のプロンプト
+                    </h3>
+                    <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+                      {unregisteredTypes.map((promptType) => {
+                        const info = PROMPT_INFO[promptType];
+                        const isCreating = editingPrompt === promptType;
+                        
+                        if (isCreating) {
+                          return (
+                            <div
+                              key={promptType}
+                              style={{ padding: "20px", borderRadius: "8px", background: "#FFFFFF", border: "2px solid #2684FF" }}
+                            >
+                              <h4 style={{ fontSize: "14px", fontWeight: 600, marginBottom: "16px", color: "#172B4D" }}>
+                                新規プロンプト作成: {info.name}
+                              </h4>
+                              <form
+                                onSubmit={(e) => handleSubmit(e, promptType)}
+                                style={{ display: "flex", flexDirection: "column", gap: "16px" }}
                               >
-                                {upsertPrompt.isPending ? "保存中..." : "保存"}
-                              </Button>
-                              <Button
-                                type="button"
-                                appearance="default"
-                                onClick={handleCancel}
-                              >
-                                キャンセル
-                              </Button>
-                            </div>
-                          </form>
-                        ) : (
-                          <>
-                            <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between" }}>
-                              <div style={{ flex: 1 }}>
-                                <h3 style={{ fontSize: "16px", fontWeight: 600, color: "#172B4D" }}>
-                                  {prompt.name || info.name}
-                                </h3>
-                                {prompt.description && (
-                                  <p style={{ marginTop: "4px", fontSize: "14px", color: "#6B778C" }}>
-                                    {prompt.description}
-                                  </p>
-                                )}
-                                <div style={{ marginTop: "8px", display: "flex", alignItems: "center", gap: "8px" }}>
-                                  <Badge appearance={prompt.isActive ? "added" : "removed"}>
-                                    {prompt.isActive ? "有効" : "無効"}
-                                  </Badge>
+                                <div>
+                                  <label style={{ display: "block", marginBottom: "8px", fontSize: "14px", fontWeight: 500, color: "#42526E" }}>
+                                    プロンプト名 *
+                                  </label>
+                                  <TextField
+                                    isRequired
+                                    type="text"
+                                    value={formData.name}
+                                    onChange={(e) =>
+                                      setFormData((prev) => ({ ...prev, name: (e.target as HTMLInputElement).value }))
+                                    }
+                                    style={{ width: "100%" }}
+                                  />
                                 </div>
+                                <div>
+                                  <label style={{ display: "block", marginBottom: "8px", fontSize: "14px", fontWeight: 500, color: "#42526E" }}>
+                                    説明
+                                  </label>
+                                  <TextField
+                                    type="text"
+                                    value={formData.description}
+                                    onChange={(e) =>
+                                      setFormData((prev) => ({ ...prev, description: (e.target as HTMLInputElement).value }))
+                                    }
+                                    style={{ width: "100%" }}
+                                  />
+                                </div>
+                                <div>
+                                  <label style={{ display: "block", marginBottom: "8px", fontSize: "14px", fontWeight: 500, color: "#42526E" }}>
+                                    プロンプト内容 *
+                                  </label>
+                                  <Textarea
+                                    isRequired
+                                    value={formData.prompt}
+                                    onChange={(e) =>
+                                      setFormData((prev) => ({ ...prev, prompt: (e.target as HTMLTextAreaElement).value }))
+                                    }
+                                    minimumRows={15}
+                                    style={{ width: "100%", fontFamily: "monospace" }}
+                                  />
+                                  <p style={{ marginTop: "4px", fontSize: "12px", color: "#6B778C" }}>
+                                    プレースホルダー（例: {"${location}"}, {"${cities}"}）を使用できます
+                                  </p>
+                                </div>
+                                <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                                  <Checkbox
+                                    isChecked={formData.isActive}
+                                    onChange={(e) =>
+                                      setFormData((prev) => ({ ...prev, isActive: e.target.checked }))
+                                    }
+                                  />
+                                  <label style={{ fontSize: "14px", color: "#42526E" }}>
+                                    有効
+                                  </label>
+                                </div>
+                                <div style={{ display: "flex", gap: "8px" }}>
+                                  <Button
+                                    type="submit"
+                                    appearance="primary"
+                                    isDisabled={upsertPrompt.isPending}
+                                  >
+                                    {upsertPrompt.isPending ? "保存中..." : "保存"}
+                                  </Button>
+                                  <Button
+                                    type="button"
+                                    appearance="default"
+                                    onClick={handleCancel}
+                                  >
+                                    キャンセル
+                                  </Button>
+                                </div>
+                              </form>
+                            </div>
+                          );
+                        }
+                        
+                        return (
+                          <div
+                            key={promptType}
+                            style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px", borderRadius: "4px", background: "#FFFFFF", border: "1px solid #DFE1E6" }}
+                          >
+                            <div style={{ flex: 1 }}>
+                              <div style={{ fontSize: "14px", fontWeight: 500, color: "#172B4D" }}>
+                                {info.name}
                               </div>
-                              <Button
-                                appearance="default"
-                                onClick={() => handleEdit(prompt.promptType as PromptType)}
-                              >
-                                編集
-                              </Button>
+                              <div style={{ fontSize: "12px", color: "#6B778C", marginTop: "4px" }}>
+                                {info.description}
+                              </div>
                             </div>
-                            <div style={{ marginTop: "16px", padding: "12px", borderRadius: "8px", background: "#F4F5F7" }}>
-                              <p style={{ marginBottom: "8px", fontSize: "12px", fontWeight: 500, color: "#6B778C" }}>
-                                プロンプト内容（プレビュー）
-                              </p>
-                              <pre style={{ maxHeight: "160px", overflow: "auto", whiteSpace: "pre-wrap", wordBreak: "break-word", fontFamily: "monospace", fontSize: "12px", color: "#42526E", margin: 0 }}>
-                                {prompt.prompt && prompt.prompt.length > 200
-                                  ? `${prompt.prompt.substring(0, 200)}...`
-                                  : prompt.prompt || "(プロンプトが設定されていません)"}
-                              </pre>
-                            </div>
-                          </>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
+                            <Button
+                              appearance="primary"
+                              onClick={() => handleEdit(promptType)}
+                            >
+                              新規作成
+                            </Button>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+                
+                {/* 登録済みのプロンプトを表示 */}
+                {agentPrompts.length > 0 && (
+                  <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
+                    {agentPrompts.map((prompt: PromptTemplate) => {
+                      if (!prompt || !prompt.promptType) return null;
+                      const info = PROMPT_INFO[prompt.promptType as PromptType];
+                      if (!info) return null;
+                      const isEditing = editingPrompt === prompt.promptType;
+
+                      return (
+                        <div
+                          key={prompt.id}
+                          style={{ padding: "16px", borderRadius: "8px", border: "1px solid #DFE1E6", background: "#FFFFFF" }}
+                        >
+                          {isEditing ? (
+                            <form
+                              onSubmit={(e) =>
+                                handleSubmit(e, prompt.promptType as PromptType)
+                              }
+                              style={{ display: "flex", flexDirection: "column", gap: "16px" }}
+                            >
+                              <div>
+                                <label style={{ display: "block", marginBottom: "8px", fontSize: "14px", fontWeight: 500, color: "#42526E" }}>
+                                  プロンプト名 *
+                                </label>
+                                <TextField
+                                  isRequired
+                                  type="text"
+                                  value={formData.name}
+                                  onChange={(e) =>
+                                    setFormData((prev) => ({ ...prev, name: (e.target as HTMLInputElement).value }))
+                                  }
+                                  style={{ width: "100%" }}
+                                />
+                              </div>
+                              <div>
+                                <label style={{ display: "block", marginBottom: "8px", fontSize: "14px", fontWeight: 500, color: "#42526E" }}>
+                                  説明
+                                </label>
+                                <TextField
+                                  type="text"
+                                  value={formData.description}
+                                  onChange={(e) =>
+                                    setFormData((prev) => ({ ...prev, description: (e.target as HTMLInputElement).value }))
+                                  }
+                                  style={{ width: "100%" }}
+                                />
+                              </div>
+                              <div>
+                                <label style={{ display: "block", marginBottom: "8px", fontSize: "14px", fontWeight: 500, color: "#42526E" }}>
+                                  プロンプト内容 *
+                                </label>
+                                <Textarea
+                                  isRequired
+                                  value={formData.prompt}
+                                  onChange={(e) =>
+                                    setFormData((prev) => ({ ...prev, prompt: (e.target as HTMLTextAreaElement).value }))
+                                  }
+                                  minimumRows={15}
+                                  style={{ width: "100%", fontFamily: "monospace" }}
+                                />
+                                <p style={{ marginTop: "4px", fontSize: "12px", color: "#6B778C" }}>
+                                  プレースホルダー（例: {"${location}"}, {"${cities}"}）を使用できます
+                                </p>
+                              </div>
+                              <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                                <Checkbox
+                                  isChecked={formData.isActive}
+                                  onChange={(e) =>
+                                    setFormData((prev) => ({ ...prev, isActive: e.target.checked }))
+                                  }
+                                />
+                                <label style={{ fontSize: "14px", color: "#42526E" }}>
+                                  有効
+                                </label>
+                              </div>
+                              <div style={{ display: "flex", gap: "8px" }}>
+                                <Button
+                                  type="submit"
+                                  appearance="primary"
+                                  isDisabled={upsertPrompt.isPending}
+                                >
+                                  {upsertPrompt.isPending ? "保存中..." : "保存"}
+                                </Button>
+                                <Button
+                                  type="button"
+                                  appearance="default"
+                                  onClick={handleCancel}
+                                >
+                                  キャンセル
+                                </Button>
+                              </div>
+                            </form>
+                          ) : (
+                            <>
+                              <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between" }}>
+                                <div style={{ flex: 1 }}>
+                                  <h3 style={{ fontSize: "16px", fontWeight: 600, color: "#172B4D" }}>
+                                    {prompt.name || info.name}
+                                  </h3>
+                                  {prompt.description && (
+                                    <p style={{ marginTop: "4px", fontSize: "14px", color: "#6B778C" }}>
+                                      {prompt.description}
+                                    </p>
+                                  )}
+                                  <div style={{ marginTop: "8px", display: "flex", alignItems: "center", gap: "8px" }}>
+                                    <Badge appearance={prompt.isActive ? "added" : "removed"}>
+                                      {prompt.isActive ? "有効" : "無効"}
+                                    </Badge>
+                                  </div>
+                                </div>
+                                <Button
+                                  appearance="default"
+                                  onClick={() => handleEdit(prompt.promptType as PromptType)}
+                                >
+                                  編集
+                                </Button>
+                              </div>
+                              <div style={{ marginTop: "16px", padding: "12px", borderRadius: "8px", background: "#F4F5F7" }}>
+                                <p style={{ marginBottom: "8px", fontSize: "12px", fontWeight: 500, color: "#6B778C" }}>
+                                  プロンプト内容（プレビュー）
+                                </p>
+                                <pre style={{ maxHeight: "160px", overflow: "auto", whiteSpace: "pre-wrap", wordBreak: "break-word", fontFamily: "monospace", fontSize: "12px", color: "#42526E", margin: 0 }}>
+                                  {prompt.prompt && prompt.prompt.length > 200
+                                    ? `${prompt.prompt.substring(0, 200)}...`
+                                    : prompt.prompt || "(プロンプトが設定されていません)"}
+                                </pre>
+                              </div>
+                            </>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
               </section>
             );
           })}
@@ -412,6 +577,27 @@ export default function PromptManagement() {
               <li>変更後は実際の動作を確認してください</li>
               <li>プレースホルダー（例: {"${location}"}）はそのまま残してください</li>
             </ul>
+          </div>
+        </Banner>
+      </section>
+
+      {/* Webリサーチ機能について */}
+      <section style={{ marginTop: "16px", padding: "24px", borderRadius: "8px", border: "1px solid #2684FF", background: "#E3FCEF" }}>
+        <Banner appearance="announcement">
+          <div>
+            <strong style={{ display: "block", marginBottom: "8px", fontSize: "14px", fontWeight: 600, color: "#172B4D" }}>
+              🔍 Webリサーチ機能について
+            </strong>
+            <p style={{ margin: 0, fontSize: "12px", color: "#42526E" }}>
+              すべてのAIへの指示には、自動的にWebリサーチの指示が追加されます。
+              各AIは最新の情報を取得するために、必要に応じてWeb検索を実行します。
+              <br />
+              <strong>Gemini:</strong> SerpAPIまたはGoogle Custom Search APIを使用してWeb検索を実行
+              <br />
+              <strong>Claude/ChatGPT:</strong> SerpAPIまたはGoogle Custom Search APIを使用してWeb検索を実行
+              <br />
+              <strong>Grok:</strong> X/Twitterの検索機能を使用
+            </p>
           </div>
         </Banner>
       </section>

@@ -46,6 +46,7 @@
 
 ### 8. APIキー設定 (`/api-key`)
 - Gemini、Grok、Claude、OpenAIのAPIキー設定
+- **Web検索APIキー設定**：最新情報取得のためのSerpAPIまたはGoogle Custom Search APIキー設定
 - APIキーの設定状態確認
 - **API接続確認機能**：各AIサービスの接続テスト
 - セキュアなAPIキー管理
@@ -96,7 +97,7 @@
 ### 必要な環境
 - Node.js 18以上
 - npm または yarn
-- PostgreSQL（データベース）
+- MySQL（データベース）
 
 ### インストール
 
@@ -119,13 +120,23 @@ cp .env.example .env
 
 ```env
 # データベース
-DATABASE_URL="postgresql://user:password@localhost:5432/dbname"
+DATABASE_URL="mysql://user:password@localhost:3306/beautyclinic"
 
 # AI API Keys
 GEMINI_API_KEY="your-gemini-api-key"
 GROK_API_KEY="your-grok-api-key"
 CLAUDE_API_KEY="your-claude-api-key"
 OPENAI_API_KEY="your-openai-api-key"
+
+# Web Search API Keys (for latest information retrieval)
+# 最新情報を取得するために、以下のいずれかを設定してください
+# オプション1: SerpAPI (推奨) - https://serpapi.com/
+SERP_API_KEY="your-serp-api-key"
+
+# オプション2: Google Custom Search API
+# https://developers.google.com/custom-search/v1/overview
+GOOGLE_CUSTOM_SEARCH_API_KEY="your-google-custom-search-api-key"
+GOOGLE_CUSTOM_SEARCH_ENGINE_ID="your-google-custom-search-engine-id"
 ```
 
 ### データベースのセットアップ
@@ -202,6 +213,45 @@ ai-clinic-platform/
 ```
 
 ## 主な変更履歴
+
+### Web検索機能の統合（2025年11月）
+
+すべてのAI機能に最新情報を取得するためのWeb検索機能を統合しました。
+
+#### Web検索API統合
+
+- **SerpAPI統合**: SerpAPIを使用したWeb検索機能を実装
+- **Google Custom Search API統合**: Google Custom Search APIを使用したWeb検索機能を実装
+- **自動フォールバック**: SerpAPIが利用できない場合、Google Custom Search APIに自動的にフォールバック
+
+#### Gemini API統合
+
+- **トレンド分析**: Web検索結果を基に最新のトレンド情報を取得
+- **価格比較調査**: 最新の価格情報をWeb検索で取得
+- **Instagram/YouTubeトレンド分析**: 最新のSNSトレンド情報を取得
+- **競合分析**: 最新の競合情報を取得
+
+#### ChatGPT API統合
+
+- **Instagram LP生成**: Web検索結果を基に最新トレンドを取り入れたLP案を生成
+- **HP記事生成**: 最新のSEO情報を含めた記事を生成
+- **キャンペーンコピー生成**: 最新のトレンド情報を基にキャンペーンコピーを生成
+
+#### プロンプト管理の改善
+
+- **新規プロンプト登録機能**: プロンプトが未登録でも、各AIエージェントごとに未登録のプロンプトタイプを表示し、新規登録可能に
+- **レイアウト改善**: コンテナの最大幅を拡大し、セクション間のスペースを調整
+- **UI/UX改善**: 新規作成時のフォーム強調表示、プレースホルダー説明の追加
+
+#### 戦略分析ページの改善
+
+- **商品選択機能**: 分析対象の商品を選択できるUIを追加
+- **商品選択バリデーション**: 商品が選択されていない場合のエラーメッセージを改善
+
+#### APIキー設定の拡張
+
+- **SerpAPIキー入力欄**: APIキー設定ページにSerpAPIキーの入力欄を追加
+- **Web検索APIキー状態表示**: SerpAPIとGoogle Custom Search APIの設定状態を表示
 
 ### Atlassian Design Systemの導入
 
