@@ -4,7 +4,8 @@
   "installCommand": "npm install",
   "framework": "nextjs",
   "env": {
-    "DATABASE_URL": "mysql://dummy:dummy@localhost:3306/dummy"
+    "DATABASE_URL": "mysql://dummy:dummy@localhost:3306/dummy",
+    "PRISMA_GENERATE_DATAPROXY": "false"
   }
 }
 
