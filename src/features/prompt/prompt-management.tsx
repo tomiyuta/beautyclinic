@@ -140,6 +140,7 @@ export default function PromptManagement() {
   });
   const [successMessage, setSuccessMessage] = useState("");
   const [errorMessage, setErrorMessage] = useState("");
+  const utils = api.useUtils();
 
   const handleEdit = (promptType: PromptType) => {
     const prompt = prompts?.find((p: PromptTemplate) => p.promptType === promptType);
@@ -161,6 +162,24 @@ export default function PromptManagement() {
       });
     }
     setEditingPrompt(promptType);
+  };
+
+  const handleLoadDefault = async (promptType: PromptType) => {
+    try {
+      const result = await utils.prompt.getDefault.fetch({ promptType });
+      if (result?.prompt) {
+        setFormData((prev) => ({
+          ...prev,
+          prompt: result.prompt,
+        }));
+        setSuccessMessage("デフォルトプロンプトを読み込みました");
+        setTimeout(() => setSuccessMessage(""), 3000);
+      }
+    } catch (error) {
+      console.error("Failed to load default prompt:", error);
+      setErrorMessage("デフォルトプロンプトの読み込みに失敗しました");
+      setTimeout(() => setErrorMessage(""), 5000);
+    }
   };
 
   const handleSubmit = (e: React.FormEvent, promptType: PromptType) => {
@@ -350,9 +369,17 @@ export default function PromptManagement() {
                                   />
                                 </div>
                                 <div>
-                                  <label style={{ display: "block", marginBottom: "8px", fontSize: "14px", fontWeight: 500, color: "#42526E" }}>
-                                    プロンプト内容 *
-                                  </label>
+                                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "8px" }}>
+                                    <label style={{ fontSize: "14px", fontWeight: 500, color: "#42526E" }}>
+                                      プロンプト内容 *
+                                    </label>
+                                    <Button
+                                      appearance="subtle"
+                                      onClick={() => handleLoadDefault(promptType)}
+                                    >
+                                      デフォルトを読み込む
+                                    </Button>
+                                  </div>
                                   <Textarea
                                     isRequired
                                     value={formData.prompt}
@@ -363,7 +390,7 @@ export default function PromptManagement() {
                                     style={{ width: "100%", fontFamily: "monospace" }}
                                   />
                                   <p style={{ marginTop: "4px", fontSize: "12px", color: "#6B778C" }}>
-                                    プレースホルダー（例: {"${location}"}, {"${cities}"}）を使用できます
+                                    プレースホルダー（例: {"${location}"}, {"${cities}"}）を使用できます。「デフォルトを読み込む」ボタンでデフォルトプロンプトを参照できます。
                                   </p>
                                 </div>
                                 <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
@@ -473,9 +500,17 @@ export default function PromptManagement() {
                                 />
                               </div>
                               <div>
-                                <label style={{ display: "block", marginBottom: "8px", fontSize: "14px", fontWeight: 500, color: "#42526E" }}>
-                                  プロンプト内容 *
-                                </label>
+                                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "8px" }}>
+                                  <label style={{ fontSize: "14px", fontWeight: 500, color: "#42526E" }}>
+                                    プロンプト内容 *
+                                  </label>
+                                  <Button
+                                    appearance="subtle"
+                                    onClick={() => handleLoadDefault(prompt.promptType as PromptType)}
+                                  >
+                                    デフォルトを読み込む
+                                  </Button>
+                                </div>
                                 <Textarea
                                   isRequired
                                   value={formData.prompt}
@@ -486,7 +521,7 @@ export default function PromptManagement() {
                                   style={{ width: "100%", fontFamily: "monospace" }}
                                 />
                                 <p style={{ marginTop: "4px", fontSize: "12px", color: "#6B778C" }}>
-                                  プレースホルダー（例: {"${location}"}, {"${cities}"}）を使用できます
+                                  プレースホルダー（例: {"${location}"}, {"${cities}"}）を使用できます。「デフォルトを読み込む」ボタンでデフォルトプロンプトを参照できます。
                                 </p>
                               </div>
                               <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>

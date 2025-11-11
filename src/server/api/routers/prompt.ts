@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { publicProcedure, router } from "@/server/api/trpc";
 import { db } from "@/server/db";
+import { DEFAULT_PROMPTS } from "@/server/services/prompt-helper";
 
 export const promptRouter = router({
   // すべてのプロンプトを取得
@@ -28,6 +29,39 @@ export const promptRouter = router({
       }
       throw new Error(`プロンプトの取得に失敗しました: ${error instanceof Error ? error.message : String(error)}`);
     }
+  }),
+
+  // デフォルトプロンプトを取得
+  getDefault: publicProcedure
+    .input(
+      z.object({
+        promptType: z.enum([
+          "claude_analyze_market_position",
+          "claude_generate_price_recommendations",
+          "claude_generate_campaign_proposals",
+          "claude_suggest_new_treatments",
+          "gemini_research_trend_analysis",
+          "gemini_research_price_comparison",
+          "gemini_analyze_instagram_trends",
+          "gemini_analyze_youtube_trends",
+          "gemini_research_competitor_analysis",
+          "grok_analyze_twitter_trends",
+          "chatgpt_system_prompt",
+          "chatgpt_generate_instagram_lp",
+          "chatgpt_generate_website_article",
+          "chatgpt_generate_campaign_copy",
+        ]),
+      }),
+    )
+    .query(async ({ input }) => {
+      return {
+        prompt: DEFAULT_PROMPTS[input.promptType] || "",
+      };
+    }),
+
+  // すべてのデフォルトプロンプトを取得
+  getAllDefaults: publicProcedure.query(async () => {
+    return DEFAULT_PROMPTS;
   }),
 
   // 特定のプロンプトタイプのプロンプトを取得
