@@ -200,7 +200,19 @@ export const strategyRouter = router({
           marketPricing,
         );
 
+        // データベースに保存
+        const saved = await db.strategyRecommendation.create({
+          data: {
+            userId: input.userId,
+            marketingStrategy: null,
+            priceRecommendations: result, // 価格推奨を保存
+            campaignProposals: null,
+            newTreatmentSuggestions: null,
+          },
+        });
+
         return {
+          id: saved.id,
           result: result, // テキスト形式の結果をそのまま返す
           message: "価格設定提案が完了しました",
         };
@@ -240,11 +252,11 @@ export const strategyRouter = router({
           .map((result) => {
             if (result.processedData) {
               // テキスト形式として扱う
-              return { text: result.processedData };
+              return { text: result.processedData } as Record<string, unknown>;
             }
             return null;
           })
-          .filter((data) => data !== null);
+          .filter((data): data is Record<string, unknown> => data !== null);
 
         // SNSデータを取得
         const snsResults = await db.sNSResearchResult.findMany({
@@ -259,13 +271,54 @@ export const strategyRouter = router({
               return null;
             }
             // テキスト形式として扱う
-            return { text: result.trendData };
+            return { text: result.trendData } as Record<string, unknown>;
           })
-          .filter((data) => data !== null);
+          .filter((data): data is Record<string, unknown> => data !== null);
 
-        const result = await generateCampaignProposals(trends, snsData);
+        // データが空の場合のチェック
+        if (trends.length === 0 && snsData.length === 0) {
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message: "市場トレンドデータまたはSNSデータが必要です。まず市場調査またはSNS調査を実行してください。",
+          });
+        }
+
+        console.log(`[Campaign Proposals] trends: ${trends.length}件, snsData: ${snsData.length}件`);
+
+        let result: string;
+        try {
+          result = await generateCampaignProposals(trends, snsData);
+        } catch (error) {
+          console.error("[Campaign Proposals] Generation error:", error);
+          throw new TRPCError({
+            code: "INTERNAL_SERVER_ERROR",
+            message: error instanceof Error 
+              ? `キャンペーン案の生成に失敗しました: ${error.message}`
+              : "キャンペーン案の生成に失敗しました",
+          });
+        }
+
+        if (!result || typeof result !== "string" || result.trim().length === 0) {
+          console.error("[Campaign Proposals] Empty result received");
+          throw new TRPCError({
+            code: "INTERNAL_SERVER_ERROR",
+            message: "キャンペーン案の生成に失敗しました。結果が空です。",
+          });
+        }
+
+        // データベースに保存
+        const saved = await db.strategyRecommendation.create({
+          data: {
+            userId: input.userId,
+            marketingStrategy: null,
+            priceRecommendations: null,
+            campaignProposals: result, // キャンペーン案を保存
+            newTreatmentSuggestions: null,
+          },
+        });
 
         return {
+          id: saved.id,
           result: result, // テキスト形式の結果をそのまま返す
           message: "キャンペーン案が生成されました",
         };
@@ -340,16 +393,64 @@ export const strategyRouter = router({
           })
           .filter((data) => data !== null);
 
-        const result = await suggestNewTreatments(
-          products.map((p) => ({
-            name: p.name,
-            category: p.category,
-          })),
-          marketTrends,
-          snsTrends,
-        );
+        // データが空の場合のチェック
+        if (products.length === 0) {
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message: "商品データが必要です。まず商品を登録してください。",
+          });
+        }
+
+        if (marketTrends.length === 0 && snsTrends.length === 0) {
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message: "市場トレンドデータまたはSNSトレンドデータが必要です。まず市場調査またはSNS調査を実行してください。",
+          });
+        }
+
+        console.log(`[New Treatments] products: ${products.length}件, marketTrends: ${marketTrends.length}件, snsTrends: ${snsTrends.length}件`);
+
+        let result: string;
+        try {
+          result = await suggestNewTreatments(
+            products.map((p) => ({
+              name: p.name,
+              category: p.category,
+            })),
+            marketTrends,
+            snsTrends,
+          );
+        } catch (error) {
+          console.error("[New Treatments] Generation error:", error);
+          throw new TRPCError({
+            code: "INTERNAL_SERVER_ERROR",
+            message: error instanceof Error 
+              ? `新施術提案の生成に失敗しました: ${error.message}`
+              : "新施術提案の生成に失敗しました",
+          });
+        }
+
+        if (!result || typeof result !== "string" || result.trim().length === 0) {
+          console.error("[New Treatments] Empty result received");
+          throw new TRPCError({
+            code: "INTERNAL_SERVER_ERROR",
+            message: "新施術提案の生成に失敗しました。結果が空です。",
+          });
+        }
+
+        // データベースに保存
+        const saved = await db.strategyRecommendation.create({
+          data: {
+            userId: input.userId,
+            marketingStrategy: null,
+            priceRecommendations: null,
+            campaignProposals: null,
+            newTreatmentSuggestions: result, // 新施術提案を保存
+          },
+        });
 
         return {
+          id: saved.id,
           result: result, // テキスト形式の結果をそのまま返す
           message: "新施術提案が完了しました",
         };

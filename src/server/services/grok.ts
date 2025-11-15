@@ -73,33 +73,21 @@ export async function callGrok(prompt: string): Promise<string> {
 export async function analyzeTwitterTrends(
   keywords: string[],
   timeRange: "last_week" | "last_month" | "last_3months" = "last_month",
+  location: string = "unknown",
 ): Promise<string> {
   const timeRangeText = {
-    last_week: "過去1週間",
-    last_month: "過去1ヶ月",
-    last_3months: "過去3ヶ月",
+    last_week: "last 7 days",
+    last_month: "last 30 days",
+    last_3months: "last 90 days",
   }[timeRange];
 
-  const defaultPrompt = `あなたはSNSマーケティングの専門家です。
-Twitter/Xで以下のキーワードに関連する最新のトレンドを調査してください：
-
-キーワード: ${keywords.join(", ")}
-期間: ${timeRangeText}
-
-以下の観点から分析してください：
-1. 人気のハッシュタグ
-2. 影響力のあるアカウントやインフルエンサー
-3. 人気の投稿やコンテンツの特徴
-4. エンゲージメント（いいね、リツイート、コメント）の傾向
-5. 話題になっている美容施術や治療
-
-わかりやすく読みやすい形式で、調査結果をまとめてください。最後に、トレンド分析の総括を記載してください。`;
-
   const { getPrompt, replacePlaceholders } = await import("./prompt-helper");
-  const template = await getPrompt("grok_analyze_twitter_trends", defaultPrompt);
+  const template = await getPrompt("grok_analyze_twitter_trends");
   const prompt = replacePlaceholders(template, { 
     keywords: keywords.join(", "),
-    timeRange: timeRangeText
+    keywords_json: JSON.stringify(keywords),
+    timeRangeText,
+    location: location || "unknown"
   });
   
   return callGrok(prompt);

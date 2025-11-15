@@ -88,9 +88,26 @@ export async function callClaude(prompt: string): Promise<string> {
         console.log(`Claude model cached: ${modelName}`);
       }
 
-      return message.content[0]?.type === "text"
-        ? message.content[0].text
-        : "";
+      // レスポンスの検証
+      if (!message.content || message.content.length === 0) {
+        console.error(`[Claude API] Empty content array from model ${modelName}`);
+        throw new Error(`Claude API returned empty content array from model ${modelName}`);
+      }
+
+      const firstContent = message.content[0];
+      if (!firstContent || firstContent.type !== "text") {
+        console.error(`[Claude API] Invalid content type from model ${modelName}:`, firstContent?.type);
+        throw new Error(`Claude API returned invalid content type from model ${modelName}: ${firstContent?.type || "undefined"}`);
+      }
+
+      const responseText = firstContent.text || "";
+      
+      if (!responseText || typeof responseText !== "string" || responseText.trim().length === 0) {
+        console.warn(`[Claude API] Empty response text from model ${modelName}`);
+        throw new Error(`Claude API returned empty response text from model ${modelName}`);
+      }
+      
+      return responseText;
     } catch (error) {
       console.error(`Claude API error with model ${modelName}:`, error);
 
@@ -272,13 +289,23 @@ export async function generateCampaignProposals(
 
 最後に、キャンペーン戦略の総括と推奨実施時期を記載してください。`;
 
+  console.log(`[generateCampaignProposals] trends: ${trends.length}件, snsData: ${snsData.length}件`);
+  
   const template = await getPrompt("claude_generate_campaign_proposals", defaultPrompt);
   const prompt = replacePlaceholders(template, {
     trends: JSON.stringify(trends, null, 2),
     snsData: JSON.stringify(snsData, null, 2),
   });
 
-  return callClaude(prompt);
+  console.log(`[generateCampaignProposals] Prompt length: ${prompt.length} characters`);
+  console.log(`[generateCampaignProposals] Prompt preview (first 500 chars): ${prompt.substring(0, 500)}`);
+
+  const result = await callClaude(prompt);
+  
+  console.log(`[generateCampaignProposals] Result length: ${result.length} characters`);
+  console.log(`[generateCampaignProposals] Result preview (first 500 chars): ${result.substring(0, 500)}`);
+
+  return result;
 }
 
 export async function suggestNewTreatments(
@@ -320,6 +347,8 @@ export async function suggestNewTreatments(
 
 最後に、新施術導入戦略の総括と推奨導入タイムラインを記載してください。`;
 
+  console.log(`[suggestNewTreatments] currentTreatments: ${currentTreatments.length}件, marketTrends: ${marketTrends.length}件, snsTrends: ${snsTrends.length}件`);
+  
   const template = await getPrompt("claude_suggest_new_treatments", defaultPrompt);
   const prompt = replacePlaceholders(template, {
     currentTreatments: JSON.stringify(currentTreatments, null, 2),
@@ -327,6 +356,14 @@ export async function suggestNewTreatments(
     snsTrends: JSON.stringify(snsTrends, null, 2),
   });
 
-  return callClaude(prompt);
+  console.log(`[suggestNewTreatments] Prompt length: ${prompt.length} characters`);
+  console.log(`[suggestNewTreatments] Prompt preview (first 500 chars): ${prompt.substring(0, 500)}`);
+
+  const result = await callClaude(prompt);
+  
+  console.log(`[suggestNewTreatments] Result length: ${result.length} characters`);
+  console.log(`[suggestNewTreatments] Result preview (first 500 chars): ${result.substring(0, 500)}`);
+
+  return result;
 }
 

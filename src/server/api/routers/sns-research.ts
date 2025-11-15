@@ -23,11 +23,12 @@ export const snsResearchRouter = router({
           .array(z.string().min(1))
           .min(1, "少なくとも1つのキーワードを指定してください"),
         timeRange: timeRangeSchema.optional().default("last_month"),
+        location: z.string().optional().default("unknown"),
       }),
     )
     .mutation(async ({ input }) => {
       try {
-        const result = await analyzeTwitterTrends(input.keywords, input.timeRange);
+        const result = await analyzeTwitterTrends(input.keywords, input.timeRange, input.location);
 
         // データベースに保存（テキスト形式で保存）
         const saved = await db.sNSResearchResult.create({
@@ -83,11 +84,12 @@ export const snsResearchRouter = router({
           .array(z.string().min(1))
           .min(1, "少なくとも1つのキーワードを指定してください"),
         timeRange: timeRangeSchema.optional().default("last_month"),
+        location: z.string().optional().default("unknown"),
       }),
     )
     .mutation(async ({ input }) => {
       try {
-        const result = await analyzeInstagramTrends(input.keywords, input.timeRange);
+        const result = await analyzeInstagramTrends(input.keywords, input.timeRange, input.location);
 
         // データベースに保存（テキスト形式で保存）
         const saved = await db.sNSResearchResult.create({
@@ -143,11 +145,12 @@ export const snsResearchRouter = router({
           .array(z.string().min(1))
           .min(1, "少なくとも1つのキーワードを指定してください"),
         timeRange: timeRangeSchema.optional().default("last_month"),
+        location: z.string().optional().default("unknown"),
       }),
     )
     .mutation(async ({ input }) => {
       try {
-        const result = await analyzeYouTubeTrends(input.keywords, input.timeRange);
+        const result = await analyzeYouTubeTrends(input.keywords, input.timeRange, input.location);
 
         // データベースに保存（テキスト形式で保存）
         const saved = await db.sNSResearchResult.create({

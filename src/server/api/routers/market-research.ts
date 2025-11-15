@@ -22,11 +22,12 @@ export const marketResearchRouter = router({
       z.object({
         userId: z.number().int().positive(),
         location: z.string().min(1, "場所を入力してください"),
+        period: z.string().optional().default("last 90 days"),
       }),
     )
     .mutation(async ({ input }) => {
       try {
-        const result = await researchTrendAnalysis(input.location);
+        const result = await researchTrendAnalysis(input.location, input.period);
 
         // データベースに保存（テキスト形式で保存）
         const saved = await db.marketResearchResult.create({
@@ -67,6 +68,7 @@ export const marketResearchRouter = router({
         cities: z
           .array(z.string().min(1, "都市名を入力してください"))
           .min(1, "少なくとも1つの都市を指定してください"),
+        period: z.string().optional().default("last 90 days"),
       }),
     )
     .mutation(async ({ input }) => {
@@ -74,6 +76,7 @@ export const marketResearchRouter = router({
         const result = await researchPriceComparison(
           input.treatments,
           input.cities,
+          input.period,
         );
 
         // データベースに保存（テキスト形式で保存）

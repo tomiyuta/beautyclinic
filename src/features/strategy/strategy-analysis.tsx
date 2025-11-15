@@ -55,6 +55,7 @@ export function StrategyAnalysis() {
           message: "価格設定提案が完了しました",
         });
         setTimeout(() => setFeedback({ type: null, message: "" }), 5000);
+        void utils.strategy.list.invalidate({ userId: USER_ID_PLACEHOLDER });
       },
       onError: (error: unknown) => {
         const message = error instanceof Error ? error.message : "エラーが発生しました。もう一度お試しください。";
@@ -73,6 +74,7 @@ export function StrategyAnalysis() {
         message: "キャンペーン案が生成されました",
       });
       setTimeout(() => setFeedback({ type: null, message: "" }), 5000);
+      void utils.strategy.list.invalidate({ userId: USER_ID_PLACEHOLDER });
     },
     onError: (error) => {
       setFeedback({ type: "error", message: error.message });
@@ -88,6 +90,7 @@ export function StrategyAnalysis() {
           message: "新施術提案が完了しました",
         });
         setTimeout(() => setFeedback({ type: null, message: "" }), 5000);
+        void utils.strategy.list.invalidate({ userId: USER_ID_PLACEHOLDER });
       },
       onError: (error: unknown) => {
         const message = error instanceof Error ? error.message : "エラーが発生しました。もう一度お試しください。";

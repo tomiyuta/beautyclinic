@@ -2,21 +2,36 @@ import { fetchRequestHandler } from "@trpc/server/adapters/fetch";
 import { appRouter } from "@/server/api/root";
 import { createTRPCContext } from "@/server/api/trpc";
 
-const handler = (req: Request) =>
-  fetchRequestHandler({
-    endpoint: "/api/trpc",
-    req,
-    router: appRouter,
-    createContext: createTRPCContext,
-    onError:
-      process.env.NODE_ENV === "development"
-        ? ({ path, error }) => {
-            console.error(
-              `❌ tRPC failed on ${path ?? "<no-path>"}: ${error.message}`,
-            );
-          }
-        : undefined,
-  });
+const handler = async (req: Request) => {
+  try {
+    return await fetchRequestHandler({
+      endpoint: "/api/trpc",
+      req,
+      router: appRouter,
+      createContext: createTRPCContext,
+      onError:
+        process.env.NODE_ENV === "development"
+          ? ({ path, error }) => {
+              console.error(
+                `❌ tRPC failed on ${path ?? "<no-path>"}: ${error.message}`,
+              );
+            }
+          : undefined,
+    });
+  } catch (error) {
+    console.error("tRPC handler error:", error);
+    return new Response(
+      JSON.stringify({
+        error: "Internal server error",
+        message: error instanceof Error ? error.message : "Unknown error",
+      }),
+      {
+        status: 500,
+        headers: { "Content-Type": "application/json" },
+      },
+    );
+  }
+};
 
 export { handler as GET, handler as POST };
 
