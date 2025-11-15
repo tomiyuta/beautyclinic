@@ -473,10 +473,21 @@ export const strategyRouter = router({
       }),
     )
     .query(async ({ input }) => {
-      return db.strategyRecommendation.findMany({
-        where: { userId: input.userId },
-        orderBy: { createdAt: "desc" },
-      });
+      try {
+        return await db.strategyRecommendation.findMany({
+          where: { userId: input.userId },
+          orderBy: { createdAt: "desc" },
+        });
+      } catch (error) {
+        console.error("Strategy list query error:", error);
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message:
+            error instanceof Error
+              ? `戦略提案履歴の取得に失敗しました: ${error.message}`
+              : "戦略提案履歴の取得に失敗しました",
+        });
+      }
     }),
 
   getById: publicProcedure

@@ -4,7 +4,7 @@ import { createTRPCContext } from "@/server/api/trpc";
 
 const handler = async (req: Request) => {
   try {
-    return await fetchRequestHandler({
+    const response = await fetchRequestHandler({
       endpoint: "/api/trpc",
       req,
       router: appRouter,
@@ -18,6 +18,24 @@ const handler = async (req: Request) => {
             }
           : undefined,
     });
+
+    // レスポンスがHTMLエラーページでないことを確認
+    const contentType = response.headers.get("content-type");
+    if (contentType && contentType.includes("text/html")) {
+      console.error("Unexpected HTML response from tRPC");
+      return new Response(
+        JSON.stringify({
+          error: "Internal server error",
+          message: "サーバーエラーが発生しました。JSONレスポンスの代わりにHTMLが返されました。",
+        }),
+        {
+          status: 500,
+          headers: { "Content-Type": "application/json" },
+        },
+      );
+    }
+
+    return response;
   } catch (error) {
     console.error("tRPC handler error:", error);
     return new Response(
