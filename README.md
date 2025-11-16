@@ -41,6 +41,9 @@
 - **総合分析**：市場データとSNSデータを統合分析
   - パラメータ：`location`（必須）、`productIds`（オプション）、`includeMarketData`（オプション、デフォルト: true）、`includeSNSData`（オプション、デフォルト: true）
   - 商品選択機能：分析対象の商品を複数選択可能
+  - **複数AI協業**：Gemini（市場調査）、Grok（SNS調査）、Claude/ChatGPT（戦略統合）による協業分析
+  - **構造化データの活用**：各AIの分析結果（CONSENSUS_JSON）を抽出・統合して総合的な戦略を提案
+  - **Web検索統合**：最新情報を取得して分析に反映
   - SWOT分析、市場ポジション分析、競合地図
   - 小規模クリニック向け最適化（人時・予算制約を考慮）
   - 7日間の実行チェックリストと30/60/90日ロードマップを含む
@@ -96,6 +99,10 @@
 - **Web検索APIキー設定**：最新情報取得のためのSerpAPIまたはGoogle Custom Search APIキー設定
 - APIキーの設定状態確認
 - **API接続確認機能**：各AIサービスの接続テスト
+- **戦略分析AIプロバイダー選択**：戦略分析で使用するAIプロバイダー（Claude API / ChatGPT API）を選択可能
+  - デフォルトはChatGPT API
+  - 選択したプロバイダーのAPIキーが設定されている必要があります
+  - 設定は即座に反映されます（サーバー再起動不要）
 - セキュアなAPIキー管理
 
 ### 9. プロンプト管理 (`/prompt`)
@@ -206,9 +213,14 @@ GOOGLE_CUSTOM_SEARCH_ENGINE_ID="your-google-custom-search-engine-id"
 # Prismaマイグレーションの実行
 npx prisma migrate dev
 
+# または、直接データベースにスキーマを適用（マイグレーション履歴が不要な場合）
+npx prisma db push
+
 # Prismaクライアントの生成
 npx prisma generate
 ```
+
+**注意**: `prisma migrate dev`でエラーが発生する場合は、`prisma db push`を使用してください。
 
 **注意**: Apple Silicon（M1/M2）マシンを使用している場合、`prisma/schema.prisma`の`generator`セクションに`binaryTargets`を追加する必要がある場合があります：
 
@@ -268,7 +280,7 @@ ai-clinic-platform/
 │   │   │   ├── routers/       # 各機能のルーター
 │   │   │   │   ├── market-research.ts  # 市場調査（periodパラメータ追加）
 │   │   │   │   ├── sns-research.ts     # SNS調査（locationパラメータ追加）
-│   │   │   │   ├── strategy.ts         # 戦略分析（DB保存ロジック追加、データ検証強化）
+│   │   │   │   ├── strategy.ts         # 戦略分析（構造化データ統合、ユーザー設定管理）
 │   │   │   │   └── ...
 │   │   │   ├── root.ts        # ルートルーター
 │   │   │   └── trpc.ts        # tRPC設定
@@ -277,10 +289,12 @@ ai-clinic-platform/
 │   │   │   ├── gemini.ts      # Gemini API統合（period/locationパラメータ対応）
 │   │   │   ├── grok.ts        # Grok API統合（locationパラメータ対応）
 │   │   │   ├── claude.ts      # Claude API統合（レスポンス検証強化、デバッグログ追加）
-│   │   │   ├── chatgpt.ts     # ChatGPT API統合
-│   │   │   ├── prompt-helper.ts  # プロンプト管理（構造化プロンプト実装）
+│   │   │   ├── chatgpt.ts     # ChatGPT API統合（構造化データ対応、Web検索統合）
+│   │   │   ├── prompt-helper.ts  # プロンプト管理（構造化プロンプト実装、複数AI協業説明追加）
 │   │   │   ├── web-search.ts  # Web検索機能
 │   │   │   └── workflow-orchestrator.ts  # ワークフロー管理
+│   │   └── utils/              # ユーティリティ関数
+│   │       └── parse-ai-results.ts  # CONSENSUS_JSON抽出・パース機能
 │   │   └── db.ts              # Prismaクライアント
 │   └── trpc/                   # tRPCクライアント設定
 │       ├── provider.tsx        # tRPCプロバイダー（エラーハンドリング改善）
@@ -388,6 +402,53 @@ ai-clinic-platform/
 各戦略分析の`onSuccess`コールバックで、`utils.strategy.list.invalidate()`を呼び出し、履歴一覧を自動更新します。
 
 ## 主な変更履歴
+
+### 複数AI協業機能の実装（2025年1月）
+
+#### 複数AIの協業アーキテクチャ
+- **Gemini（Google）**：市場調査（トレンド分析、価格調査、競合分析）、SNS調査（Instagram、YouTube）
+  - 構造化データ（CONSENSUS_JSON）として、施術の人気度、価格帯、競合情報、ハッシュタグ、インフルエンサー情報などを提供
+- **Grok（xAI）**：SNS調査（X/Twitter）
+  - 構造化データ（CONSENSUS_JSON）として、X上のトレンド、ハッシュタグ、投稿傾向、エンゲージメント情報などを提供
+- **Claude/ChatGPT（戦略統合AI）**：上記のAI分析結果を統合し、総合的な戦略提案を行う
+  - デフォルトはChatGPT API
+  - ユーザー設定でClaude APIに切り替え可能
+
+#### CONSENSUS_JSON抽出・パース機能
+- `src/server/utils/parse-ai-results.ts`を新規作成
+- Gemini/Grokの出力から`<CONSENSUS_JSON>`タグを抽出・パースする機能を実装
+- 市場調査データとSNS調査データを構造化データに変換
+- 構造化データを優先的に使用し、数値やURLなどの根拠を活用
+
+#### 戦略分析APIの改善
+- テキストデータではなく、構造化データ（CONSENSUS_JSON）を優先的に使用
+- 各AIの分析結果を統合してClaude/ChatGPTに渡すように変更
+- 構造化データから主要情報（施術、価格テーブル、ハッシュタグ、インフルエンサー等）を抽出
+- 各AIの分析結果を引用する際は、どのAI（Gemini/Grok等）が分析したかを明記
+
+#### ChatGPT API統合の改善
+- 戦略分析のデフォルトAPIをChatGPT APIに変更
+- Web検索機能を統合し、最新情報を取得して分析に反映
+- 構造化データを詳細にフォーマットし、AI分析エージェント名、分析日時、構造化データ、レポートなどを明示
+- 各関数で構造化データからキーワードを抽出するロジックを追加
+
+#### プロンプトの改善
+- 複数AIの協業についての説明を追加
+- データの優先順位（構造化データ > レポート > 生データ）を明示
+- 各AIの役割を明確化（Gemini:市場調査、Grok:SNS調査、Claude/ChatGPT:戦略統合）
+
+#### ユーザー設定機能
+- `UserSettings`テーブルを追加（`strategyAIProvider`フィールド）
+- 戦略分析で使用するAIプロバイダーを選択可能（Claude API / ChatGPT API）
+- デフォルトはChatGPT API
+- フロントエンドから設定を変更可能（`/api-key`ページ）
+
+#### データベーススキーマの更新
+- `UserSettings`モデルを追加
+  - `id`: 主キー
+  - `userId`: ユーザーID（ユニーク）
+  - `strategyAIProvider`: 戦略分析で使用するAIプロバイダー（"claude" または "chatgpt"、デフォルト: "chatgpt"）
+  - `createdAt`, `updatedAt`: タイムスタンプ
 
 ### 戦略提案履歴表示機能の追加（2025年1月）
 

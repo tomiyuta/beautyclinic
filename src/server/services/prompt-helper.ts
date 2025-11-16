@@ -35,7 +35,16 @@ export const DEFAULT_PROMPTS: Record<PromptType, string> = {
 
 - 断定/誇大/比較優良誤認（「必ず/完全/No.1/絶対」等）禁止。医療広告ガイドライン配慮。
 
-- すべての主張は **入力データの根拠**（marketData/snsData内のURLや数値）に基づく。根拠が無い場合は「仮説」と明示。
+- **重要**: 入力データには複数のAI（Gemini、Grok、Claude/ChatGPT）による分析結果が含まれています。各AIの分析結果を統合的に活用し、総合的な戦略を提案してください。
+
+- **データの優先順位**: 
+  1. 構造化データ（consensusJSON）を最優先に使用
+  2. 構造化データがない場合はレポート（reportMarkdown）を参照
+  3. それもない場合は生データ（rawText）を参照
+
+- すべての主張は **入力データの根拠**（marketData/snsData内のURLや数値、AI分析エージェント名）に基づく。根拠が無い場合は「仮説」と明示。
+
+- 各AIの分析結果を引用する際は、どのAI（Gemini/Grok等）が分析したかを明記してください。
 
 - 表は「可読/印刷」前提で作る（列は少なめ、重要KPIは数値で）。
 
@@ -53,11 +62,39 @@ export const DEFAULT_PROMPTS: Record<PromptType, string> = {
 
 - 自院商品: \${clinicProducts}
 
-- 市場調査: \${marketData}
+- 市場調査データ（複数AIによる分析結果）: \${marketData}
+  - トレンド分析: Geminiによる構造化データ（treatments, customerNeeds, sources等）
+  - 価格調査: Geminiによる構造化データ（price_table, area_summary等）
+  - 競合分析: Geminiによる構造化データ（competitors, area_summary等）
+  - 各データにはconsensusJSON（構造化データ）、reportMarkdown（レポート）、rawText（生データ）が含まれます
+  - 構造化データを優先的に使用し、数値やURLなどの根拠を活用してください
 
-- SNS調査: \${snsData}
+- SNS調査データ（複数AIによる分析結果）: \${snsData}
+  - Instagram: Geminiによる構造化データ（hashtags, influencers, engagement_trends等）
+  - YouTube: Geminiによる構造化データ（top_videos, format_stats, engagement_trends等）
+  - X/Twitter: Grokによる構造化データ（hashtags, top_posts, engagement_trends等）
+  - 各プラットフォームのデータにはconsensusJSON（構造化データ）、reportMarkdown（レポート）、rawText（生データ）が含まれます
+  - 構造化データを優先的に使用し、エンゲージメント率や投稿傾向などの数値を活用してください
 
 - 所在地: \${location}
+
+【重要】複数AIの協業について
+
+本分析は以下のAIエージェントによる協業で実現されています：
+
+1. **Gemini（Google）**: 市場調査（トレンド分析、価格調査、競合分析）、SNS調査（Instagram、YouTube）
+   - 構造化データ（CONSENSUS_JSON）として、施術の人気度、価格帯、競合情報、ハッシュタグ、インフルエンサー情報などを提供
+
+2. **Grok（xAI）**: SNS調査（X/Twitter）
+   - 構造化データ（CONSENSUS_JSON）として、X上のトレンド、ハッシュタグ、投稿傾向、エンゲージメント情報などを提供
+
+3. **Claude/ChatGPT（戦略統合AI）**: あなた自身
+   - 上記のAI分析結果を統合し、総合的な戦略提案を行う
+
+各AIの分析結果を統合的に活用し、以下の点を重視してください：
+- Geminiの市場調査データから、施術の人気度、価格相場、競合状況を把握
+- Gemini/GrokのSNS調査データから、各プラットフォームでのトレンド、エンゲージメント傾向、ユーザー動向を把握
+- これらの情報を統合し、実現可能で効果的な戦略を提案
 
 
 
@@ -2734,7 +2771,7 @@ export async function getPrompt(
 ): Promise<string> {
   try {
     const promptTemplate = await db.promptTemplate.findUnique({
-      where: { promptType },
+      where: { promptType: promptType as any },
     });
 
     if (promptTemplate && promptTemplate.isActive) {
