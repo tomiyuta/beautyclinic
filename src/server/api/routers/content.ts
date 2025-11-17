@@ -345,7 +345,7 @@ export const contentRouter = router({
             title: input.campaignTitle,
             content: contentResult.text,
             bodyMarkdown: contentResult.markdown,
-            rawJson: contentResult.json as unknown,
+            rawJson: contentResult.json ? JSON.parse(JSON.stringify(contentResult.json)) : null,
             brandTone: input.tone,
             targetAudience: input.targetAudience || null,
             relatedTreatmentIds: JSON.stringify(input.relatedTreatmentIds || []),
@@ -452,7 +452,7 @@ export const contentRouter = router({
             title: input.campaignTitle,
             content: contentResult.text,
             bodyMarkdown: contentResult.markdown,
-            rawJson: contentResult.json as unknown,
+            rawJson: contentResult.json ? JSON.parse(JSON.stringify(contentResult.json)) : null,
             brandTone: input.tone,
             targetAudience: input.targetAudience || null,
             relatedTreatmentIds: JSON.stringify(input.relatedTreatmentIds || []),
@@ -563,7 +563,7 @@ export const contentRouter = router({
             title: input.campaignTitle,
             content: contentResult.text,
             bodyMarkdown: contentResult.markdown,
-            rawJson: contentResult.json as unknown,
+            rawJson: contentResult.json ? JSON.parse(JSON.stringify(contentResult.json)) : null,
             brandTone: input.tone,
             targetAudience: input.targetAudience || null,
             relatedTreatmentIds: JSON.stringify(input.relatedTreatmentIds || []),
@@ -629,14 +629,14 @@ export const contentRouter = router({
     .query(async ({ input }) => {
       const where: {
         userId: number;
-        contentType?: string;
+        contentType?: typeof input.contentType;
         id?: { lt: number };
       } = {
         userId: input.userId,
       };
 
       if (input.contentType) {
-        where.contentType = input.contentType;
+        where.contentType = input.contentType as typeof input.contentType;
       }
 
       if (input.cursor) {
