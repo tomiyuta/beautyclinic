@@ -128,7 +128,9 @@ export function ContentGenerator() {
       setPreviewContent({
         id: data.id,
         content: data.content,
-        image: data.image,
+        image: data.image && typeof data.image === "object" && data.image !== null && "url" in data.image
+          ? { url: String((data.image as { url: string }).url) }
+          : null,
       });
       resetForm();
     },
@@ -150,7 +152,9 @@ export function ContentGenerator() {
       setPreviewContent({
         id: data.id,
         content: data.content,
-        image: data.image,
+        image: data.image && typeof data.image === "object" && data.image !== null && "url" in data.image
+          ? { url: String((data.image as { url: string }).url) }
+          : null,
       });
       resetForm();
     },
@@ -172,7 +176,9 @@ export function ContentGenerator() {
       setPreviewContent({
         id: data.id,
         content: data.content,
-        image: data.image,
+        image: data.image && typeof data.image === "object" && data.image !== null && "url" in data.image
+          ? { url: String((data.image as { url: string }).url) }
+          : null,
       });
       resetForm();
     },
@@ -847,7 +853,7 @@ export function ContentGenerator() {
                     ? String((previewContent.content as { markdown: string }).markdown)
                     : String(previewContent.content)}
                 </div>
-                {previewContent.image && previewContent.image.url && (
+                {previewContent.image !== null && previewContent.image !== undefined && previewContent.image.url && (
                   <div style={{ marginTop: "16px" }}>
                     <h3 style={{ marginBottom: "8px", fontSize: "14px", fontWeight: 600, color: "#172B4D" }}>
                       生成された画像
@@ -878,7 +884,7 @@ export function ContentGenerator() {
                     ? String((previewContent.content as { markdown: string }).markdown)
                     : String(previewContent.content)}
                 </div>
-                {previewContent.image && previewContent.image.url && (
+                {previewContent.image !== null && previewContent.image !== undefined && previewContent.image.url && (
                   <div style={{ marginTop: "16px" }}>
                     <h3 style={{ marginBottom: "8px", fontSize: "14px", fontWeight: 600, color: "#172B4D" }}>
                       アイキャッチ画像
@@ -909,7 +915,7 @@ export function ContentGenerator() {
                     ? String((previewContent.content as { markdown: string }).markdown)
                     : String(previewContent.content)}
                 </div>
-                {previewContent.image && previewContent.image.url && (
+                {previewContent.image !== null && previewContent.image !== undefined && previewContent.image.url && (
                   <div style={{ marginTop: "16px" }}>
                     <h3 style={{ marginBottom: "8px", fontSize: "14px", fontWeight: 600, color: "#172B4D" }}>
                       LPヘッダー画像
