@@ -1,295 +1,241 @@
-# デプロイメントガイド
+# Vercelデプロイメントガイド
 
-このシステムはNext.jsアプリケーションなので、様々なクラウドサービスにデプロイできます。
+このドキュメントでは、美容クリニックAI協調プラットフォームをVercelにデプロイする手順を説明します。
 
-## デプロイ可能なサービス
+## 前提条件
 
-### 1. Vercel（推奨・最も簡単）
+- GitHubアカウント
+- Vercelアカウント（[https://vercel.com/](https://vercel.com/)で作成）
+- 本番環境用のMySQLデータベース（例：PlanetScale、Railway、AWS RDS等）
+- 各AIサービスのAPIキー
 
-VercelはNext.jsの開発元が提供するホスティングサービスで、最も簡単にデプロイできます。
+## デプロイ手順
 
-#### デプロイ手順
+### 1. GitHubリポジトリの準備
 
-1. **Vercelアカウントの作成**
-   - [Vercel](https://vercel.com/)にアクセスしてアカウントを作成
+1. プロジェクトをGitHubにプッシュ済みであることを確認
+2. リポジトリが公開されているか、Vercelアカウントにアクセス権限があることを確認
 
-2. **GitHubリポジトリにプッシュ**
-   ```bash
-   git init
-   git add .
-   git commit -m "Initial commit"
-   git remote add origin <your-github-repo-url>
-   git push -u origin main
-   ```
+### 2. Vercelプロジェクトの作成
 
-3. **Vercelでプロジェクトをインポート**
-   - Vercelダッシュボードで「New Project」をクリック
-   - GitHubリポジトリを選択
-   - 環境変数を設定（後述）
+1. [Vercel Dashboard](https://vercel.com/dashboard)にログイン
+2. 「Add New...」→「Project」をクリック
+3. GitHubリポジトリを選択
+4. プロジェクト名を設定（例：`ai-clinic-platform`）
+5. Framework Preset: **Next.js** が自動検出されることを確認
+6. Root Directory: `.`（デフォルト）
+7. Build Command: `npm run build`（自動検出）
+8. Output Directory: `.next`（自動検出）
+9. Install Command: `npm install`（自動検出）
 
-4. **環境変数の設定**
-   Vercelダッシュボードの「Environment Variables」で以下を設定：
-   ```
-   DATABASE_URL=mysql://user:password@host:3306/database
-   GEMINI_API_KEY=your-key
-   GROK_API_KEY=your-key
-   CLAUDE_API_KEY=your-key
-   OPENAI_API_KEY=your-key
-   ```
+### 3. 環境変数の設定
 
-5. **デプロイ**
-   - 「Deploy」ボタンをクリック
-   - 自動的にビルドとデプロイが開始されます
+プロジェクトの「Settings」→「Environment Variables」で以下を設定：
 
-**注意**: Vercelはサーバーレス環境なので、MySQLデータベースは外部のクラウドデータベース（PlanetScale、AWS RDS、Google Cloud SQLなど）が必要です。
+**方法1: Import .env機能を使用（推奨）**
+1. `env.vercel.template`ファイルを開く
+2. 実際のAPIキーとデータベース接続情報に置き換える
+3. ファイル名を`.env`に変更（または内容をコピー）
+4. Vercelダッシュボードの「Import .env」ボタンをクリック
+5. `.env`ファイルを選択してインポート
 
----
+**方法2: 手動で環境変数を追加**
+以下の環境変数を1つずつ追加：
 
-### 2. Google Cloud Platform (GCP)
-
-#### オプションA: Cloud Run（推奨）
-
-1. **Dockerfileの作成**（後述）
-
-2. **Google Cloud SDKのインストール**
-   ```bash
-   curl https://sdk.cloud.google.com | bash
-   gcloud init
-   ```
-
-3. **プロジェクトの作成**
-   ```bash
-   gcloud projects create your-project-id
-   gcloud config set project your-project-id
-   ```
-
-4. **Cloud SQL（MySQL）のセットアップ**
-   ```bash
-   gcloud sql instances create ai-clinic-db \
-     --database-version=MYSQL_8_0 \
-     --tier=db-f1-micro \
-     --region=asia-northeast1
-   
-   gcloud sql databases create ai_clinic --instance=ai-clinic-db
-   ```
-
-5. **Dockerイメージのビルドとプッシュ**
-   ```bash
-   gcloud builds submit --tag gcr.io/your-project-id/ai-clinic-platform
-   ```
-
-6. **Cloud Runにデプロイ**
-   ```bash
-   gcloud run deploy ai-clinic-platform \
-     --image gcr.io/your-project-id/ai-clinic-platform \
-     --platform managed \
-     --region asia-northeast1 \
-     --allow-unauthenticated \
-     --set-env-vars DATABASE_URL="mysql://user:pass@/ai_clinic?unix_socket=/cloudsql/project:region:instance"
-   ```
-
-#### オプションB: App Engine
-
-1. **app.yamlの作成**（後述）
-
-2. **デプロイ**
-   ```bash
-   gcloud app deploy
-   ```
-
----
-
-### 3. AWS
-
-#### AWS Amplify（推奨）
-
-1. **AWS Amplifyコンソール**でプロジェクトを作成
-2. GitHubリポジトリを接続
-3. ビルド設定を追加（amplify.yml）
-4. 環境変数を設定
-5. デプロイ
-
-#### AWS Elastic Beanstalk
-
-1. **Dockerfileの作成**
-2. **EB CLIのインストール**
-   ```bash
-   pip install awsebcli
-   ```
-3. **初期化とデプロイ**
-   ```bash
-   eb init
-   eb create
-   eb deploy
-   ```
-
----
-
-### 4. Railway
-
-1. **Railwayアカウントの作成**
-   - [Railway](https://railway.app/)にアクセス
-
-2. **プロジェクトの作成**
-   - 「New Project」→「Deploy from GitHub repo」
-
-3. **環境変数の設定**
-   - Railwayダッシュボードで環境変数を設定
-
-4. **MySQLプラグインの追加**
-   - 「New」→「Database」→「MySQL」を選択
-
----
-
-## 必要な設定ファイル
-
-### Dockerfile（Cloud Run、AWS用）
-
-```dockerfile
-FROM node:20-alpine AS base
-
-# 依存関係のインストール
-FROM base AS deps
-WORKDIR /app
-COPY package.json package-lock.json* ./
-RUN npm ci
-
-# ビルド
-FROM base AS builder
-WORKDIR /app
-COPY --from=deps /app/node_modules ./node_modules
-COPY . .
-RUN npx prisma generate
-RUN npm run build
-
-# 本番環境
-FROM base AS runner
-WORKDIR /app
-
-ENV NODE_ENV production
-
-RUN addgroup --system --gid 1001 nodejs
-RUN adduser --system --uid 1001 nextjs
-
-COPY --from=builder /app/public ./public
-COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
-COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
-COPY --from=builder /app/node_modules ./node_modules
-COPY --from=builder /app/prisma ./prisma
-
-USER nextjs
-
-EXPOSE 3000
-
-ENV PORT 3000
-
-CMD ["node", "server.js"]
-```
-
-### next.config.jsの更新（standalone出力用）
-
-```javascript
-/** @type {import('next').NextConfig} */
-const nextConfig = {
-  output: 'standalone', // Docker用
-  // ... 既存の設定
-};
-
-module.exports = nextConfig;
-```
-
-### app.yaml（App Engine用）
-
-```yaml
-runtime: nodejs20
-
-env_variables:
-  DATABASE_URL: "mysql://user:password@/ai_clinic?unix_socket=/cloudsql/project:region:instance"
-  GEMINI_API_KEY: "your-key"
-  GROK_API_KEY: "your-key"
-  CLAUDE_API_KEY: "your-key"
-  OPENAI_API_KEY: "your-key"
-
-automatic_scaling:
-  min_instances: 1
-  max_instances: 10
-```
-
----
-
-## データベースの移行
-
-### クラウドMySQLサービスの選択
-
-1. **PlanetScale**（Vercel推奨）
-   - サーバーレスMySQL
-   - 無料プランあり
-
-2. **Google Cloud SQL**
-   - GCPと統合しやすい
-   - 自動バックアップ機能
-
-3. **AWS RDS**
-   - AWSと統合しやすい
-   - 高可用性オプション
-
-4. **Railway MySQL**
-   - Railwayと統合しやすい
-   - 簡単なセットアップ
-
-### データベース接続URLの更新
-
-デプロイ先に応じて、`DATABASE_URL`環境変数を更新：
+#### 必須環境変数
 
 ```env
-# PlanetScale例
-DATABASE_URL="mysql://user:password@host.planetscale.com:3306/database?sslaccept=strict"
+# データベース接続（本番環境用）
+DATABASE_URL="mysql://user:password@host:3306/database"
 
-# Cloud SQL例
-DATABASE_URL="mysql://user:password@/database?unix_socket=/cloudsql/project:region:instance"
-
-# Railway例
-DATABASE_URL="mysql://user:password@host.railway.app:3306/database"
+# Prisma設定
+PRISMA_GENERATE_DATAPROXY="false"
 ```
 
----
+#### AI API Keys（使用するサービスのみ設定）
 
-## デプロイ前のチェックリスト
+```env
+# Google Gemini API
+GEMINI_API_KEY="your-gemini-api-key"
 
-- [ ] `.env`ファイルを`.gitignore`に追加（機密情報保護）
-- [ ] 環境変数をデプロイ先のダッシュボードで設定
-- [ ] データベースをクラウドサービスに移行
-- [ ] `DATABASE_URL`を更新
-- [ ] Prismaマイグレーションを実行
-- [ ] APIキーが正しく設定されているか確認
-- [ ] ビルドが成功するかローカルで確認（`npm run build`）
+# Grok API (X/Twitter)
+GROK_API_KEY="your-grok-api-key"
 
----
+# Anthropic Claude API
+CLAUDE_API_KEY="your-claude-api-key"
+CLAUDE_MODEL="claude-3-5-sonnet"  # オプション
+
+# OpenAI ChatGPT API
+OPENAI_API_KEY="your-openai-api-key"
+
+# Web検索API（いずれか1つ）
+SERP_API_KEY="your-serp-api-key"
+# または
+GOOGLE_CUSTOM_SEARCH_API_KEY="your-google-custom-search-api-key"
+GOOGLE_CUSTOM_SEARCH_ENGINE_ID="your-google-custom-search-engine-id"
+```
+
+#### 環境変数の適用範囲
+
+- **Production**: 本番環境（`vercel.com`ドメイン）
+- **Preview**: プレビュー環境（プルリクエストごと）
+- **Development**: ローカル開発環境（`vercel dev`コマンド使用時）
+
+**推奨**: すべての環境に適用するか、ProductionとPreviewのみに適用
+
+### 4. データベースのセットアップ
+
+#### 本番環境用データベースの準備
+
+詳細な手順は`DATABASE_SETUP.md`を参照してください。
+
+**簡単な手順（PlanetScaleの場合）**:
+
+1. [PlanetScale](https://planetscale.com/)にアカウントを作成
+2. 「Create database」をクリックしてデータベースを作成
+3. 「Connect」→「Connect with Prisma」を選択
+4. 表示された接続文字列をコピー（`DATABASE_URL`として使用）
+
+**接続文字列の形式**:
+```
+mysql://ユーザー名:パスワード@ホスト:3306/データベース名?sslaccept=strict
+```
+
+**例**:
+```env
+DATABASE_URL=mysql://xxxxx:xxxxx@xxxxx.ap-northeast-1.aws.planetscale.com:3306/beautyclinic?sslaccept=strict
+PRISMA_GENERATE_DATAPROXY=false
+```
+
+#### Prismaマイグレーションの実行
+
+Vercelのビルド時に自動的に実行されますが、初回デプロイ前に手動で実行することも可能：
+
+```bash
+# ローカルで実行（本番データベースに接続）
+npx prisma migrate deploy
+# または
+npx prisma db push
+```
+
+### 5. デプロイの実行
+
+1. 「Deploy」ボタンをクリック
+2. ビルドログを確認
+3. デプロイが完了すると、自動的にURLが生成されます（例：`https://your-project.vercel.app`）
+
+### 6. デプロイ後の確認
+
+1. **アプリケーションの動作確認**
+   - デプロイされたURLにアクセス
+   - 各ページが正常に表示されるか確認
+
+2. **APIエンドポイントの確認**
+   - `/api/trpc`エンドポイントが正常に動作するか確認
+   - ブラウザの開発者ツールでネットワークエラーがないか確認
+
+3. **環境変数の確認**
+   - Vercelダッシュボードの「Settings」→「Environment Variables」で設定が正しいか確認
+   - ログで環境変数が正しく読み込まれているか確認
 
 ## トラブルシューティング
 
 ### ビルドエラー
 
-- `npm run build`をローカルで実行してエラーを確認
-- 環境変数が正しく設定されているか確認
+#### Prismaクライアント生成エラー
+
+```
+Error: Prisma Client has not been generated yet
+```
+
+**解決策**:
+- `package.json`の`postinstall`スクリプトが正しく設定されているか確認
+- Vercelのビルドログで`prisma generate`が実行されているか確認
+
+#### 環境変数が見つからない
+
+```
+Error: Environment variable not found
+```
+
+**解決策**:
+- Vercelダッシュボードで環境変数が正しく設定されているか確認
+- 環境変数名にタイポがないか確認
+- 適用範囲（Production/Preview/Development）が正しいか確認
 
 ### データベース接続エラー
 
-- `DATABASE_URL`の形式が正しいか確認
-- クラウドデータベースのファイアウォール設定を確認
-- SSL接続が必要な場合は`?sslaccept=strict`を追加
+```
+Error: Can't reach database server
+```
 
-### 環境変数の読み込みエラー
+**解決策**:
+- `DATABASE_URL`が正しい形式か確認
+- データベースプロバイダーのファイアウォール設定でVercelのIPアドレスを許可
+- SSL接続が必要な場合は、`DATABASE_URL`に`?sslaccept=strict`を追加
 
-- Next.jsでは`NEXT_PUBLIC_`プレフィックスが必要な変数はクライアント側でも使用可能
-- サーバー側のみの変数はプレフィックス不要
+### APIキーエラー
 
----
+```
+Error: API key is invalid
+```
 
-## 推奨デプロイ先
+**解決策**:
+- 各AIサービスのAPIキーが正しく設定されているか確認
+- APIキーに余分なスペースや改行が含まれていないか確認
+- APIキーの権限（使用可能なモデル、レート制限等）を確認
 
-1. **開発・小規模運用**: Vercel + PlanetScale（無料プランあり）
-2. **中規模運用**: Railway（簡単、統合MySQL）
-3. **大規模運用**: Google Cloud Run + Cloud SQL（スケーラブル）
-4. **エンタープライズ**: AWS Amplify + RDS（高可用性）
+## 継続的デプロイ（CI/CD）
 
+VercelはGitHubと連携して自動デプロイを設定できます：
+
+1. **自動デプロイの設定**
+   - `main`ブランチへのプッシュ → Production環境に自動デプロイ
+   - プルリクエスト → Preview環境に自動デプロイ
+
+2. **デプロイプレビュー**
+   - 各プルリクエストごとに一意のURLが生成されます
+   - プルリクエストのコメントに自動的にプレビューURLが追加されます
+
+## カスタムドメインの設定
+
+1. Vercelダッシュボードで「Settings」→「Domains」に移動
+2. カスタムドメインを追加
+3. DNS設定を更新（Vercelの指示に従う）
+
+## パフォーマンス最適化
+
+### Next.js設定
+
+`next.config.js`で最適化設定を確認：
+
+```javascript
+/** @type {import('next').NextConfig} */
+const nextConfig = {
+  // 必要に応じて設定を追加
+}
+
+module.exports = nextConfig
+```
+
+### 環境変数のセキュリティ
+
+- **機密情報は環境変数で管理**: APIキーやデータベース接続文字列は環境変数に保存
+- **環境変数の暗号化**: Vercelは環境変数を自動的に暗号化して保存
+- **環境ごとの分離**: Production、Preview、Developmentで異なる環境変数を使用可能
+
+## 参考リンク
+
+- [Vercel Documentation](https://vercel.com/docs)
+- [Next.js on Vercel](https://vercel.com/docs/frameworks/nextjs)
+- [Environment Variables](https://vercel.com/docs/concepts/projects/environment-variables)
+- [Prisma on Vercel](https://www.prisma.io/docs/guides/deployment/deployment-guides/deploying-to-vercel)
+
+## サポート
+
+問題が発生した場合は、以下を確認してください：
+
+1. Vercelのビルドログを確認
+2. ブラウザのコンソールでエラーを確認
+3. Vercelの[Status Page](https://www.vercel-status.com/)で障害情報を確認
+4. GitHubのIssuesで問題を報告

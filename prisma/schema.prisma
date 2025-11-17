@@ -43,6 +43,9 @@ enum ContentType {
   instagram_lp
   website_article
   campaign_copy
+  instagram
+  blog
+  lp
 }
 
 enum ContentStatus {
@@ -135,19 +138,41 @@ model StrategyRecommendation {
 }
 
 model GeneratedContent {
-  id          Int           @id @default(autoincrement())
-  userId      Int
-  strategyId  Int
-  contentType ContentType
-  title       String        @db.VarChar(255)
-  content     String        @db.Text
-  metadata    String?       @db.Text
-  aiAgent     AiAgent
-  status      ContentStatus @default(draft)
-  createdAt   DateTime      @default(now())
-  updatedAt   DateTime      @updatedAt
+  id                   Int           @id @default(autoincrement())
+  userId               Int
+  strategyId           Int           @default(0)
+  contentType          ContentType
+  title                String        @db.VarChar(255)
+  content              String        @db.Text
+  bodyMarkdown         String?       @db.Text
+  rawJson              Json?
+  metadata             String?       @db.Text
+  brandTone            String?       @db.VarChar(100)
+  targetAudience       String?       @db.VarChar(255)
+  relatedTreatmentIds  String?       @db.Text // JSON配列として保存（デフォルト: "[]"）
+  snsResearchIds       String?       @db.Text // JSON配列として保存（デフォルト: "[]"）
+  aiAgent              AiAgent
+  status               ContentStatus @default(draft)
+  createdAt            DateTime      @default(now())
+  updatedAt            DateTime      @updatedAt
+
+  images               ContentImage[]
 
   @@map("generatedContents")
+}
+
+model ContentImage {
+  id         Int            @id @default(autoincrement())
+  content    GeneratedContent @relation(fields: [contentId], references: [id], onDelete: Cascade)
+  contentId  Int
+  url        String         @db.VarChar(500)
+  width      Int
+  height     Int
+  preset     String         @db.VarChar(50) // "instagram_square" | "lp_banner" | "custom"
+  theme      String         @db.VarChar(100)
+  createdAt  DateTime       @default(now())
+
+  @@map("contentImages")
 }
 
 model WorkflowExecution {
