@@ -104,11 +104,18 @@ export function ContentGenerator() {
     type: "success" | "error" | null;
     message: string;
   }>({ type: null, message: "" });
-  const [previewContent, setPreviewContent] = useState<{
+  type PreviewContent = {
     id: number;
     content: unknown;
-    image?: { url: string } | null;
-  } | null>(null);
+    image: { url: string } | null;
+  };
+
+  const [previewContent, setPreviewContent] = useState<PreviewContent | null>(null);
+
+  // 型ガード関数
+  const hasImage = (content: PreviewContent | null): content is PreviewContent & { image: { url: string } } => {
+    return content !== null && content.image !== null && typeof content.image === "object" && "url" in content.image;
+  };
 
   const utils = api.useUtils();
 
@@ -853,9 +860,7 @@ export function ContentGenerator() {
                     ? String((previewContent.content as { markdown: string }).markdown)
                     : String(previewContent.content)}
                 </div>
-                {previewContent.image !== null && 
-                 previewContent.image !== undefined && 
-                 previewContent.image.url ? (
+                {hasImage(previewContent) ? (
                   <div style={{ marginTop: "16px" }}>
                     <h3 style={{ marginBottom: "8px", fontSize: "14px", fontWeight: 600, color: "#172B4D" }}>
                       生成された画像
@@ -886,9 +891,7 @@ export function ContentGenerator() {
                     ? String((previewContent.content as { markdown: string }).markdown)
                     : String(previewContent.content)}
                 </div>
-                {previewContent.image !== null && 
-                 previewContent.image !== undefined && 
-                 previewContent.image.url ? (
+                {hasImage(previewContent) ? (
                   <div style={{ marginTop: "16px" }}>
                     <h3 style={{ marginBottom: "8px", fontSize: "14px", fontWeight: 600, color: "#172B4D" }}>
                       アイキャッチ画像
@@ -919,9 +922,7 @@ export function ContentGenerator() {
                     ? String((previewContent.content as { markdown: string }).markdown)
                     : String(previewContent.content)}
                 </div>
-                {previewContent.image !== null && 
-                 previewContent.image !== undefined && 
-                 previewContent.image.url ? (
+                {hasImage(previewContent) ? (
                   <div style={{ marginTop: "16px" }}>
                     <h3 style={{ marginBottom: "8px", fontSize: "14px", fontWeight: 600, color: "#172B4D" }}>
                       LPヘッダー画像
