@@ -1,660 +1,1915 @@
 # 美容クリニックAI協調プラットフォーム
 
-美容クリニック向けの戦略立案・素材生成を支援するAI協調システムです。複数のAIサービス（Gemini、Grok、Claude、ChatGPT）を連携させて、市場調査、SNS分析、戦略立案、コンテンツ生成などの業務を自動化します。
+## 目次
 
-## 主な機能
+1. [システムの基本コンセプト](#システムの基本コンセプト)
+2. [システムアーキテクチャ](#システムアーキテクチャ)
+3. [技術スタック](#技術スタック)
+4. [データベーススキーマ](#データベーススキーマ)
+5. [主要機能の詳細](#主要機能の詳細)
+6. [AIエージェントの役割分担](#aiエージェントの役割分担)
+7. [各AIのプロンプト詳細](#各aiのプロンプト詳細)
+8. [API設計](#api設計)
+9. [フロントエンド構成](#フロントエンド構成)
+10. [セットアップ手順](#セットアップ手順)
+11. [使用方法](#使用方法)
+12. [開発ガイド](#開発ガイド)
+
+---
+
+## システムの基本コンセプト
+
+### 概要
+
+本システムは、複数のAIエージェント（Gemini、Grok、Claude、ChatGPT）を協調させて、美容クリニックの経営戦略立案からコンテンツ生成までを支援する統合プラットフォームです。
+
+### コアコンセプト
+
+1. **複数AI協業アーキテクチャ**
+   - 各AIエージェントが専門分野を担当し、結果を統合して総合的な戦略を提案
+   - Gemini: 市場調査・SNS調査（Instagram/YouTube）
+   - Grok: SNS調査（X/Twitter）
+   - Claude/ChatGPT: 戦略統合・コンテンツ生成
+
+2. **構造化データの活用**
+   - 各AIの出力を`<CONSENSUS_JSON>`（機械処理用）と`<REPORT_MARKDOWN>`（人間可読）の2部構成で統一
+   - 構造化データを優先的に使用し、数値やURLなどの根拠を活用
+
+3. **小規模クリニック最適化**
+   - 人的・予算・在庫（予約枠）の制約を考慮した実現可能な戦略提案
+   - 「翌週から動かせる計画」を重視
+
+4. **医療広告ガイドライン対応**
+   - 誇大・断定・比較優良誤認表現の自動チェック・修正
+   - 禁止ワードリストによる自動フィルタリング
+   - 注意書きの自動付与
+
+5. **最新情報の統合**
+   - Web検索機能（SerpAPI/Google Custom Search）による最新トレンド情報の取得
+   - 各AI分析に最新データを反映
+
+---
+
+## システムアーキテクチャ
+
+### 全体構成
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                    フロントエンド層                           │
+│  Next.js 13 (App Router) + React 18 + TypeScript            │
+│  Atlassian Design System                                    │
+└─────────────────────────────────────────────────────────────┘
+                            ↕
+┌─────────────────────────────────────────────────────────────┐
+│                    API層 (tRPC)                              │
+│  - content.ts: コンテンツ生成API                             │
+│  - market-research.ts: 市場調査API                          │
+│  - sns-research.ts: SNS調査API                              │
+│  - strategy.ts: 戦略分析API                                 │
+│  - product.ts: 商品管理API                                  │
+│  - prompt.ts: プロンプト管理API                             │
+│  - workflow.ts: ワークフロー管理API                         │
+└─────────────────────────────────────────────────────────────┘
+                            ↕
+┌─────────────────────────────────────────────────────────────┐
+│                   サービス層                                 │
+│  - chatgpt.ts: ChatGPT統合                                  │
+│  - claude.ts: Claude統合                                    │
+│  - gemini.ts: Gemini統合                                    │
+│  - grok.ts: Grok統合                                        │
+│  - content-generation.ts: コンテンツ生成ロジック            │
+│  - image-generation.ts: 画像生成（DALL·E 3）                │
+│  - web-search.ts: Web検索統合                                │
+│  - prompt-helper.ts: プロンプト管理                          │
+│  - workflow-orchestrator.ts: ワークフロー実行               │
+└─────────────────────────────────────────────────────────────┘
+                            ↕
+┌─────────────────────────────────────────────────────────────┐
+│                   ユーティリティ層                           │
+│  - advertising-guidelines.ts: 医療広告ガイドライン対応      │
+│  - parse-ai-results.ts: AI結果の構造化データ抽出            │
+└─────────────────────────────────────────────────────────────┘
+                            ↕
+┌─────────────────────────────────────────────────────────────┐
+│                   データ層 (Prisma + MySQL)                  │
+│  - ClinicProduct: 商品管理                                   │
+│  - MarketResearchResult: 市場調査結果                        │
+│  - SNSResearchResult: SNS調査結果                            │
+│  - StrategyRecommendation: 戦略提案                          │
+│  - GeneratedContent: 生成コンテンツ                          │
+│  - ContentImage: コンテンツ画像                              │
+│  - PromptTemplate: プロンプトテンプレート                    │
+│  - UserSettings: ユーザー設定                                │
+│  - WorkflowExecution: ワークフロー実行履歴                   │
+│  - ErrorLog: エラーログ                                     │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### データフロー
+
+1. **市場調査・SNS調査の流れ**
+   ```
+   ユーザー入力 → Gemini/Grok API → 構造化データ抽出 → DB保存 → 戦略分析に活用
+   ```
+
+2. **戦略分析の流れ**
+   ```
+   市場データ + SNSデータ → Claude/ChatGPT統合分析 → 戦略提案 → DB保存
+   ```
+
+3. **コンテンツ生成の流れ**
+   ```
+   キャンペーン情報 + SNS調査結果 → ChatGPT生成 → 画像生成（DALL·E） → DB保存
+   ```
+
+---
+
+## 技術スタック
+
+### フロントエンド
+
+- **Next.js 13.5.6**: App Routerを使用したReactフレームワーク
+- **React 18.2.0**: UIライブラリ
+- **TypeScript 5**: 型安全性
+- **Atlassian Design System**: UIコンポーネントライブラリ
+  - Button, TextField, Textarea, Select, Banner, Badge, Tag, Spinner, EmptyState, Checkbox, Table, Form等
+- **@tanstack/react-query**: データフェッチング・キャッシュ管理
+- **@trpc/react-query**: tRPCクライアント
+
+### バックエンド
+
+- **tRPC 11.7.1**: 型安全なAPI層
+- **Prisma 6.18.0**: ORM（MySQL）
+- **Zod 4.1.12**: スキーマバリデーション
+- **superjson 2.2.5**: JSONシリアライゼーション
+
+### AI統合
+
+- **OpenAI SDK 6.7.0**: ChatGPT (GPT-4o) + DALL·E 3
+- **@anthropic-ai/sdk 0.68.0**: Claude (Claude 3.5 Sonnet)
+- **@google/generative-ai 0.24.1**: Gemini (Gemini 2.5 Flash/Pro)
+- **axios 1.13.1**: Grok API統合
+
+### その他
+
+- **html2canvas 1.4.1**: フロントエンド画像エクスポート
+- **jspdf 3.0.3**: PDF生成
+- **exceljs 4.4.0**: Excelエクスポート
+- **dotenv 17.2.3**: 環境変数管理
+
+### データベース
+
+- **MySQL**: リレーショナルデータベース
+- **Prisma Client**: 型安全なデータベースアクセス
+
+---
+
+## データベーススキーマ
+
+### 主要モデル
+
+#### ClinicProduct（商品管理）
+
+```prisma
+model ClinicProduct {
+  id           Int      @id @default(autoincrement())
+  userId       Int
+  name         String   @db.VarChar(255)
+  category     String?  @db.VarChar(100)
+  costPrice    Int
+  sellingPrice Int
+  description  String?  @db.Text
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+```
+
+#### MarketResearchResult（市場調査結果）
+
+```prisma
+model MarketResearchResult {
+  id            Int          @id @default(autoincrement())
+  userId        Int
+  location      String       @db.VarChar(100)
+  researchType  ResearchType // trend_analysis | competitor_analysis | price_research
+  aiAgent       AiAgent     // gemini | grok | claude | chatgpt
+  rawData       String       @db.Text
+  processedData String?      @db.Text // <CONSENSUS_JSON> + <REPORT_MARKDOWN>
+  createdAt     DateTime     @default(now())
+}
+```
+
+#### SNSResearchResult（SNS調査結果）
+
+```prisma
+model SNSResearchResult {
+  id        Int         @id @default(autoincrement())
+  userId    Int
+  platform  SNSPlatform // twitter | instagram | youtube
+  keywords  String      @db.Text
+  aiAgent   AiAgent
+  trendData String      @db.Text // <CONSENSUS_JSON> + <REPORT_MARKDOWN>
+  createdAt DateTime    @default(now())
+}
+```
+
+#### StrategyRecommendation（戦略提案）
+
+```prisma
+model StrategyRecommendation {
+  id                      Int                  @id @default(autoincrement())
+  userId                  Int
+  analysisDate            DateTime             @default(now())
+  priceRecommendations    String?              @db.Text
+  campaignProposals       String?              @db.Text
+  newTreatmentSuggestions String?              @db.Text
+  marketingStrategy       String?              @db.Text
+  userFeedback            String?              @db.Text
+  implementationStatus    ImplementationStatus @default(pending)
+  createdAt               DateTime             @default(now())
+  updatedAt               DateTime             @updatedAt
+}
+```
+
+#### GeneratedContent（生成コンテンツ）
+
+```prisma
+model GeneratedContent {
+  id                   Int           @id @default(autoincrement())
+  userId               Int
+  strategyId           Int           @default(0)
+  contentType          ContentType   // instagram | blog | lp | instagram_lp | website_article | campaign_copy
+  title                String        @db.VarChar(255)
+  content              String        @db.Text
+  bodyMarkdown         String?       @db.Text
+  rawJson              Json?         // 構造化JSONデータ
+  metadata             String?       @db.Text
+  brandTone            String?       @db.VarChar(100)
+  targetAudience       String?       @db.VarChar(255)
+  relatedTreatmentIds  String?       @db.Text // JSON配列
+  snsResearchIds       String?       @db.Text // JSON配列
+  aiAgent              AiAgent
+  status               ContentStatus @default(draft)
+  createdAt            DateTime      @default(now())
+  updatedAt            DateTime      @updatedAt
+  images               ContentImage[]
+}
+```
+
+#### ContentImage（コンテンツ画像）
+
+```prisma
+model ContentImage {
+  id         Int            @id @default(autoincrement())
+  content    GeneratedContent @relation(fields: [contentId], references: [id], onDelete: Cascade)
+  contentId  Int
+  url        String         @db.VarChar(500)
+  width      Int
+  height     Int
+  preset     String         @db.VarChar(50) // instagram_square | lp_banner | custom
+  theme      String         @db.VarChar(100)
+  createdAt  DateTime       @default(now())
+}
+```
+
+#### PromptTemplate（プロンプトテンプレート）
+
+```prisma
+model PromptTemplate {
+  id          Int       @id @default(autoincrement())
+  promptType  PromptType @unique
+  aiAgent     AiAgent
+  name        String    @db.VarChar(255)
+  description String?   @db.Text
+  prompt       String    @db.Text
+  isActive    Boolean   @default(true)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+}
+```
+
+#### UserSettings（ユーザー設定）
+
+```prisma
+model UserSettings {
+  id                  Int      @id @default(autoincrement())
+  userId              Int      @unique
+  strategyAIProvider  String   @default("chatgpt") @db.VarChar(20) // claude | chatgpt
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+}
+```
+
+### Enum定義
+
+```prisma
+enum ResearchType {
+  trend_analysis
+  competitor_analysis
+  price_research
+}
+
+enum AiAgent {
+  gemini
+  grok
+  claude
+  chatgpt
+}
+
+enum SNSPlatform {
+  twitter
+  instagram
+  youtube
+}
+
+enum ContentType {
+  instagram_lp
+  website_article
+  campaign_copy
+  instagram
+  blog
+  lp
+}
+
+enum ContentStatus {
+  draft
+  approved
+  published
+}
+
+enum ImplementationStatus {
+  pending
+  in_progress
+  completed
+}
+
+enum PromptType {
+  // Claude
+  claude_analyze_market_position
+  claude_generate_price_recommendations
+  claude_generate_campaign_proposals
+  claude_suggest_new_treatments
+  // Gemini
+  gemini_research_trend_analysis
+  gemini_research_price_comparison
+  gemini_analyze_instagram_trends
+  gemini_analyze_youtube_trends
+  gemini_research_competitor_analysis
+  // Grok
+  grok_analyze_twitter_trends
+  // ChatGPT
+  chatgpt_system_prompt
+  chatgpt_generate_instagram_lp
+  chatgpt_generate_website_article
+  chatgpt_generate_campaign_copy
+}
+```
+
+---
+
+## 主要機能の詳細
 
 ### 1. 商品管理 (`/`)
+
+**機能概要**
 - クリニックの施術・商品情報の管理
 - 価格設定、説明文の編集
 - 商品の追加・削除・更新
 - 商品の有効/無効切り替え
 
+**データモデル**
+- `ClinicProduct`: 商品情報を管理
+- 原価・販売価格・カテゴリ・説明文を保存
+
+**API**
+- `product.list`: 商品一覧取得
+- `product.create`: 商品作成
+- `product.update`: 商品更新
+- `product.delete`: 商品削除
+
+---
+
 ### 2. 市場調査 (`/market-research`)
-- **トレンド分析**：指定地域の美容施術トレンドを調査
-  - パラメータ：`location`（必須）、`period`（オプション、デフォルト: "last 90 days"）
-  - 出力形式：構造化プロンプト（`<CONSENSUS_JSON>` + `<REPORT_MARKDOWN>`）
-  - 根拠URLと取得日時を必須記載
-  - 医療広告ガイドライン配慮（誇大表現禁止）
-- **価格調査**：複数都市での価格比較
-  - パラメータ：`treatments`（必須）、`cities`（必須）、`period`（オプション、デフォルト: "last 90 days"）
-  - 標準化単位での価格正規化（例：ボトックス=per_unit_10U、HA=per_ml_1）
-  - 統計情報（中央値、p25、p75、サンプル数）を含む
-- **競合調査**：周辺地域の競合クリニック分析
-  - パラメータ：`location`（必須）、`radius`（オプション、デフォルト: 5km）
-  - Google Mapsベースの競合抽出
-  - 施術カタログ・価格・特徴の比較
+
+**機能概要**
+美容施術の市場トレンド、価格相場、競合情報を調査・分析します。
+
+#### 2.1 トレンド分析
+
+**パラメータ**
+- `location`（必須）: 調査地域（例: "東京"、"大阪"）
+- `period`（オプション）: 調査期間（デフォルト: "last 90 days"）
+
+**処理フロー**
+1. Gemini APIを呼び出し、最新のトレンド情報を取得
+2. Web検索を実行して最新情報を補完
+3. 構造化データ（`<CONSENSUS_JSON>`）とレポート（`<REPORT_MARKDOWN>`）を生成
+4. データベースに保存
+
+**出力形式**
+- **CONSENSUS_JSON**: 機械処理用の構造化データ
+  - `treatments[]`: 施術情報（人気度、価格、根拠URL）
+  - `customerNeeds[]`: 顧客ニーズ
+  - `sources[]`: 情報源
+- **REPORT_MARKDOWN**: 人間可読のレポート
+
+**AIエージェント**: Gemini
+
+#### 2.2 価格調査
+
+**パラメータ**
+- `treatments`（必須）: 調査対象の施術リスト（例: ["ダーマペン", "ボトックス", "ヒアルロン酸"]）
+- `cities`（必須）: 調査対象の都市リスト（例: ["東京", "大阪", "福岡"]）
+- `period`（オプション）: 調査期間（デフォルト: "last 90 days"）
+
+**処理フロー**
+1. 各都市×各施術の価格を収集
+2. 標準化単位で正規化（例: ボトックス=per_unit_10U、HA=per_ml_1）
+3. 統計情報（中央値、p25、p75、サンプル数）を算出
+4. 構造化データとレポートを生成
+5. データベースに保存
+
+**出力形式**
+- **CONSENSUS_JSON**:
+  - `price_table[]`: 都市別×施術別の価格統計
+  - `methodology`: 正規化ルール、外れ値処理方針
+- **REPORT_MARKDOWN**: 価格比較レポート
+
+**AIエージェント**: Gemini
+
+#### 2.3 競合調査
+
+**パラメータ**
+- `location`（必須）: 中心地（例: "渋谷駅"、"大阪市北区"）
+- `radius`（オプション）: 調査半径（デフォルト: 5km）
+
+**処理フロー**
+1. Google Maps APIで周辺の競合クリニックを抽出
+2. 各クリニックの施術カタログ・価格・特徴を収集
+3. 正規化単位で価格を統一
+4. 差別化要因を分析
+5. 構造化データとレポートを生成
+6. データベースに保存
+
+**出力形式**
+- **CONSENSUS_JSON**:
+  - `competitors[]`: 競合クリニック情報（プロフィール、カタログ、価格、特徴）
+  - `area_summary`: エリア全体の相場統計
+- **REPORT_MARKDOWN**: 競合分析レポート
+
+**AIエージェント**: Gemini
+
+---
 
 ### 3. SNS調査 (`/sns-research`)
-- **Twitter/X調査**（Grok API使用）
-  - パラメータ：`keywords`（必須）、`timeRange`（オプション、デフォルト: "last_month"）、`location`（オプション、デフォルト: "unknown"）
-  - ハッシュタグ分析、影響力アカウント分析、エンゲージメント傾向
-- **Instagram調査**（Gemini API使用）
-  - パラメータ：`keywords`（必須）、`timeRange`（オプション、デフォルト: "last_month"）、`location`（オプション、デフォルト: "unknown"）
-  - 投稿タイプ分析、ビジュアルトレンド、ユーザー動向
-- **YouTube調査**（Gemini API使用）
-  - パラメータ：`keywords`（必須）、`timeRange`（オプション、デフォルト: "last_month"）、`location`（オプション、デフォルト: "unknown"）
-  - フォーマット分析（Shorts/長尺）、動画の長さ・構成トレンド、視聴者関心
-- すべてのSNS調査は構造化プロンプト形式で出力（`<CONSENSUS_JSON>` + `<REPORT_MARKDOWN>`）
+
+**機能概要**
+Twitter/X、Instagram、YouTubeのトレンドを分析し、集患・ブランド運用に活用します。
+
+#### 3.1 Twitter/X調査
+
+**パラメータ**
+- `keywords`（必須）: 調査キーワード（例: ["ダーマペン", "ピコレーザー"]）
+- `timeRange`（オプション）: 期間（デフォルト: "last_month"）
+- `location`（オプション）: 地域（デフォルト: "unknown"）
+
+**処理フロー**
+1. Grok APIを呼び出し、X上のトレンドを分析
+2. ハッシュタグ、影響力アカウント、エンゲージメント傾向を抽出
+3. 構造化データとレポートを生成
+4. データベースに保存
+
+**出力形式**
+- **CONSENSUS_JSON**:
+  - `hashtags[]`: 人気ハッシュタグ（使用量、増加率、ER、リスクフラグ）
+  - `influencers[]`: 影響力アカウント（フォロワー、ER、投稿頻度）
+  - `top_posts[]`: 人気投稿（エンゲージメント、リスクフラグ）
+  - `content_stats`: 投稿タイプ別の統計
+  - `engagement_trends`: エンゲージメント傾向
+- **REPORT_MARKDOWN**: SNSトレンドレポート
+
+**AIエージェント**: Grok
+
+#### 3.2 Instagram調査
+
+**パラメータ**
+- `keywords`（必須）: 調査キーワード
+- `timeRange`（オプション）: 期間（デフォルト: "last_month"）
+- `location`（オプション）: 地域（デフォルト: "unknown"）
+
+**処理フロー**
+1. Gemini APIを呼び出し、Instagramのトレンドを分析
+2. ハッシュタグ、インフルエンサー、投稿タイプ、ビジュアルトレンドを抽出
+3. 構造化データとレポートを生成
+4. データベースに保存
+
+**出力形式**
+- **CONSENSUS_JSON**:
+  - `hashtags[]`: ハッシュタグ情報
+  - `influencers[]`: インフルエンサー情報
+  - `content_type_stats`: 投稿タイプ別統計（リール/カルーセル/写真）
+  - `visual_trends`: ビジュアルトレンド
+  - `audience_signals`: ユーザー動向
+- **REPORT_MARKDOWN**: Instagramトレンドレポート
+
+**AIエージェント**: Gemini
+
+#### 3.3 YouTube調査
+
+**パラメータ**
+- `keywords`（必須）: 調査キーワード
+- `timeRange`（オプション）: 期間（デフォルト: "last_month"）
+- `location`（オプション）: 地域（デフォルト: "unknown"）
+
+**処理フロー**
+1. Gemini APIを呼び出し、YouTubeのトレンドを分析
+2. 動画タイトル/キーワード、チャンネル、フォーマット（Shorts/長尺）、エンゲージメントを抽出
+3. 構造化データとレポートを生成
+4. データベースに保存
+
+**出力形式**
+- **CONSENSUS_JSON**:
+  - `trending_keywords[]`: トレンドキーワード
+  - `top_videos[]`: 人気動画情報
+  - `top_creators[]`: 影響力チャンネル
+  - `format_stats`: フォーマット別統計
+  - `length_trends`: 動画の長さトレンド
+- **REPORT_MARKDOWN**: YouTubeトレンドレポート
+
+**AIエージェント**: Gemini
+
+---
 
 ### 4. 戦略分析 (`/strategy-analysis`)
-- **総合分析**：市場データとSNSデータを統合分析
-  - パラメータ：`location`（必須）、`productIds`（オプション）、`includeMarketData`（オプション、デフォルト: true）、`includeSNSData`（オプション、デフォルト: true）
-  - 商品選択機能：分析対象の商品を複数選択可能
-  - **複数AI協業**：Gemini（市場調査）、Grok（SNS調査）、Claude/ChatGPT（戦略統合）による協業分析
-  - **構造化データの活用**：各AIの分析結果（CONSENSUS_JSON）を抽出・統合して総合的な戦略を提案
-  - **Web検索統合**：最新情報を取得して分析に反映
-  - SWOT分析、市場ポジション分析、競合地図
-  - 小規模クリニック向け最適化（人時・予算制約を考慮）
-  - 7日間の実行チェックリストと30/60/90日ロードマップを含む
-  - データベースに自動保存
-- **価格設定提案**：市場価格データに基づく価格提案
-  - パラメータ：`userId`（必須）
-  - 粗利下限を守りつつ相場と需給に整合した推奨価格
-  - 心理価格を考慮（端数ルール：¥x,800 / ¥x,980 / ¥x,500）
-  - 優先度付き（高/中/低）で提示
-  - データベースに自動保存
-- **キャンペーン案生成**：効果的な月次キャンペーン案の提案
-  - パラメータ：`userId`（必須）
-  - 市場トレンドデータとSNSデータが必要
-  - 最少2件以上のキャンペーン案を優先度順に提示
-  - 実行容易性×効果の高い順に並べ替え
-  - データベースに自動保存
-- **新施術導入提案**：市場トレンドに基づく新施術の提案
-  - パラメータ：`userId`（必須）
-  - 商品データ、市場トレンドデータ、SNSトレンドデータが必要
-  - 既存施術を除外し、未導入の有望施術のみを提案
-  - 投資対効果（Payback試算）を含む
-  - データベースに自動保存
-- **戦略提案履歴表示**：各提案タイプごとの履歴を個別に表示
-  - 総合分析履歴：`marketingStrategy`がある提案を表示
-  - 価格設定提案履歴：`priceRecommendations`がある提案を表示
-  - キャンペーン案履歴：`campaignProposals`がある提案を表示
-  - 新施術提案履歴：`newTreatmentSuggestions`がある提案を表示
-  - 各履歴には日時、実装ステータス、提案内容が含まれる
-  - 提案内容は折りたたみ表示で確認可能
+
+**機能概要**
+市場データとSNSデータを統合し、総合的な戦略提案を行います。
+
+#### 4.1 総合分析
+
+**パラメータ**
+- `location`（必須）: 所在地
+- `productIds`（オプション）: 分析対象の商品IDリスト
+- `includeMarketData`（オプション）: 市場データを含めるか（デフォルト: true）
+- `includeSNSData`（オプション）: SNSデータを含めるか（デフォルト: true）
+
+**処理フロー**
+1. 商品データを取得
+2. 市場調査結果を取得（トレンド分析、価格調査、競合分析）
+3. SNS調査結果を取得（Twitter、Instagram、YouTube）
+4. 各AIの分析結果から`<CONSENSUS_JSON>`を抽出
+5. 構造化データを統合してClaude/ChatGPTに渡す
+6. 総合的な戦略提案を生成
+7. データベースに保存
+
+**出力内容**
+- SWOT分析
+- 市場ポジション分析
+- 競合地図
+- 価格調整の提案
+- キャンペーン案
+- 新施術提案
+- マーケティング戦略（GOST+タイムライン）
+- 7日間の実行チェックリスト
+- 30/60/90日ロードマップ
+
+**AIエージェント**: Claude/ChatGPT（統合AI）、Gemini/Grok（データ提供）
+
+#### 4.2 価格設定提案
+
+**パラメータ**
+- `userId`（必須）: ユーザーID
+
+**処理フロー**
+1. 自院商品データを取得
+2. 市場価格データを取得
+3. Claude/ChatGPTに価格提案を依頼
+4. 粗利下限を守りつつ相場と需給に整合した推奨価格を算出
+5. 心理価格を考慮（端数ルール：¥x,800 / ¥x,980 / ¥x,500）
+6. 優先度付き（高/中/低）で提示
+7. データベースに保存
+
+**AIエージェント**: Claude/ChatGPT
+
+#### 4.3 キャンペーン案生成
+
+**パラメータ**
+- `userId`（必須）: ユーザーID
+
+**処理フロー**
+1. 市場トレンドデータとSNSデータを取得
+2. Claude/ChatGPTにキャンペーン案を依頼
+3. 最少2件以上のキャンペーン案を優先度順に提示
+4. 実行容易性×効果の高い順に並べ替え
+5. データベースに保存
+
+**AIエージェント**: Claude/ChatGPT
+
+#### 4.4 新施術導入提案
+
+**パラメータ**
+- `userId`（必須）: ユーザーID
+
+**処理フロー**
+1. 商品データ、市場トレンドデータ、SNSトレンドデータを取得
+2. Claude/ChatGPTに新施術提案を依頼
+3. 既存施術を除外し、未導入の有望施術のみを提案
+4. 投資対効果（Payback試算）を含む
+5. データベースに保存
+
+**AIエージェント**: Claude/ChatGPT
+
+---
 
 ### 5. 戦略管理 (`/strategy-management`)
+
+**機能概要**
 - 戦略提案の履歴管理
-  - 価格推奨、キャンペーン案、新施術提案の履歴を一覧表示
-  - 各提案の詳細を確認可能
 - フィードバックの記録
 - 実装ステータスの管理（pending / in_progress / completed）
 - 戦略書のエクスポート（JSON、テキスト、PDF、Excel形式）
 
+**API**
+- `strategy.list`: 戦略提案履歴取得
+- `strategy.update`: 実装ステータス更新
+- `strategy.export`: エクスポート
+
+---
+
 ### 6. コンテンツ生成 (`/content` / `/content/generator`)
-- **既存機能**：
-  - Instagram用LP案の生成
-  - SEO最適化されたHP記事の生成
-  - キャンペーンコピーの生成
-  - プレビュー機能と画像エクスポート機能
-- **新機能（要件定義書に基づく拡張）**：
-  - **Instagram投稿生成**：キャプション + ハッシュタグ + 画像の自動生成
-    - 構造化JSON出力（`InstagramContentJson`形式）
-    - 医療広告ガイドライン対応（禁止表現の自動チェック・修正）
-    - SNS調査結果の統合
-    - 画像生成（Instagram正方形 1080x1080）
-  - **ブログ記事生成**：SEO最適化された長文記事 + アイキャッチ画像
-    - 構造化JSON出力（`BlogArticleJson`形式）
-    - 記事の長さ選択（短い/中程度/長い）
-    - SEOキーワード指定
-    - 画像生成（LPバナー 1200x630）
-  - **LPテキスト生成**：ランディングページ用テキスト + ヘッダー画像
-    - 構造化JSON出力（`LpContentJson`形式）
-    - セクション構成（ファーストビュー、悩み・共感、施術説明、実績、料金、安心・安全、CTA）
-    - 価格情報の設定
-    - 画像生成（LPバナー 1200x630）
-  - **画像生成機能**：
-    - DALL·E 3対応
-    - プリセット選択（Instagram正方形、LPバナー、カスタムサイズ）
-    - テーマ選択（ビフォーアフター、季節・イベント、クリニック内装、肌の質感）
-    - カスタムサイズ指定（256x256〜2048x2048）
-  - **SNS調査結果統合**：既存のSNS調査結果をコンテンツ生成に活用
-  - **商品（施術）選択**：関連する施術を選択してコンテンツに反映
-  - **履歴管理**：生成したコンテンツと画像の履歴表示・再利用
+
+**機能概要**
+Instagram投稿、ブログ記事、LPテキストを自動生成し、画像も同時に生成します。
+
+#### 6.1 既存機能（`/content`）
+
+- Instagram用LP案の生成
+- SEO最適化されたHP記事の生成
+- キャンペーンコピーの生成
+- プレビュー機能と画像エクスポート機能
+
+#### 6.2 新機能（`/content/generator`）
+
+##### Instagram投稿生成
+
+**入力パラメータ**
+- `campaignTitle`（必須）: キャンペーン名
+- `campaignDescription`（必須）: キャンペーン説明
+- `targetAudience`（オプション）: ターゲット層
+- `tone`（デフォルト: "上品で誠実"）: ブランドトーン
+- `relatedTreatmentIds`（オプション）: 関連施術ID配列
+- `snsResearchIds`（オプション）: SNS調査結果ID配列
+- `hashtagsPreference`（オプション）: ハッシュタグ設定
+- `callToActionType`（デフォルト: "予約"）: CTAタイプ
+- `imagePreset`（デフォルト: "instagram_square"）: 画像プリセット
+- `imageTheme`（デフォルト: "before_after"）: 画像テーマ
+- `generateImage`（デフォルト: true）: 画像生成フラグ
+
+**出力形式**
+- **構造化JSON** (`InstagramContentJson`):
+  ```typescript
+  {
+    caption: string;
+    hook: string;
+    body: string;
+    caution: string;
+    callToAction: string;
+    hashtags: string[];
+  }
+  ```
+- **Markdown**: 整形されたテキスト
+- **画像**: Instagram正方形（1080x1080）
+
+**AIエージェント**: ChatGPT（テキスト）、DALL·E 3（画像）
+
+##### ブログ記事生成
+
+**入力パラメータ**
+- `campaignTitle`（必須）: キャンペーン名
+- `campaignDescription`（必須）: キャンペーン説明
+- `targetAudience`（オプション）: ターゲット層
+- `tone`（デフォルト: "上品で誠実"）: ブランドトーン
+- `relatedTreatmentIds`（オプション）: 関連施術ID配列
+- `snsResearchIds`（オプション）: SNS調査結果ID配列
+- `seoKeywords`（デフォルト: []）: SEOキーワード配列
+- `desiredLength`（デフォルト: "medium"）: 記事の長さ（short/medium/long）
+- `imagePreset`（デフォルト: "lp_banner"）: 画像プリセット
+- `imageTheme`（デフォルト: "clinic_interior"）: 画像テーマ
+- `generateImage`（デフォルト: true）: 画像生成フラグ
+
+**出力形式**
+- **構造化JSON** (`BlogArticleJson`):
+  ```typescript
+  {
+    title: string;
+    outline: { heading: string; content: string }[];
+    faq: { question: string; answer: string }[];
+    seoKeywords: string[];
+  }
+  ```
+- **Markdown**: SEO最適化された記事本文
+- **画像**: LPバナー（1200x630）
+
+**AIエージェント**: ChatGPT（テキスト）、DALL·E 3（画像）
+
+##### LPテキスト生成
+
+**入力パラメータ**
+- `campaignTitle`（必須）: キャンペーン名
+- `campaignDescription`（必須）: キャンペーン説明
+- `targetAudience`（オプション）: ターゲット層
+- `tone`（デフォルト: "上品で誠実"）: ブランドトーン
+- `relatedTreatmentIds`（オプション）: 関連施術ID配列
+- `snsResearchIds`（オプション）: SNS調査結果ID配列
+- `primaryGoal`（デフォルト: "新規予約"）: 主な目的（新規予約/LINE登録/キャンペーン認知）
+- `priceInfo`（オプション）: 価格情報
+- `imagePreset`（デフォルト: "lp_banner"）: 画像プリセット
+- `imageTheme`（デフォルト: "clinic_interior"）: 画像テーマ
+- `generateImage`（デフォルト: true）: 画像生成フラグ
+
+**出力形式**
+- **構造化JSON** (`LpContentJson`):
+  ```typescript
+  {
+    hero: {
+      catchCopy: string;
+      subCopy: string;
+      primaryCta: string;
+    };
+    sections: {
+      id: string;
+      title: string;
+      bodyMarkdown: string;
+    }[];
+    priceSection?: {
+      normalPrice?: string;
+      campaignPrice?: string;
+      notes?: string;
+    };
+  }
+  ```
+- **Markdown**: LPセクション構成
+- **画像**: LPバナー（1200x630）
+
+**AIエージェント**: ChatGPT（テキスト）、DALL·E 3（画像）
+
+#### 6.3 画像生成機能
+
+**画像プリセット**
+- `instagram_square`: 1080x1080（Instagram正方形）
+- `lp_banner`: 1200x630（LPバナー、16:9）
+- `custom`: カスタムサイズ（256x256〜2048x2048）
+
+**画像テーマ**
+- `before_after`: ビフォーアフター比較
+- `season_event`: 季節・イベント
+- `clinic_interior`: クリニック内装
+- `texture_skin`: 肌の質感
+
+**画像生成プロバイダー**
+- DALL·E 3（デフォルト）
+- 将来的にStable Diffusion等への切り替えも可能
+
+**API**
+- `content.generateInstagramPostWithImage`: Instagram投稿 + 画像生成
+- `content.generateBlogArticleWithImage`: ブログ記事 + 画像生成
+- `content.generateLpWithImage`: LPテキスト + 画像生成
+- `content.regenerateImageOnly`: 画像のみ再生成
+
+---
 
 ### 7. ワークフロー管理 (`/workflow`)
+
+**機能概要**
 - AIエージェント間の協調動作管理
 - 統合分析ワークフローの実行
 - AIエージェントのヘルスチェック
 - ワークフロー実行履歴の確認
 
+**API**
+- `workflow.execute`: ワークフロー実行
+- `workflow.list`: 実行履歴取得
+- `workflow.healthCheck`: AIエージェントのヘルスチェック
+
+---
+
 ### 8. APIキー設定 (`/api-key`)
+
+**機能概要**
 - Gemini、Grok、Claude、OpenAIのAPIキー設定
-- **Web検索APIキー設定**：最新情報取得のためのSerpAPIまたはGoogle Custom Search APIキー設定
+- Web検索APIキー設定（SerpAPIまたはGoogle Custom Search API）
 - APIキーの設定状態確認
-- **API接続確認機能**：各AIサービスの接続テスト
-- **戦略分析AIプロバイダー選択**：戦略分析で使用するAIプロバイダー（Claude API / ChatGPT API）を選択可能
-  - デフォルトはChatGPT API
-  - 選択したプロバイダーのAPIキーが設定されている必要があります
-  - 設定は即座に反映されます（サーバー再起動不要）
-- セキュアなAPIキー管理
+- API接続確認機能
+
+**環境変数**
+- `GEMINI_API_KEY`: Gemini APIキー
+- `GROK_API_KEY`: Grok APIキー
+- `CLAUDE_API_KEY`: Claude APIキー
+- `OPENAI_API_KEY`: OpenAI APIキー
+- `SERP_API_KEY`: SerpAPIキー（オプション）
+- `GOOGLE_CUSTOM_SEARCH_API_KEY`: Google Custom Search APIキー（オプション）
+- `GOOGLE_CUSTOM_SEARCH_ENGINE_ID`: Google Custom Search エンジンID（オプション）
+
+---
 
 ### 9. プロンプト管理 (`/prompt`)
-- 各AIサービスへの指示文（プロンプト）の管理
-- プロンプトの編集・保存
-- プロンプトの有効/無効切り替え
-- AIエージェント別のプロンプト管理
-- **構造化プロンプト形式**：`<CONSENSUS_JSON>`（機械処理用）と`<REPORT_MARKDOWN>`（人向け）の2部構成
 
-## 技術スタック
+**機能概要**
+- 各AIエージェント用のプロンプトテンプレート管理
+- プロンプトの編集・有効/無効切り替え
+- デフォルトプロンプトのフォールバック機能
 
-### フロントエンド
-- **Next.js 13.5.6** (App Router)
-- **React 18.2.0**
-- **TypeScript 5**
-- **Atlassian Design System** - UIコンポーネントライブラリ
-  - `@atlaskit/button` - ボタンコンポーネント
-  - `@atlaskit/textfield` - テキスト入力
-  - `@atlaskit/textarea` - 複数行テキスト入力
-  - `@atlaskit/select` - ドロップダウン選択
-  - `@atlaskit/banner` - 通知メッセージ
-  - `@atlaskit/badge` - ステータス表示
-  - `@atlaskit/tag` - タグ表示
-  - `@atlaskit/checkbox` - チェックボックス
-  - `@atlaskit/spinner` - ローディング表示
-  - `@atlaskit/empty-state` - 空状態表示
-  - `@atlaskit/app-provider` - アプリケーション全体のラッパー
-  - `@atlaskit/table` - テーブルコンポーネント
-  - `@atlaskit/modal-dialog` - モーダルダイアログ
+**API**
+- `prompt.list`: プロンプト一覧取得
+- `prompt.get`: プロンプト取得
+- `prompt.create`: プロンプト作成
+- `prompt.update`: プロンプト更新
 
-### バックエンド
-- **tRPC 11.7.1** - 型安全なAPI通信
-- **Prisma 6.18.0** - ORM
-- **Zod 4.1.12** - スキーマバリデーション
-- **SuperJSON 2.2.5** - データシリアライゼーション
+---
 
-### AIサービス統合
-- **Google Gemini API** (`@google/generative-ai 0.24.1`) - 市場調査、SNS分析
-- **Grok API (X/Twitter)** (`axios 1.13.1`) - Twitterトレンド分析
-- **Anthropic Claude API** (`@anthropic-ai/sdk 0.68.0`) - 戦略分析
-- **OpenAI ChatGPT API** (`openai 6.7.0`) - コンテンツ生成
+## AIエージェントの役割分担
 
-### データベース
-- **MySQL** - Prisma経由で接続
-- **Prisma Client** - 型安全なデータベースアクセス
+### Gemini（Google）
 
-### その他
-- **React Query (TanStack Query) 5.90.5** - データフェッチング
-- **html2canvas 1.4.1** - 画像エクスポート機能
-- **jspdf 3.0.3** + **jspdf-autotable 5.0.2** - PDFエクスポート
-- **exceljs 4.4.0** - Excelエクスポート
+**担当分野**
+- 市場調査（トレンド分析、価格調査、競合分析）
+- SNS調査（Instagram、YouTube）
 
-## セットアップ
+**使用モデル**
+- Gemini 2.5 Flash（デフォルト）
+- Gemini 2.5 Pro（高精度が必要な場合）
 
-### 必要な環境
-- Node.js 18以上
-- npm または yarn
-- MySQL（データベース）
+**出力形式**
+- `<CONSENSUS_JSON>`: 構造化データ（機械処理用）
+- `<REPORT_MARKDOWN>`: 人間可読レポート
 
-### インストール
+**特徴**
+- Web検索統合による最新情報の取得
+- 構造化データの生成に優れる
+- 市場データの収集・分析に特化
 
-```bash
-# リポジトリのクローン
-git clone https://github.com/tomiyuta/ai-clinic-platform.git
-cd ai-clinic-platform
+---
 
-# 依存関係のインストール
-npm install
+### Grok（xAI）
 
-# 環境変数の設定
-cp .env.example .env
-# .envファイルを編集して、データベースURLとAPIキーを設定
+**担当分野**
+- SNS調査（X/Twitter）
+
+**使用モデル**
+- Grok-3（デフォルト）
+
+**出力形式**
+- `<CONSENSUS_JSON>`: 構造化データ（機械処理用）
+- `<REPORT_MARKDOWN>`: 人間可読レポート
+
+**特徴**
+- X/Twitterのリアルタイムトレンド分析に特化
+- ハッシュタグ、影響力アカウント、エンゲージメント傾向の抽出
+
+---
+
+### Claude（Anthropic）
+
+**担当分野**
+- 戦略統合分析（市場データ + SNSデータの統合）
+- 価格設定提案
+- キャンペーン案生成
+- 新施術導入提案
+
+**使用モデル**
+- Claude 3.5 Sonnet（デフォルト）
+- Claude 3 Opus（高精度が必要な場合）
+- Claude 3 Haiku（高速・低コスト）
+
+**出力形式**
+- Markdown形式の戦略提案
+- 構造化された推奨事項（表形式）
+
+**特徴**
+- 複数のAI分析結果を統合して総合的な戦略を提案
+- 小規模クリニック向けの実現可能な計画を作成
+- 医療広告ガイドラインに配慮した表現
+
+---
+
+### ChatGPT（OpenAI）
+
+**担当分野**
+- コンテンツ生成（Instagram投稿、ブログ記事、LPテキスト）
+- 戦略統合分析（Claudeの代替として使用可能）
+- 画像生成（DALL·E 3）
+
+**使用モデル**
+- GPT-4o（デフォルト）
+- DALL·E 3（画像生成）
+
+**出力形式**
+- 構造化JSON + Markdown
+- 画像URL（DALL·E 3）
+
+**特徴**
+- コンテンツ生成に特化
+- Web検索統合による最新トレンドの反映
+- 画像生成機能（DALL·E 3）
+
+---
+
+## 各AIのプロンプト詳細
+
+### Geminiプロンプト
+
+#### トレンド分析プロンプト (`gemini_research_trend_analysis`)
+
+**構造**
+- `<SYS>`: システムプロンプト（役割定義、ルール）
+- `<DEV>`: 開発者向け指示（目的、出力フォーマット）
+- `<USER>`: ユーザー入力（調査地域、期間）
+
+**主要ルール**
+- 2部構成（`<CONSENSUS_JSON>` + `<REPORT_MARKDOWN>`）
+- 根拠URLと取得日時の必須記載
+- 誇大・断定表現の禁止
+- 医療広告ガイドライン配慮
+
+**出力スキーマ（CONSENSUS_JSON）**
+```json
+{
+  "meta": {
+    "location": "string",
+    "period": "string",
+    "currency": "JPY",
+    "generatedAt": "ISO8601"
+  },
+  "methodology": {
+    "popularityWeights": { "search": 0.4, "sns": 0.35, "reviews": 0.25 },
+    "queries": ["string"],
+    "notes": "string"
+  },
+  "treatments": [
+    {
+      "name": "string",
+      "aliases": ["string"],
+      "popularity": {
+        "score": 0-100,
+        "basis": { "search": number, "sns": number, "reviews": number }
+      },
+      "price": {
+        "median": number,
+        "p25": number,
+        "p75": number,
+        "n": number,
+        "tax": "incl"|"excl"
+      },
+      "summary": "string",
+      "emerging": boolean,
+      "evidence": [
+        { "url": "string", "snippet": "string", "fetchedAt": "ISO8601", "low_confidence": boolean }
+      ]
+    }
+  ],
+  "customerNeeds": [
+    { "theme": "string", "signals": ["string"] }
+  ],
+  "sources": [{ "domain": "string", "count": number }],
+  "gaps": ["string"]
+}
 ```
 
-### 環境変数の設定
+#### 価格調査プロンプト (`gemini_research_price_comparison`)
 
-`.env`ファイルに以下の環境変数を設定してください：
+**主要ルール**
+- 標準化単位での価格正規化
+- 統計情報（中央値、p25、p75、サンプル数）を含む
+- 根拠URLと取得日時の必須記載
+
+**出力スキーマ（CONSENSUS_JSON）**
+```json
+{
+  "meta": {
+    "cities": ["string"],
+    "treatments": ["string"],
+    "period": "string",
+    "currency": "JPY",
+    "generatedAt": "ISO8601"
+  },
+  "methodology": {
+    "normalization_rules": {
+      "botulinum": "per_area_forehead を優先",
+      "ha_filler": "per_ml_1",
+      "laser_hifu": "per_session_1"
+    },
+    "outlier_policy": "Winsorize p10–p90",
+    "tax_policy": "incl/excl を保持"
+  },
+  "price_table": [
+    {
+      "city": "string",
+      "treatment": "string",
+      "normalized_unit": "string",
+      "stats": {
+        "median": number,
+        "p25": number,
+        "p75": number,
+        "mean": number,
+        "n": number
+      },
+      "band_text": "string",
+      "samples": [
+        {
+          "clinic": "string",
+          "url": "string",
+          "listed_price": number,
+          "listed_unit": "string",
+          "tax": "incl"|"excl",
+          "fetchedAt": "ISO8601",
+          "low_confidence": boolean
+        }
+      ]
+    }
+  ],
+  "sources": [{ "domain": "string", "count": number }],
+  "gaps": ["string"]
+}
+```
+
+#### Instagram調査プロンプト (`gemini_analyze_instagram_trends`)
+
+**出力スキーマ（CONSENSUS_JSON）**
+```json
+{
+  "meta": {
+    "keywords": ["string"],
+    "timeRange": "string",
+    "location": "string",
+    "generatedAt": "ISO8601"
+  },
+  "hashtags": [
+    {
+      "tag": "string",
+      "volume_est": number,
+      "growth_rate_pct": number,
+      "median_er_pct": number,
+      "co_tags": ["string"],
+      "risk_flags": ["ad_like", "before_after", "medical_claims"],
+      "evidence": [{ "url": "string", "caption_snippet": "string", "fetchedAt": "ISO8601" }]
+    }
+  ],
+  "influencers": [
+    {
+      "handle": "@string",
+      "display_name": "string",
+      "category": "clinic|doctor|influencer|device_brand|media",
+      "followers": number,
+      "median_er_pct": number,
+      "post_freq_per_week": number,
+      "top_content_types": ["reel", "carousel"],
+      "representative_posts": [{ "url": "string", "content_type": "string", "fetchedAt": "ISO8601" }]
+    }
+  ],
+  "content_type_stats": {
+    "distribution_pct": { "reel": number, "carousel": number, "photo": number },
+    "median_er_pct_by_type": { "reel": number, "carousel": number, "photo": number },
+    "recommended_type": "reel|carousel|photo"
+  },
+  "engagement_trends": {
+    "best_posting_hours_local": ["HH:00-HH:00"],
+    "best_weekdays": ["Mon", "Tue", ...],
+    "caption_length_chars_median": number,
+    "cta_patterns": ["string"]
+  },
+  "visual_trends": {
+    "palette_keywords": ["string"],
+    "layout_styles": ["string"],
+    "motion_notes": "string"
+  },
+  "audience_signals": [
+    { "theme": "string", "example_comments": ["string"] }
+  ]
+}
+```
+
+#### YouTube調査プロンプト (`gemini_analyze_youtube_trends`)
+
+**出力スキーマ（CONSENSUS_JSON）**
+```json
+{
+  "meta": {
+    "keywords": ["string"],
+    "timeRange": "string",
+    "location": "string",
+    "generatedAt": "ISO8601"
+  },
+  "trending_keywords": [
+    {
+      "term": "string",
+      "type": "keyword|hashtag|question",
+      "volume_est": number,
+      "growth_rate_pct": number,
+      "co_terms": ["string"]
+    }
+  ],
+  "top_videos": [
+    {
+      "title": "string",
+      "url": "string",
+      "channel_title": "string",
+      "channel_url": "string",
+      "subscribers": number,
+      "publishAt": "ISO8601",
+      "duration_sec": number,
+      "isShort": boolean,
+      "views": number,
+      "likes": number,
+      "comments": number,
+      "view_velocity_per_day": number,
+      "engagement_rate_pct": number,
+      "keywords_extracted": ["string"],
+      "outline_detected": ["string"],
+      "thumbnail_features": {
+        "has_text_overlay": boolean,
+        "face_closeup": boolean,
+        "clinical_image_flag": boolean,
+        "before_after_flag": boolean
+      },
+      "risk_flags": ["medical_claims", "before_after", "giveaway", "clickbait"]
+    }
+  ],
+  "top_creators": [
+    {
+      "channel_title": "string",
+      "channel_url": "string",
+      "category": "clinic|doctor|influencer|device_brand|media",
+      "subscribers": number,
+      "median_views_30d": number,
+      "post_freq_per_week": number,
+      "format_mix_pct": { "short": number, "long": number },
+      "representative_videos": [{ "url": "string", "isShort": boolean }]
+    }
+  ],
+  "format_stats": {
+    "distribution_pct": { "short": number, "long": number },
+    "median_views_by_format": { "short": number, "long": number },
+    "median_er_pct_by_format": { "short": number, "long": number },
+    "recommended_format": "short|long"
+  },
+  "length_trends": {
+    "median_length_sec_by_format": { "short": number, "long": number },
+    "performance_by_length_bins": [
+      { "bin": "<60s", "median_views": number, "median_er_pct": number },
+      { "bin": "1-3m", "median_views": number, "median_er_pct": number },
+      ...
+    ],
+    "recommended_length_sec": number
+  },
+  "engagement_trends": {
+    "title_patterns": ["string"],
+    "cta_patterns": ["string"],
+    "best_posting_hours_local": ["HH:00-HH:00"],
+    "best_weekdays": ["Mon", "Tue", ...]
+  },
+  "audience_signals": [
+    { "theme": "string", "example_comments": ["string"] }
+  ]
+}
+```
+
+#### 競合調査プロンプト (`gemini_research_competitor_analysis`)
+
+**出力スキーマ（CONSENSUS_JSON）**
+```json
+{
+  "meta": {
+    "center_location": "string",
+    "radius_km": number,
+    "generatedAt": "ISO8601",
+    "currency": "JPY"
+  },
+  "competitors": [
+    {
+      "profile": {
+        "name": "string",
+        "branch_name": "string|null",
+        "group_id": "string|null",
+        "address": "string",
+        "lat": number,
+        "lng": number,
+        "distance_km": number,
+        "gmaps_url": "string",
+        "official_url": "string",
+        "phone": "string|null",
+        "hours_note": "string|null"
+      },
+      "catalog": [
+        {
+          "treatment": "string",
+          "normalized_unit": "string",
+          "brand_or_device": "string|null",
+          "stats": {
+            "median": number,
+            "p25": number,
+            "p75": number,
+            "mean": number,
+            "n": number
+          },
+          "samples": [
+            {
+              "listed_price": number,
+              "listed_unit": "string",
+              "tax": "incl"|"excl",
+              "url": "string",
+              "fetchedAt": "ISO8601",
+              "low_confidence": boolean
+            }
+          ],
+          "notes": "string|null"
+        }
+      ],
+      "features": {
+        "specialties": ["string"],
+        "devices": ["string"],
+        "languages": ["ja", "en", ...],
+        "payment": ["cashless", "installment", ...],
+        "booking": ["web", "line", "phone"],
+        "night_holiday_service": boolean,
+        "first_visit_flow": "string|null"
+      },
+      "differentiators": ["string"],
+      "evidence": [{ "url": "string", "snippet": "string", "fetchedAt": "ISO8601" }]
+    }
+  ],
+  "area_summary": {
+    "coverage": {
+      "discovered_total": number,
+      "deduped_total": number
+    },
+    "common_catalog": [
+      {
+        "treatment": "string",
+        "normalized_unit": "string",
+        "area_stats": {
+          "median": number,
+          "p25": number,
+          "p75": number,
+          "n": number
+        }
+      }
+    ],
+    "notable_gaps": ["string"]
+  },
+  "sources": [{ "domain_or_profile": "string", "count": number }]
+}
+```
+
+---
+
+### Grokプロンプト
+
+#### Twitter/X調査プロンプト (`grok_analyze_twitter_trends`)
+
+**出力スキーマ（CONSENSUS_JSON）**
+```json
+{
+  "meta": {
+    "keywords": ["string"],
+    "timeRange": "string",
+    "location": "string",
+    "generatedAt": "ISO8601"
+  },
+  "hashtags": [
+    {
+      "tag": "string",
+      "volume_est": number,
+      "growth_rate_pct": number,
+      "median_er_per_views_pct": number,
+      "co_tags": ["string"],
+      "risk_flags": ["before_after", "medical_claims", "giveaway", "affiliate"],
+      "evidence": [{ "url": "string", "text_snippet": "string", "fetchedAt": "ISO8601" }]
+    }
+  ],
+  "influencers": [
+    {
+      "handle": "@string",
+      "display_name": "string",
+      "category": "clinic|doctor|influencer|device_brand|media",
+      "verified": boolean,
+      "followers": number,
+      "median_er_per_followers_pct": number,
+      "post_freq_per_week": number,
+      "top_post_types": ["video", "image"],
+      "representative_posts": [{ "url": "string", "post_type": "string", "fetchedAt": "ISO8601" }]
+    }
+  ],
+  "top_posts": [
+    {
+      "url": "string",
+      "author_handle": "@string",
+      "author_category": "string",
+      "postedAt": "ISO8601",
+      "post_type": "text|image|video|link|thread|space|poll",
+      "has_before_after_flag": boolean,
+      "text_snippet": "string",
+      "media_notes": "string|null",
+      "likes": number,
+      "reposts": number,
+      "replies": number,
+      "impressions": number,
+      "er_per_views_pct": number,
+      "risk_flags": ["medical_claims", "before_after", "giveaway", "affiliate", "clickbait"]
+    }
+  ],
+  "content_stats": {
+    "distribution_pct_by_type": { "text": number, "image": number, "video": number, ... },
+    "median_er_per_views_pct_by_type": { "text": number, "image": number, "video": number, ... },
+    "recommended_type": "video|image|text|link|thread"
+  },
+  "engagement_trends": {
+    "best_posting_hours_local": ["HH:00-HH:00"],
+    "best_weekdays": ["Mon", "Tue", ...],
+    "cta_patterns": ["string"],
+    "sentiment_summary": "string"
+  },
+  "treatments_discussed": [
+    {
+      "name": "string",
+      "context": ["string"],
+      "trend_signal": { "volume_est": number, "growth_rate_pct": number },
+      "price_mentions": ["string"]
+    }
+  ],
+  "audience_signals": [
+    { "theme": "string", "example_posts": ["string"] }
+  ]
+}
+```
+
+---
+
+### Claudeプロンプト
+
+#### 市場ポジション分析プロンプト (`claude_analyze_market_position`)
+
+**構造**
+- `<SYS>`: システムプロンプト（役割定義、厳格ルール）
+- `<DEV>`: 開発者向け指示（入力、出力フォーマット、思考指針）
+- `<USER>`: ユーザー入力（商品情報、市場データ、SNSデータ、所在地）
+
+**主要ルール**
+- 複数AIの協業についての説明を追加
+- データの優先順位（構造化データ > レポート > 生データ）を明示
+- 各AIの役割を明確化（Gemini:市場調査、Grok:SNS調査、Claude/ChatGPT:戦略統合）
+- 小規模クリニック向け最適化
+- 医療広告ガイドライン配慮
+
+**出力フォーマット**
+1. 要約（3行）
+2. 市場ポジション分析（SWOT）
+3. 価格調整の提案（優先度つき）
+4. キャンペーン案（実行容易×即効）
+5. 新施術提案（導入しやすい順）
+6. マーケティング戦略（GOST+タイムライン）
+7. 分析総括（重要メッセージ3つ）
+8. 付録A. 前提・データギャップ
+9. 付録B. 7日間の実行チェックリスト
+
+#### 価格設定提案プロンプト (`claude_generate_price_recommendations`)
+
+**主要ルール**
+- 標準化単位に正規化して比較
+- 心理価格を考慮（端数ルール：¥x,800 / ¥x,980 / ¥x,500）
+- 粗利下限を守る
+- 優先度付き（高/中/低）で提示
+
+**計算規則**
+1. 基準価格: areaMedianJPY（なければ (p25+p75)/2）
+2. 位置づけ補正（ブランド/デバイス、低侵襲、エントリー）
+3. 需給補正（capacityUtilizationPctに基づく）
+4. 粗利下限チェック
+5. 端数処理
+6. 優先度判定
+
+**出力フォーマット**
+1. 要約（3行）
+2. 推奨価格テーブル（重要商品のみ、最大20行）
+3. 個別解説（主要3〜5商品）
+4. 価格運用の方針（小規模最適）
+5. 価格戦略の総括と全体推奨
+6. 前提・データギャップ
+
+#### キャンペーン案生成プロンプト (`claude_generate_campaign_proposals`)
+
+**主要ルール**
+- 最少2件以上のキャンペーン案を優先度順に提示
+- 実行容易性×効果の高い順に並べ替え
+- 根拠（入力データのURL/数値）を明示
+
+**優先度スコア**
+```
+priority_score = 0.45*Demand + 0.25*Feasibility + 0.20*UnitEconomics + 0.10*ComplianceSafety
+```
+
+**出力フォーマット**
+1. 要約（3行）
+2. キャンペーン提案（優先度順に2件以上）
+   - 案A、案B、案C（必要なら）
+   - 各案に含まれる項目：
+     - キャンペーン説明
+     - ターゲット層
+     - 実施期間
+     - プロモーション内容
+     - 実施チャンネル
+     - SNS戦略
+     - 期待される効果
+     - 予算の目安
+     - 優先度
+     - 根拠
+     - リスク要因と緩和策
+     - オペレーション
+3. クリエイティブ・ブリーフ（共通）
+4. KPI・測定・停止基準
+5. 実行タイムライン（30日プラン）
+6. 総括と推奨実施時期
+7. 付録：根拠リンク一覧
+
+#### 新施術導入提案プロンプト (`claude_suggest_new_treatments`)
+
+**主要ルール**
+- 既に導入済みの施術は候補から除外
+- 価格・コストは標準化単位で比較
+- 投資対効果（Payback試算）を含む
+
+**優先度スコア**
+```
+PriorityScore(0–100) = 0.40*Demand + 0.25*UnitEconomics + 0.20*Feasibility + 0.10*Differentiation + 0.05*ComplianceSafety
+```
+
+**出力フォーマット**
+1. 要約（3行）
+2. 年代別ニーズと人気施術（マトリクス）
+3. 未導入候補の全体一覧
+4. 新施術提案（上位3–5件、各見出しで詳述）
+5. 投資・採算サマリー（上位候補）
+6. 実装チェックリスト（7日で着手）
+7. 新施術導入戦略の総括と推奨導入タイムライン
+8. 付録：前提・データギャップ・参考URL
+
+---
+
+### ChatGPTプロンプト
+
+#### システムプロンプト (`chatgpt_system_prompt`)
+
+```
+あなたは美容クリニックのマーケティングコンテンツ作成の専門家です。魅力的で効果的なマーケティング素材を作成してください。
+```
+
+#### Instagram LP生成プロンプト (`chatgpt_generate_instagram_lp`)
+
+**入力パラメータ**
+- `${campaignTitle}`: キャンペーン名
+- `${campaignDescription}`: キャンペーン説明
+- `${targetAudience}`: ターゲット層
+- `${promotion}`: プロモーション内容
+- `${approachText}`: デザインアプローチ（minimal/bold/elegant/trendy）
+
+**出力内容**
+- LPのタイトル
+- メインヘッドライン
+- 説明文（3-4文程度）
+- 主要ポイント（3つ程度）
+- メリット（2つ程度）
+- 行動喚起文
+- 推奨ハッシュタグ（3つ程度）
+- デザイン要素の詳細な指示
+- 推奨カラースキーム
+- トーン
+
+#### HP記事生成プロンプト (`chatgpt_generate_website_article`)
+
+**入力パラメータ**
+- `${campaignTitle}`: キャンペーン名
+- `${campaignDescription}`: キャンペーン説明
+- `${targetAudience}`: ターゲット層
+- `${keywords}`: SEOキーワード
+
+**出力内容**
+- 記事タイトル
+- メタディスクリプション（150文字以内）
+- 主要キーワード
+- 記事本文（HTML形式、800-1200文字程度）
+- 記事の要約（2-3文）
+
+**要件**
+- 見出しタグ（h1, h2, h3）を適切に使用
+- SEOキーワードを自然に含める
+- 読みやすく、情報価値の高い内容
+
+#### キャンペーンコピー生成プロンプト (`chatgpt_generate_campaign_copy`)
+
+**入力パラメータ**
+- `${campaignTitle}`: キャンペーン名
+- `${campaignDescription}`: キャンペーン説明
+- `${targetAudience}`: ターゲット層
+- `${promotion}`: プロモーション内容
+- `${toneText}`: トーン（上品で誠実/カジュアルで親しみやすい等）
+
+**出力内容**
+- メインキャッチコピー
+- サブキャッチコピー
+- 本文（3-4段落）
+- 行動喚起文
+- キャッチフレーズ
+- 主要メッセージ（3つ程度）
+
+#### コンテンツ生成プロンプト（新機能）
+
+**Instagram投稿生成**
+- SNS調査結果を統合
+- 構造化JSON形式で出力（`InstagramContentJson`）
+- 医療広告ガイドライン対応
+
+**ブログ記事生成**
+- SEOキーワードを自然に含める
+- 構造化JSON形式で出力（`BlogArticleJson`）
+- 記事の長さ選択（短い/中程度/長い）
+
+**LPテキスト生成**
+- セクション構成を明確化
+- 構造化JSON形式で出力（`LpContentJson`）
+- 主な目的に応じたCTA設定
+
+---
+
+## API設計
+
+### tRPCルーター構成
+
+#### content.ts（コンテンツ生成）
+
+**既存エンドポイント**
+- `generateInstagramLP`: Instagram用LP案生成
+- `generateWebsiteArticle`: SEO最適化されたHP記事生成
+- `generateCampaignCopy`: キャンペーンコピー生成
+
+**新規エンドポイント**
+
+##### `generateInstagramPostWithImage`
+
+**入力スキーマ**
+```typescript
+{
+  userId: number;
+  campaignTitle: string;
+  campaignDescription: string;
+  targetAudience?: string;
+  tone?: string; // デフォルト: "上品で誠実"
+  relatedTreatmentIds?: number[];
+  snsResearchIds?: number[];
+  hashtagsPreference?: { maxCount: number };
+  callToActionType?: "予約" | "カウンセリング" | "LINE登録" | "なし";
+  imagePreset?: "instagram_square" | "lp_banner" | "custom";
+  imageTheme?: string;
+  customSize?: { width: number; height: number };
+  generateImage?: boolean; // デフォルト: true
+}
+```
+
+**出力**
+```typescript
+{
+  id: number;
+  content: {
+    text: string;
+    json: InstagramContentJson;
+    markdown: string;
+  };
+  image: ContentImage | null;
+  message: string;
+}
+```
+
+##### `generateBlogArticleWithImage`
+
+**入力スキーマ**
+```typescript
+{
+  userId: number;
+  campaignTitle: string;
+  campaignDescription: string;
+  targetAudience?: string;
+  tone?: string;
+  relatedTreatmentIds?: number[];
+  snsResearchIds?: number[];
+  seoKeywords?: string[];
+  desiredLength?: "short" | "medium" | "long"; // デフォルト: "medium"
+  imagePreset?: "instagram_square" | "lp_banner" | "custom";
+  imageTheme?: string;
+  customSize?: { width: number; height: number };
+  generateImage?: boolean;
+}
+```
+
+**出力**
+```typescript
+{
+  id: number;
+  content: {
+    text: string;
+    json: BlogArticleJson;
+    markdown: string;
+  };
+  image: ContentImage | null;
+  message: string;
+}
+```
+
+##### `generateLpWithImage`
+
+**入力スキーマ**
+```typescript
+{
+  userId: number;
+  campaignTitle: string;
+  campaignDescription: string;
+  targetAudience?: string;
+  tone?: string;
+  relatedTreatmentIds?: number[];
+  snsResearchIds?: number[];
+  primaryGoal?: "新規予約" | "LINE登録" | "キャンペーン認知";
+  priceInfo?: {
+    normalPrice?: string;
+    campaignPrice?: string;
+  };
+  imagePreset?: "instagram_square" | "lp_banner" | "custom";
+  imageTheme?: string;
+  customSize?: { width: number; height: number };
+  generateImage?: boolean;
+}
+```
+
+**出力**
+```typescript
+{
+  id: number;
+  content: {
+    text: string;
+    json: LpContentJson;
+    markdown: string;
+  };
+  image: ContentImage | null;
+  message: string;
+}
+```
+
+##### `listContents`
+
+**入力スキーマ**
+```typescript
+{
+  userId: number;
+  contentType?: "instagram" | "blog" | "lp" | "instagram_lp" | "website_article" | "campaign_copy";
+  limit?: number; // デフォルト: 20, 最大: 50
+  cursor?: number;
+}
+```
+
+**出力**
+```typescript
+{
+  contents: GeneratedContent[];
+  nextCursor?: number;
+}
+```
+
+##### `getContentDetail`
+
+**入力スキーマ**
+```typescript
+{
+  id: number;
+  userId: number;
+}
+```
+
+**出力**
+```typescript
+GeneratedContent & {
+  images: ContentImage[];
+  rawJson: unknown;
+  relatedTreatmentIds: number[];
+  snsResearchIds: number[];
+}
+```
+
+##### `regenerateImageOnly`
+
+**入力スキーマ**
+```typescript
+{
+  contentId: number;
+  userId: number;
+  imagePreset?: "instagram_square" | "lp_banner" | "custom";
+  imageTheme?: string;
+  customSize?: { width: number; height: number };
+}
+```
+
+**出力**
+```typescript
+{
+  image: ContentImage;
+  message: string;
+}
+```
+
+#### market-research.ts（市場調査）
+
+**エンドポイント**
+- `researchTrend`: トレンド分析
+- `researchPriceComparison`: 価格調査
+- `researchCompetitorAnalysis`: 競合調査
+- `listResults`: 調査結果履歴取得
+
+#### sns-research.ts（SNS調査）
+
+**エンドポイント**
+- `analyzeTwitterTrends`: Twitter/X調査
+- `analyzeInstagramTrends`: Instagram調査
+- `analyzeYouTubeTrends`: YouTube調査
+- `listResults`: 調査結果履歴取得
+
+#### strategy.ts（戦略分析）
+
+**エンドポイント**
+- `analyzeMarketPosition`: 総合分析
+- `generatePriceRecommendations`: 価格設定提案
+- `generateCampaignProposals`: キャンペーン案生成
+- `suggestNewTreatments`: 新施術導入提案
+- `list`: 戦略提案履歴取得
+
+#### product.ts（商品管理）
+
+**エンドポイント**
+- `list`: 商品一覧取得
+- `create`: 商品作成
+- `update`: 商品更新
+- `delete`: 商品削除
+
+#### prompt.ts（プロンプト管理）
+
+**エンドポイント**
+- `list`: プロンプト一覧取得
+- `get`: プロンプト取得
+- `create`: プロンプト作成
+- `update`: プロンプト更新
+
+#### workflow.ts（ワークフロー管理）
+
+**エンドポイント**
+- `execute`: ワークフロー実行
+- `list`: 実行履歴取得
+- `healthCheck`: AIエージェントのヘルスチェック
+
+---
+
+## フロントエンド構成
+
+### ページ構成
+
+#### `/`（商品管理）
+- `src/app/page.tsx`: メインページ
+- `src/features/products/product-management.tsx`: 商品管理UI
+
+#### `/market-research`（市場調査）
+- `src/app/market-research/page.tsx`
+- `src/features/market-research/market-research.tsx`
+
+#### `/sns-research`（SNS調査）
+- `src/app/sns-research/page.tsx`
+- `src/features/sns-research/sns-research.tsx`
+
+#### `/strategy-analysis`（戦略分析）
+- `src/app/strategy-analysis/page.tsx`
+- `src/features/strategy/strategy-analysis.tsx`
+
+#### `/strategy-management`（戦略管理）
+- `src/app/strategy-management/page.tsx`
+- `src/features/strategy/strategy-management.tsx`
+
+#### `/content`（コンテンツ生成・既存）
+- `src/app/content/page.tsx`
+- `src/features/content/content-generation.tsx`
+
+#### `/content/generator`（コンテンツ生成・新機能）
+- `src/app/content/generator/page.tsx`
+- `src/features/content/content-generator.tsx`
+
+#### `/workflow`（ワークフロー管理）
+- `src/app/workflow/page.tsx`
+- `src/features/workflow/workflow-management.tsx`
+
+#### `/api-key`（APIキー設定）
+- `src/app/api-key/page.tsx`
+- `src/features/api-key/api-key-management.tsx`
+
+#### `/prompt`（プロンプト管理）
+- `src/app/prompt/page.tsx`
+- `src/features/prompt/prompt-management.tsx`
+
+### 共通コンポーネント
+
+#### `src/components/Navigation.tsx`
+- 共通ナビゲーションバー
+- 現在のページをハイライト表示
+
+#### `src/components/AtlassianProvider.tsx`
+- Atlassian Design Systemのプロバイダー
+
+#### `src/components/ErrorBoundary.tsx`
+- エラーバウンダリー
+
+### UIライブラリ
+
+**Atlassian Design System**
+- Button, TextField, Textarea, Select, Banner, Badge, Tag, Spinner, EmptyState, Checkbox, Table, Form等を使用
+
+---
+
+## セットアップ手順
+
+### 1. リポジトリのクローン
+
+```bash
+git clone https://github.com/tomiyuta/beautyclinic.git
+cd beautyclinic
+```
+
+### 2. 依存関係のインストール
+
+```bash
+npm install
+```
+
+### 3. 環境変数の設定
+
+`.env`ファイルを作成し、以下の環境変数を設定：
 
 ```env
 # データベース
 DATABASE_URL="mysql://user:password@localhost:3306/beautyclinic"
 
-# AI API Keys
-GEMINI_API_KEY="your-gemini-api-key"
-GROK_API_KEY="your-grok-api-key"
-CLAUDE_API_KEY="your-claude-api-key"
-OPENAI_API_KEY="your-openai-api-key"
+# AI APIキー
+GEMINI_API_KEY="your_gemini_api_key"
+GROK_API_KEY="your_grok_api_key"
+CLAUDE_API_KEY="your_claude_api_key"
+OPENAI_API_KEY="your_openai_api_key"
 
-# Claude Model (オプション)
-# 利用可能なモデルを指定（例: claude-3-5-sonnet）
-# 未指定の場合は自動的に利用可能なモデルを選択
+# Web検索API（オプション）
+SERP_API_KEY="your_serp_api_key"
+GOOGLE_CUSTOM_SEARCH_API_KEY="your_google_custom_search_api_key"
+GOOGLE_CUSTOM_SEARCH_ENGINE_ID="your_engine_id"
+
+# AIモデル設定（オプション）
+GEMINI_MODEL="gemini-2.5-flash"
 CLAUDE_MODEL="claude-3-5-sonnet"
-
-# Web Search API Keys (for latest information retrieval)
-# 最新情報を取得するために、以下のいずれかを設定してください
-# オプション1: SerpAPI (推奨) - https://serpapi.com/
-SERP_API_KEY="your-serp-api-key"
-
-# オプション2: Google Custom Search API
-# https://developers.google.com/custom-search/v1/overview
-GOOGLE_CUSTOM_SEARCH_API_KEY="your-google-custom-search-api-key"
-GOOGLE_CUSTOM_SEARCH_ENGINE_ID="your-google-custom-search-engine-id"
+GROK_MODEL="grok-3"
+IMAGE_GENERATION_PROVIDER="dalle"
 ```
 
-### データベースのセットアップ
+### 4. データベースのセットアップ
 
 ```bash
-# Prismaマイグレーションの実行
-npx prisma migrate dev
-
-# または、直接データベースにスキーマを適用（マイグレーション履歴が不要な場合）
-npx prisma db push
-
 # Prismaクライアントの生成
 npx prisma generate
+
+# データベースマイグレーション
+npx prisma db push
+
+# または、マイグレーションファイルを作成
+npx prisma migrate dev --name init
 ```
 
-**注意**: `prisma migrate dev`でエラーが発生する場合は、`prisma db push`を使用してください。
-
-**注意**: Apple Silicon（M1/M2）マシンを使用している場合、`prisma/schema.prisma`の`generator`セクションに`binaryTargets`を追加する必要がある場合があります：
-
-```prisma
-generator client {
-  provider      = "prisma-client"
-  output        = "../src/generated/prisma"
-  binaryTargets = ["native", "darwin-arm64"]
-}
-```
-
-### 開発サーバーの起動
+### 5. 開発サーバーの起動
 
 ```bash
 npm run dev
 ```
 
-ブラウザで http://localhost:3000 にアクセスしてください。
+ブラウザで `http://localhost:3000` にアクセス
 
-## プロジェクト構成
+### 6. ビルド
 
-```
-ai-clinic-platform/
-├── src/
-│   ├── app/                    # Next.js App Router
-│   │   ├── api/
-│   │   │   └── trpc/          # tRPC APIルート
-│   │   │       └── [trpc]/route.ts  # tRPCハンドラー（エラーハンドリング強化）
-│   │   ├── api-key/           # APIキー設定ページ
-│   │   ├── content/            # コンテンツ生成ページ
-│   │   ├── market-research/    # 市場調査ページ
-│   │   ├── sns-research/       # SNS調査ページ
-│   │   ├── strategy-analysis/  # 戦略分析ページ
-│   │   ├── strategy-management/# 戦略管理ページ
-│   │   ├── workflow/           # ワークフロー管理ページ
-│   │   ├── prompt/             # プロンプト管理ページ
-│   │   ├── layout.tsx          # ルートレイアウト
-│   │   ├── page.tsx            # ホームページ
-│   │   ├── error.tsx           # エラーページ
-│   │   └── not-found.tsx       # 404ページ
-│   ├── components/             # 共通コンポーネント
-│   │   ├── AtlassianProvider.tsx  # Atlassian Design Systemプロバイダー
-│   │   └── Navigation.tsx      # ナビゲーションコンポーネント
-│   ├── features/               # 機能別コンポーネント
-│   │   ├── api-key/            # APIキー管理
-│   │   ├── content/             # コンテンツ生成
-│   │   ├── market-research/    # 市場調査
-│   │   ├── products/           # 商品管理
-│   │   ├── prompt/             # プロンプト管理
-│   │   ├── sns-research/       # SNS調査
-│   │   ├── strategy/           # 戦略分析・管理
-│   │   │   ├── strategy-analysis.tsx  # 戦略分析UI（キャッシュ無効化実装、タイプ別履歴表示）
-│   │   │   └── strategy-management.tsx  # 戦略管理UI
-│   │   └── workflow/           # ワークフロー管理
-│   ├── server/                 # サーバーサイドコード
-│   │   ├── api/                # tRPCルーター
-│   │   │   ├── routers/       # 各機能のルーター
-│   │   │   │   ├── market-research.ts  # 市場調査（periodパラメータ追加）
-│   │   │   │   ├── sns-research.ts     # SNS調査（locationパラメータ追加）
-│   │   │   │   ├── strategy.ts         # 戦略分析（構造化データ統合、ユーザー設定管理）
-│   │   │   │   └── ...
-│   │   │   ├── root.ts        # ルートルーター
-│   │   │   └── trpc.ts        # tRPC設定
-│   │   ├── services/           # ビジネスロジック
-│   │   │   ├── ai-health-check.ts  # AI接続確認
-│   │   │   ├── gemini.ts      # Gemini API統合（period/locationパラメータ対応）
-│   │   │   ├── grok.ts        # Grok API統合（locationパラメータ対応）
-│   │   │   ├── claude.ts      # Claude API統合（レスポンス検証強化、デバッグログ追加）
-│   │   │   ├── chatgpt.ts     # ChatGPT API統合（構造化データ対応、Web検索統合）
-│   │   │   ├── prompt-helper.ts  # プロンプト管理（構造化プロンプト実装、複数AI協業説明追加）
-│   │   │   ├── web-search.ts  # Web検索機能
-│   │   │   └── workflow-orchestrator.ts  # ワークフロー管理
-│   │   └── utils/              # ユーティリティ関数
-│   │       └── parse-ai-results.ts  # CONSENSUS_JSON抽出・パース機能
-│   │   └── db.ts              # Prismaクライアント
-│   └── trpc/                   # tRPCクライアント設定
-│       ├── provider.tsx        # tRPCプロバイダー（エラーハンドリング改善）
-│       └── react.ts            # Reactフック
-├── prisma/
-│   └── schema.prisma          # データベーススキーマ
-├── .env                        # 環境変数（.gitignoreに含まれる）
-└── package.json               # 依存関係
-
+```bash
+npm run build
+npm start
 ```
 
-## プロンプト設計の特徴
-
-### 構造化プロンプト形式
-
-すべてのAI分析機能は、以下の2部構成の構造化プロンプト形式を採用しています：
-
-1. **`<CONSENSUS_JSON>`** - AI合議・採点用の「隠しJSON」（機械処理用）
-   - UIには表示しない
-   - 厳密なJSON構造で返す
-   - 根拠URL、取得日時、統計情報を含む
-
-2. **`<REPORT_MARKDOWN>`** - 人が読むレポート（Markdown）
-   - 読みやすい要約形式
-   - 丁寧語・断定禁止
-   - 実務に直結する内容
-
-### 厳格ルール
-
-すべてのプロンプトは以下のルールを厳守します：
-
-- **根拠の必須記載**：主張・数値は必ず根拠URLと取得日時で裏付ける
-- **医療広告ガイドライン配慮**：誇大・断定・比較優良誤認（「必ず/完全/No.1/絶対」等）禁止
-- **小規模クリニック最適化**：人時・予算・機器の制約を考慮
-- **標準化単位**：価格は正規化単位で比較（例：ボトックス=per_unit_10U、HA=per_ml_1）
-- **データギャップの明記**：取得できなかった情報は「unknown」または「gaps」に記載
-
-### プロンプトタイプ一覧
-
-#### Claude用プロンプト
-- `claude_analyze_market_position` - 市場ポジション分析
-- `claude_generate_price_recommendations` - 価格推奨
-- `claude_generate_campaign_proposals` - キャンペーン提案
-- `claude_suggest_new_treatments` - 新施術提案
-
-#### Gemini用プロンプト
-- `gemini_research_trend_analysis` - トレンド分析調査
-- `gemini_research_price_comparison` - 価格比較調査
-- `gemini_analyze_instagram_trends` - Instagramトレンド分析
-- `gemini_analyze_youtube_trends` - YouTubeトレンド分析
-- `gemini_research_competitor_analysis` - 競合分析調査
-
-#### Grok用プロンプト
-- `grok_analyze_twitter_trends` - X（Twitter）トレンド分析
-
-#### ChatGPT用プロンプト
-- `chatgpt_system_prompt` - システムプロンプト
-- `chatgpt_generate_instagram_lp` - Instagram LP生成
-- `chatgpt_generate_website_article` - HP記事生成
-- `chatgpt_generate_campaign_copy` - キャンペーンコピー生成
-
-## エラーハンドリング
-
-### tRPCエラーハンドリング
-
-#### クライアント側（`src/trpc/provider.tsx`）
-- **404/401エラーはリトライしない**：`NOT_FOUND`、`UNAUTHORIZED`コードのエラーは即座に失敗として扱う
-- **最大3回までリトライ**：その他のエラーは指数バックオフで最大3回までリトライ
-- **リトライ間隔**：`Math.min(1000 * 2 ** attemptIndex, 30000)`（最大30秒）
-
-#### サーバー側（`src/app/api/trpc/[trpc]/route.ts`）
-- **JSONレスポンス保証**：すべてのエラーはJSON形式で返す（HTMLエラーページを防止）
-- **詳細なエラーメッセージ**：エラー内容を`message`フィールドに含める
-
-### Claude APIレスポンス検証
-
-`src/server/services/claude.ts`で以下の検証を実装：
-
-1. **空のcontent配列チェック**：`message.content`が空でないことを確認
-2. **contentタイプチェック**：最初のcontentが`text`タイプであることを確認
-3. **空のレスポンステキストチェック**：レスポンステキストが空でないことを確認
-4. **デバッグログ**：プロンプト長、結果長、プレビューをログ出力
-
-### データ検証
-
-`src/server/api/routers/strategy.ts`で以下の検証を実装：
-
-1. **商品データの存在確認**：商品が存在しない場合はエラーを返す
-2. **市場トレンド/SNSデータの存在確認**：必要なデータが空の場合はエラーを返す
-3. **生成結果の検証**：AI生成結果が空または無効な場合はエラーを返す
-
-## データベース保存
-
-### 戦略分析結果の保存
-
-以下の戦略分析結果は自動的にデータベースに保存されます：
-
-- **価格推奨**：`StrategyRecommendation.priceRecommendations`
-- **キャンペーン案**：`StrategyRecommendation.campaignProposals`
-- **新施術提案**：`StrategyRecommendation.newTreatmentSuggestions`
-- **総合分析**：`StrategyRecommendation.marketingStrategy`
-
-### フロントエンドのキャッシュ無効化
-
-各戦略分析の`onSuccess`コールバックで、`utils.strategy.list.invalidate()`を呼び出し、履歴一覧を自動更新します。
-
-## 主な変更履歴
-
-### コンテンツ生成機能の拡張（2025年11月）
-
-#### 新機能の追加
-- **Instagram投稿生成**：構造化JSON + Markdown形式での出力
-  - キャプション、フック、本文、注意事項、CTA、ハッシュタグを含む構造化データ
-  - 医療広告ガイドライン対応（禁止表現の自動チェック・修正）
-  - SNS調査結果の統合機能
-- **ブログ記事生成**：SEO最適化された長文記事生成
-  - 見出し構成、FAQ、SEOキーワードを含む構造化データ
-  - 記事の長さ選択機能（短い/中程度/長い）
-- **LPテキスト生成**：ランディングページ用テキスト生成
-  - ファーストビュー、セクション構成、価格情報を含む構造化データ
-  - 主な目的の選択（新規予約/LINE登録/キャンペーン認知）
-
-#### 画像生成機能の実装
-- **DALL·E 3統合**：OpenAI DALL·E 3を使用した画像生成
-  - `src/server/services/image-generation.ts`を新規作成
-  - 画像プリセット対応（Instagram正方形、LPバナー、カスタムサイズ）
-  - 画像テーマ選択機能
-  - カスタムサイズ指定機能
-
-#### 医療広告ガイドライン対応
-- **禁止表現チェック機能**：`src/server/utils/advertising-guidelines.ts`を新規作成
-  - 禁止ワードリストの管理
-  - 自動的な表現修正機能
-  - 注意書きの自動付与
-
-#### データベーススキーマの拡張
-- **GeneratedContentモデルの拡張**：
-  - `bodyMarkdown`フィールド追加（Markdown形式の本文）
-  - `rawJson`フィールド追加（構造化JSONデータ）
-  - `brandTone`フィールド追加（ブランドトーン）
-  - `targetAudience`フィールド追加（ターゲット層）
-  - `relatedTreatmentIds`フィールド追加（関連施術ID配列）
-  - `snsResearchIds`フィールド追加（SNS調査結果ID配列）
-- **ContentImageモデルの新規作成**：
-  - 画像URL、サイズ、プリセット、テーマを管理
-  - `GeneratedContent`とのリレーション設定
-
-#### tRPCルーターの拡張
-- **新規エンドポイント追加**：
-  - `generateInstagramPostWithImage`：Instagram投稿 + 画像生成
-  - `generateBlogArticleWithImage`：ブログ記事 + 画像生成
-  - `generateLpWithImage`：LPテキスト + 画像生成
-  - `listContents`：ページング対応のコンテンツ一覧取得
-  - `getContentDetail`：コンテンツ詳細取得（画像含む）
-  - `regenerateImageOnly`：画像のみ再生成
-
-#### フロントエンドUIの更新
-- **新しいコンテンツ生成ページ**：`/content/generator`
-  - コンテンツタイプ選択（Instagram/ブログ/LP）
-  - 画像生成オプション設定
-  - SNS調査結果の選択機能
-  - 商品（施術）の選択機能
-  - プレビュー表示（テキスト + 画像）
-  - 履歴表示機能
-
-#### コンテンツ生成サービスの実装
-- **`src/server/services/content-generation.ts`を新規作成**：
-  - `generateInstagramPost`：Instagram投稿生成
-  - `generateBlogArticle`：ブログ記事生成
-  - `generateLpContent`：LPテキスト生成
-  - SNS調査結果の統合機能
-  - 構造化JSON + Markdown形式での出力
-
-#### プロンプト設計の改善
-- 構造化プロンプト形式（`<CONSENSUS_JSON>` + `<REPORT_MARKDOWN>`）の採用
-- 医療広告ガイドライン配慮の自動適用
-- SNS調査結果の自動統合
-
-### 複数AI協業機能の実装（2025年1月）
-
-#### 複数AIの協業アーキテクチャ
-- **Gemini（Google）**：市場調査（トレンド分析、価格調査、競合分析）、SNS調査（Instagram、YouTube）
-  - 構造化データ（CONSENSUS_JSON）として、施術の人気度、価格帯、競合情報、ハッシュタグ、インフルエンサー情報などを提供
-- **Grok（xAI）**：SNS調査（X/Twitter）
-  - 構造化データ（CONSENSUS_JSON）として、X上のトレンド、ハッシュタグ、投稿傾向、エンゲージメント情報などを提供
-- **Claude/ChatGPT（戦略統合AI）**：上記のAI分析結果を統合し、総合的な戦略提案を行う
-  - デフォルトはChatGPT API
-  - ユーザー設定でClaude APIに切り替え可能
-
-#### CONSENSUS_JSON抽出・パース機能
-- `src/server/utils/parse-ai-results.ts`を新規作成
-- Gemini/Grokの出力から`<CONSENSUS_JSON>`タグを抽出・パースする機能を実装
-- 市場調査データとSNS調査データを構造化データに変換
-- 構造化データを優先的に使用し、数値やURLなどの根拠を活用
-
-#### 戦略分析APIの改善
-- テキストデータではなく、構造化データ（CONSENSUS_JSON）を優先的に使用
-- 各AIの分析結果を統合してClaude/ChatGPTに渡すように変更
-- 構造化データから主要情報（施術、価格テーブル、ハッシュタグ、インフルエンサー等）を抽出
-- 各AIの分析結果を引用する際は、どのAI（Gemini/Grok等）が分析したかを明記
-
-#### ChatGPT API統合の改善
-- 戦略分析のデフォルトAPIをChatGPT APIに変更
-- Web検索機能を統合し、最新情報を取得して分析に反映
-- 構造化データを詳細にフォーマットし、AI分析エージェント名、分析日時、構造化データ、レポートなどを明示
-- 各関数で構造化データからキーワードを抽出するロジックを追加
-
-#### プロンプトの改善
-- 複数AIの協業についての説明を追加
-- データの優先順位（構造化データ > レポート > 生データ）を明示
-- 各AIの役割を明確化（Gemini:市場調査、Grok:SNS調査、Claude/ChatGPT:戦略統合）
-
-#### ユーザー設定機能
-- `UserSettings`テーブルを追加（`strategyAIProvider`フィールド）
-- 戦略分析で使用するAIプロバイダーを選択可能（Claude API / ChatGPT API）
-- デフォルトはChatGPT API
-- フロントエンドから設定を変更可能（`/api-key`ページ）
-
-#### データベーススキーマの更新
-- `UserSettings`モデルを追加
-  - `id`: 主キー
-  - `userId`: ユーザーID（ユニーク）
-  - `strategyAIProvider`: 戦略分析で使用するAIプロバイダー（"claude" または "chatgpt"、デフォルト: "chatgpt"）
-  - `createdAt`, `updatedAt`: タイムスタンプ
-
-### 戦略提案履歴表示機能の追加（2025年1月）
-
-#### 履歴表示の改善
-- **タイプ別履歴表示**：各提案タイプ（総合分析、価格設定提案、キャンペーン案、新施術提案）ごとに履歴を個別に表示
-- **空状態の表示**：各セクションに提案がない場合は、適切なメッセージを表示
-- **UI改善**：各履歴カードに日時、実装ステータス、折りたたみ可能な提案内容を表示
-- **エラーハンドリング強化**：戦略提案履歴取得時のエラーハンドリングを追加し、HTMLエラーページの返却を防止
-
-### プロンプト構造化とエラーハンドリング強化（2025年1月）
-
-#### プロンプトの全面刷新
-- すべてのAI分析プロンプトを構造化形式（`<CONSENSUS_JSON>` + `<REPORT_MARKDOWN>`）に変更
-- 根拠URLと取得日時の必須記載を実装
-- 医療広告ガイドライン配慮（誇大表現禁止）を全プロンプトに適用
-- 小規模クリニック向け最適化を全プロンプトに反映
-
-#### パラメータの拡張
-- **トレンド分析**：`period`パラメータを追加（デフォルト: "last 90 days"）
-- **価格比較調査**：`period`パラメータを追加（デフォルト: "last 90 days"）
-- **SNS調査**：`location`パラメータを追加（デフォルト: "unknown"）
-- `timeRangeText`を英語形式に統一（例: "last 30 days"）
-
-#### データベース保存ロジックの追加
-- 価格推奨、キャンペーン案、新施術提案の結果を自動保存
-- フロントエンドでキャッシュ無効化を実装し、履歴一覧を自動更新
-
-#### エラーハンドリングの改善
-- tRPCクライアント：404/401エラーはリトライしないように変更
-- tRPCサーバー：すべてのエラーをJSON形式で返すように修正
-- Claude API：レスポンス検証を強化（空配列、不正タイプ、空テキストのチェック）
-- データ検証：商品データ、市場トレンド/SNSデータの存在確認を追加
-- デバッグログ：プロンプト長、結果長、プレビューをログ出力
-
-#### Prisma設定の修正
-- Apple Silicon（M1/M2）対応：`binaryTargets`に`"darwin-arm64"`を追加（必要に応じて）
-
-### Web検索機能の統合（2024年11月）
-
-すべてのAI機能に最新情報を取得するためのWeb検索機能を統合しました。
-
-#### Web検索API統合
-- **SerpAPI統合**：SerpAPIを使用したWeb検索機能を実装
-- **Google Custom Search API統合**：Google Custom Search APIを使用したWeb検索機能を実装
-- **自動フォールバック**：SerpAPIが利用できない場合、Google Custom Search APIに自動的にフォールバック
-
-#### Gemini API統合
-- **トレンド分析**：Web検索結果を基に最新のトレンド情報を取得
-- **価格比較調査**：最新の価格情報をWeb検索で取得
-- **Instagram/YouTubeトレンド分析**：最新のSNSトレンド情報を取得
-- **競合分析**：最新の競合情報を取得
-
-#### ChatGPT API統合
-- **Instagram LP生成**：Web検索結果を基に最新トレンドを取り入れたLP案を生成
-- **HP記事生成**：最新のSEO情報を含めた記事を生成
-- **キャンペーンコピー生成**：最新のトレンド情報を基にキャンペーンコピーを生成
-
-#### プロンプト管理の改善
-- **新規プロンプト登録機能**：プロンプトが未登録でも、各AIエージェントごとに未登録のプロンプトタイプを表示し、新規登録可能に
-- **レイアウト改善**：コンテナの最大幅を拡大し、セクション間のスペースを調整
-- **UI/UX改善**：新規作成時のフォーム強調表示、プレースホルダー説明の追加
-
-#### 戦略分析ページの改善
-- **商品選択機能**：分析対象の商品を選択できるUIを追加
-- **商品選択バリデーション**：商品が選択されていない場合のエラーメッセージを改善
-
-#### APIキー設定の拡張
-- **SerpAPIキー入力欄**：APIキー設定ページにSerpAPIキーの入力欄を追加
-- **Web検索APIキー状態表示**：SerpAPIとGoogle Custom Search APIの設定状態を表示
-
-### Atlassian Design Systemの導入
-
-すべてのUIコンポーネントをAtlassian Design Systemに置き換えました。
-
-#### 置き換えられたコンポーネント
-1. **api-key-management.tsx** - Button, TextField, Banner, Badgeを使用、API接続確認機能を追加
-2. **product-management.tsx** - Table, Form, Button, Bannerを使用
-3. **market-research.tsx** - Form, TextField, Select, Tag, Bannerを使用
-4. **content-generation.tsx** - TextField, Textarea, Select, Button, Banner, Badge, Tag, Spinner, EmptyStateを使用、Instagram LPプレビュー機能を実装
-5. **prompt-management.tsx** - TextField, Textarea, Button, Banner, Badge, Checkbox, Spinner, EmptyStateを使用
-6. **sns-research.tsx** - TextField, Select, Button, Banner, Badge, Tag, Spinner, EmptyStateを使用
-7. **strategy-management.tsx** - Select, Textarea, Button, Banner, Badge, Spinner, EmptyStateを使用
-8. **strategy-analysis.tsx** - TextField, Checkbox, Button, Banner, Badge, Spinner, EmptyStateを使用
-9. **workflow-management.tsx** - TextField, Button, Banner, Badge, Spinner, EmptyStateを使用
-
-#### 共通ナビゲーションの実装
-- `src/components/Navigation.tsx`を作成
-- すべてのページで共通のナビゲーションバーを表示
-- 現在のページをハイライト表示
-- Atlassian Design SystemのButtonコンポーネントを使用
-
-#### エラーハンドリングの改善
-- `src/app/error.tsx` - エラーページコンポーネント
-- `src/app/not-found.tsx` - 404ページコンポーネント
-
-#### tRPC APIルートの設定
-- `src/app/api/trpc/[trpc]/route.ts` - Next.js App Router用のtRPCルートハンドラーを作成
-
-#### すべてのルートページの作成
-以下のルートページを作成：
-- `/market-research` → `src/app/market-research/page.tsx`
-- `/sns-research` → `src/app/sns-research/page.tsx`
-- `/strategy-analysis` → `src/app/strategy-analysis/page.tsx`
-- `/strategy-management` → `src/app/strategy-management/page.tsx`
-- `/content` → `src/app/content/page.tsx`
-- `/workflow` → `src/app/workflow/page.tsx`
-- `/api-key` → `src/app/api-key/page.tsx`
+---
 
 ## 使用方法
 
-### APIキーの設定
+### 1. APIキーの設定
 
 1. `/api-key`ページにアクセス
 2. 各AIサービスのAPIキーを入力
@@ -662,49 +1917,93 @@ ai-clinic-platform/
 4. 「接続を確認」ボタンで接続をテスト
 5. サーバーを再起動して変更を反映
 
-### 市場調査の実行
+### 2. 商品管理
+
+1. `/`ページにアクセス
+2. 「商品を追加」ボタンで商品を登録
+3. 原価・販売価格・説明文を入力
+4. 商品の編集・削除・有効/無効切り替えが可能
+
+### 3. 市場調査の実行
+
+#### トレンド分析
 
 1. `/market-research`ページにアクセス
-2. 調査タイプを選択（トレンド分析、価格調査、競合調査）
-3. 必要な情報を入力
-   - **トレンド分析**：場所（必須）、期間（オプション）
-   - **価格調査**：施術リスト（必須）、都市リスト（必須）、期間（オプション）
-   - **競合調査**：場所（必須）、半径（オプション、デフォルト: 5km）
-4. 「調査を開始」ボタンをクリック
-5. 結果は「調査結果履歴」セクションに表示されます
+2. 「トレンド分析」タブを選択
+3. 調査地域を入力（例: "東京"）
+4. 期間を選択（オプション、デフォルト: "last 90 days"）
+5. 「調査を開始」ボタンをクリック
+6. 結果は「調査結果履歴」セクションに表示
 
-### SNS調査の実行
+#### 価格調査
+
+1. 「価格調査」タブを選択
+2. 調査対象の施術を入力（例: ["ダーマペン", "ボトックス", "ヒアルロン酸"]）
+3. 調査対象の都市を入力（例: ["東京", "大阪", "福岡"]）
+4. 期間を選択（オプション）
+5. 「調査を開始」ボタンをクリック
+
+#### 競合調査
+
+1. 「競合調査」タブを選択
+2. 中心地を入力（例: "渋谷駅"）
+3. 半径を入力（オプション、デフォルト: 5km）
+4. 「調査を開始」ボタンをクリック
+
+### 4. SNS調査の実行
+
+#### Twitter/X調査
 
 1. `/sns-research`ページにアクセス
-2. プラットフォームを選択（Twitter/X、Instagram、YouTube）
-3. キーワードを入力（複数可）
+2. 「Twitter/X」タブを選択
+3. キーワードを入力（例: ["ダーマペン", "ピコレーザー"]）
 4. 期間を選択（オプション、デフォルト: "last_month"）
 5. 地域を入力（オプション、デフォルト: "unknown"）
 6. 「調査を開始」ボタンをクリック
-7. 結果は構造化形式（`<CONSENSUS_JSON>` + `<REPORT_MARKDOWN>`）で表示されます
 
-### 戦略分析の実行
+#### Instagram調査
+
+1. 「Instagram」タブを選択
+2. キーワード、期間、地域を入力
+3. 「調査を開始」ボタンをクリック
+
+#### YouTube調査
+
+1. 「YouTube」タブを選択
+2. キーワード、期間、地域を入力
+3. 「調査を開始」ボタンをクリック
+
+### 5. 戦略分析の実行
+
+#### 総合分析
 
 1. `/strategy-analysis`ページにアクセス
-2. **総合分析**：
-   - 場所を入力
+2. 「総合分析」セクションで：
+   - 所在地を入力
    - 分析対象の商品を選択（複数可）
    - 市場データ/SNSデータを含めるか選択
-   - 「総合分析を実行」ボタンをクリック
-3. **価格設定提案**：
-   - 「価格設定提案を生成」ボタンをクリック
-   - 市場価格データが必要です
-4. **キャンペーン案生成**：
-   - 「キャンペーン案を生成」ボタンをクリック
-   - 市場トレンドデータとSNSデータが必要です
-5. **新施術導入提案**：
-   - 「新施術提案を生成」ボタンをクリック
-   - 商品データ、市場トレンドデータ、SNSトレンドデータが必要です
-6. 結果は自動的にデータベースに保存され、`/strategy-management`ページで確認できます
+3. 「総合分析を実行」ボタンをクリック
+4. 結果は自動的にデータベースに保存され、`/strategy-management`ページで確認可能
 
-### コンテンツ生成
+#### 価格設定提案
+
+1. 「価格設定提案」セクションで「価格設定提案を生成」ボタンをクリック
+2. 市場価格データが必要です
+
+#### キャンペーン案生成
+
+1. 「キャンペーン案生成」セクションで「キャンペーン案を生成」ボタンをクリック
+2. 市場トレンドデータとSNSデータが必要です
+
+#### 新施術導入提案
+
+1. 「新施術導入提案」セクションで「新施術提案を生成」ボタンをクリック
+2. 商品データ、市場トレンドデータ、SNSトレンドデータが必要です
+
+### 6. コンテンツ生成
 
 #### 既存機能（`/content`）
+
 1. `/content`ページにアクセス
 2. コンテンツタイプを選択（Instagram LP、HP記事、キャンペーンコピー）
 3. キャンペーン情報を入力
@@ -712,17 +2011,18 @@ ai-clinic-platform/
 5. プレビューで結果を確認し、必要に応じて画像としてエクスポート
 
 #### 新機能（`/content/generator`）
+
 1. `/content/generator`ページにアクセス
 2. コンテンツタイプを選択（Instagram投稿、ブログ記事、LP）
-3. キャンペーン情報を入力
+3. キャンペーン情報を入力：
    - キャンペーン名、説明、ターゲット層、ブランドトーン
    - 関連施術の選択（複数可）
    - SNS調査結果の選択（任意）
-4. コンテンツタイプ別のオプション設定
-   - **Instagram投稿**：ハッシュタグ数、行動喚起タイプ
-   - **ブログ記事**：記事の長さ、SEOキーワード
-   - **LP**：主な目的、価格情報
-5. 画像生成設定（オプション）
+4. コンテンツタイプ別のオプション設定：
+   - **Instagram投稿**: ハッシュタグ数、行動喚起タイプ
+   - **ブログ記事**: 記事の長さ、SEOキーワード
+   - **LP**: 主な目的、価格情報
+5. 画像生成設定（オプション）：
    - 画像を生成するか選択
    - 画像プリセット選択（Instagram正方形、LPバナー、カスタム）
    - 画像テーマ選択
@@ -731,39 +2031,183 @@ ai-clinic-platform/
 7. プレビューで結果を確認（テキスト + 画像）
 8. 履歴から過去のコンテンツを確認・再利用
 
-## 開発
+---
 
-### ビルド
+## 開発ガイド
 
-```bash
-npm run build
+### プロジェクト構造
+
+```
+beauty project/
+├── prisma/
+│   └── schema.prisma          # データベーススキーマ
+├── src/
+│   ├── app/                    # Next.js App Router
+│   │   ├── api/trpc/          # tRPC APIルート
+│   │   ├── content/            # コンテンツ生成ページ
+│   │   ├── market-research/   # 市場調査ページ
+│   │   ├── sns-research/      # SNS調査ページ
+│   │   ├── strategy-analysis/ # 戦略分析ページ
+│   │   └── ...
+│   ├── components/             # 共通コンポーネント
+│   ├── features/               # 機能別コンポーネント
+│   ├── generated/prisma/      # Prismaクライアント（自動生成）
+│   ├── server/
+│   │   ├── api/routers/       # tRPCルーター
+│   │   ├── services/          # ビジネスロジック
+│   │   └── utils/             # ユーティリティ
+│   └── trpc/                   # tRPC設定
+└── package.json
 ```
 
-ビルド前に自動的に`prisma generate`が実行されます。
+### コードスタイル
 
-### 型チェック
-
-```bash
-npm run type-check
-```
+- **TypeScript**: 厳格な型チェックを有効化
+- **ESLint**: Next.jsのデフォルト設定を使用
+- **Prettier**: コードフォーマット（設定ファイルがあれば）
 
 ### データベースマイグレーション
 
 ```bash
 # 開発環境
-npx prisma migrate dev
+npx prisma migrate dev --name migration_name
 
 # 本番環境
 npx prisma migrate deploy
-```
 
-### Prismaクライアントの生成
-
-```bash
+# Prismaクライアントの再生成
 npx prisma generate
 ```
 
-`postinstall`スクリプトで自動的に実行されます。
+### エラーハンドリング
+
+- **tRPC**: `TRPCError`を使用してエラーを返す
+- **フロントエンド**: `@tanstack/react-query`のエラーハンドリングを使用
+- **ログ**: `console.error`でサーバー側エラーを記録
+- **エラーログ**: `ErrorLog`モデルにエラーを保存（将来実装）
+
+### テスト
+
+現在テストフレームワークは未導入。将来的にJest/Vitest等を導入予定。
+
+---
+
+## 医療広告ガイドライン対応
+
+### 禁止表現リスト
+
+以下の表現は自動的に検出・修正されます：
+
+- 断定表現: "完全に治る"、"必ず治る"、"絶対に治る"、"100%治る"
+- 比較優良誤認: "No.1"、"一番"、"最高"、"最強"、"唯一"、"他にない"
+- 誇大表現: "革命的な"、"驚異的な"、"奇跡的な"、"魔法のような"
+- 即効性の強調: "即効性"、"即座に"、"すぐに治る"、"たった1回で"
+- 副作用・リスクの否定: "副作用なし"、"リスクなし"、"痛みなし"、"ダウンタイムなし"
+
+### 自動修正機能
+
+禁止表現は自動的に適切な表現に置換されます：
+
+- "完全に治る" → "改善が期待できます"
+- "No.1" → "高い評価"
+- "副作用なし" → "安全性に配慮"
+- など
+
+### 注意書きの自動付与
+
+以下の注意書きが自動的に付与されます：
+
+- "※効果には個人差があります"
+- "※施術内容により、効果の程度や持続期間は異なります"
+- "※事前のカウンセリングで、ご希望やご予算に合わせた最適なプランをご提案いたします"
+- "※施術前には必ず医師による診察・説明を受けていただきます"
+
+### 実装ファイル
+
+- `src/server/utils/advertising-guidelines.ts`: 禁止表現チェック・修正ロジック
+- `src/server/services/content-generation.ts`: コンテンツ生成時に自動適用
+
+---
+
+## Web検索統合
+
+### 対応API
+
+1. **SerpAPI**（優先）
+   - 環境変数: `SERP_API_KEY`
+   - 最大10件の検索結果を取得
+
+2. **Google Custom Search API**（フォールバック）
+   - 環境変数: `GOOGLE_CUSTOM_SEARCH_API_KEY`, `GOOGLE_CUSTOM_SEARCH_ENGINE_ID`
+   - 最大10件の検索結果を取得
+
+### 自動フォールバック
+
+SerpAPIが利用できない場合、自動的にGoogle Custom Search APIにフォールバックします。
+
+### 統合箇所
+
+- **Gemini**: トレンド分析、価格調査、競合分析、Instagram/YouTube調査
+- **ChatGPT**: コンテンツ生成（Instagram LP、HP記事、キャンペーンコピー）
+
+### 実装ファイル
+
+- `src/server/services/web-search.ts`: Web検索ロジック
+- `src/server/services/prompt-helper.ts`: プロンプトにWeb検索指示を追加
+
+---
+
+## 構造化データの処理
+
+### CONSENSUS_JSON抽出
+
+各AI（Gemini/Grok）の出力から`<CONSENSUS_JSON>`タグを抽出し、構造化データとして使用します。
+
+**実装ファイル**: `src/server/utils/parse-ai-results.ts`
+
+**主要関数**
+- `extractConsensusJSON(text: string)`: JSONを抽出・パース
+- `extractReportMarkdown(text: string)`: Markdownを抽出
+- `parseMarketResearchResult(...)`: 市場調査結果を構造化
+- `parseSNSResearchResult(...)`: SNS調査結果を構造化
+
+### データの優先順位
+
+1. **構造化データ（CONSENSUS_JSON）**: 最優先
+2. **レポート（REPORT_MARKDOWN）**: 構造化データがない場合
+3. **生データ（rawText）**: 最後の手段
+
+---
+
+## 画像生成機能
+
+### DALL·E 3統合
+
+**実装ファイル**: `src/server/services/image-generation.ts`
+
+**主要関数**
+- `generateImageWithDalle(options, contentText)`: DALL·E 3で画像生成
+- `generateImage(options, contentText)`: 画像生成（プロバイダー選択）
+
+**画像プリセット**
+- `instagram_square`: 1080x1080（Instagram正方形）
+- `lp_banner`: 1200x630（LPバナー、16:9）
+- `custom`: カスタムサイズ（256x256〜2048x2048）
+
+**画像テーマ**
+- `before_after`: ビフォーアフター比較
+- `season_event`: 季節・イベント
+- `clinic_interior`: クリニック内装
+- `texture_skin`: 肌の質感
+
+**DALL·E 3のサイズ制限**
+- 1024x1024（正方形）
+- 1792x1024（横長）
+- 1024x1792（縦長）
+
+システムは自動的に最適なサイズを選択します。
+
+---
 
 ## トラブルシューティング
 
@@ -806,35 +2250,41 @@ npm run dev
 
 ### キャンペーン案や新施術提案が出力されない場合
 
-1. **データの確認**：
+1. **データの確認**:
    - 市場トレンドデータまたはSNSデータが存在するか確認
    - `/market-research`または`/sns-research`で調査を実行
-2. **サーバーログの確認**：
+2. **サーバーログの確認**:
    - コンソールにエラーメッセージが表示されていないか確認
    - プロンプト長、結果長のログを確認
-3. **データベースの確認**：
+3. **データベースの確認**:
    - `/strategy-management`ページで履歴を確認
    - データベースに保存されているか確認
 
 ### 内部サーバーエラーが発生する場合
 
-1. **サーバーログの確認**：
+1. **サーバーログの確認**:
    - コンソールに詳細なエラーメッセージが表示される
    - Claude APIレスポンス検証エラーの可能性を確認
-2. **データ検証の確認**：
+2. **データ検証の確認**:
    - 必要なデータ（商品、市場トレンド、SNSデータ）が存在するか確認
    - 空のデータで実行していないか確認
-3. **APIキーの確認**：
+3. **APIキーの確認**:
    - Claude APIキーが正しく設定されているか確認
    - APIキーの権限で利用可能なモデルを確認（`CLAUDE_MODEL`環境変数で指定可能）
+
+---
 
 ## ライセンス
 
 このプロジェクトのライセンス情報は、リポジトリのルートディレクトリにあるLICENSEファイルを参照してください。
 
+---
+
 ## 貢献
 
 プルリクエストを歓迎します。大きな変更の場合は、まずissueを開いて変更内容を議論してください。
+
+---
 
 ## サポート
 
