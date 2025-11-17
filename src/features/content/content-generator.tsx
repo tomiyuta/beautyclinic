@@ -1000,7 +1000,10 @@ export function ContentGenerator() {
                 <h3 style={{ marginBottom: "8px", fontSize: "14px", fontWeight: 600, color: "#172B4D" }}>
                   {content.title}
                 </h3>
-                {"images" in content && content.images && Array.isArray(content.images) && content.images.length > 0 && (
+                {"images" in content && 
+                 content.images && 
+                 Array.isArray(content.images) && 
+                 content.images.length > 0 ? (
                   <div style={{ marginBottom: "8px", display: "flex", gap: "8px", flexWrap: "wrap" }}>
                     {content.images.map((img: { id: number; url: string }) => (
                       <img
@@ -1011,7 +1014,7 @@ export function ContentGenerator() {
                       />
                     ))}
                   </div>
-                )}
+                ) : null}
                 <details>
                   <summary
                     style={{
