@@ -107,7 +107,7 @@ export function ContentGenerator() {
   const [previewContent, setPreviewContent] = useState<{
     id: number;
     content: unknown;
-    image?: unknown;
+    image?: { url: string } | null;
   } | null>(null);
 
   const utils = api.useUtils();
@@ -847,19 +847,13 @@ export function ContentGenerator() {
                     ? String((previewContent.content as { markdown: string }).markdown)
                     : String(previewContent.content)}
                 </div>
-                {previewContent.image && (
+                {previewContent.image && previewContent.image.url && (
                   <div style={{ marginTop: "16px" }}>
                     <h3 style={{ marginBottom: "8px", fontSize: "14px", fontWeight: 600, color: "#172B4D" }}>
                       生成された画像
                     </h3>
                     <img
-                      src={
-                        typeof previewContent.image === "object" &&
-                        previewContent.image !== null &&
-                        "url" in previewContent.image
-                          ? String((previewContent.image as { url: string }).url)
-                          : ""
-                      }
+                      src={previewContent.image.url}
                       alt="Generated content"
                       style={{ maxWidth: "100%", borderRadius: "8px" }}
                     />
@@ -884,19 +878,13 @@ export function ContentGenerator() {
                     ? String((previewContent.content as { markdown: string }).markdown)
                     : String(previewContent.content)}
                 </div>
-                {previewContent.image && (
+                {previewContent.image && previewContent.image.url && (
                   <div style={{ marginTop: "16px" }}>
                     <h3 style={{ marginBottom: "8px", fontSize: "14px", fontWeight: 600, color: "#172B4D" }}>
                       アイキャッチ画像
                     </h3>
                     <img
-                      src={
-                        typeof previewContent.image === "object" &&
-                        previewContent.image !== null &&
-                        "url" in previewContent.image
-                          ? String((previewContent.image as { url: string }).url)
-                          : ""
-                      }
+                      src={previewContent.image.url}
                       alt="Generated content"
                       style={{ maxWidth: "100%", borderRadius: "8px" }}
                     />
@@ -921,19 +909,13 @@ export function ContentGenerator() {
                     ? String((previewContent.content as { markdown: string }).markdown)
                     : String(previewContent.content)}
                 </div>
-                {previewContent.image && (
+                {previewContent.image && previewContent.image.url && (
                   <div style={{ marginTop: "16px" }}>
                     <h3 style={{ marginBottom: "8px", fontSize: "14px", fontWeight: 600, color: "#172B4D" }}>
                       LPヘッダー画像
                     </h3>
                     <img
-                      src={
-                        typeof previewContent.image === "object" &&
-                        previewContent.image !== null &&
-                        "url" in previewContent.image
-                          ? String((previewContent.image as { url: string }).url)
-                          : ""
-                      }
+                      src={previewContent.image.url}
                       alt="Generated content"
                       style={{ maxWidth: "100%", borderRadius: "8px" }}
                     />
