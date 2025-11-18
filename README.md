@@ -784,10 +784,13 @@ Instagram投稿、ブログ記事、LPテキストを自動生成し、画像も
 - 将来的にStable Diffusion等への切り替えも可能
 
 **API**
-- `content.generateInstagramPostWithImage`: Instagram投稿 + 画像生成
-- `content.generateBlogArticleWithImage`: ブログ記事 + 画像生成
-- `content.generateLpWithImage`: LPテキスト + 画像生成
-- `content.regenerateImageOnly`: 画像のみ再生成
+- `content.generateInstagramLP`: Instagram用LP案の生成
+- `content.generateWebsiteArticle`: HP記事の生成
+- `content.generateCampaignCopy`: キャンペーンコピーの生成
+- `content.list`: 生成コンテンツ一覧取得
+- `content.getById`: コンテンツ詳細取得
+- `content.updateStatus`: コンテンツステータス更新
+- `content.getCurrentModel`: 現在使用中のAIモデル情報取得
 
 ---
 
@@ -1592,61 +1595,47 @@ PriorityScore(0–100) = 0.40*Demand + 0.25*UnitEconomics + 0.20*Feasibility + 0
 - `generateWebsiteArticle`: SEO最適化されたHP記事生成
 - `generateCampaignCopy`: キャンペーンコピー生成
 
-**新規エンドポイント**
+**エンドポイント**
 
-##### `generateInstagramPostWithImage`
+##### `generateInstagramLP`
 
 **入力スキーマ**
 ```typescript
 {
   userId: number;
+  strategyId?: number;
   campaignTitle: string;
   campaignDescription: string;
   targetAudience?: string;
-  tone?: string; // デフォルト: "上品で誠実"
-  relatedTreatmentIds?: number[];
-  snsResearchIds?: number[];
-  hashtagsPreference?: { maxCount: number };
-  callToActionType?: "予約" | "カウンセリング" | "LINE登録" | "なし";
-  imagePreset?: "instagram_square" | "lp_banner" | "custom";
-  imageTheme?: string;
-  customSize?: { width: number; height: number };
-  generateImage?: boolean; // デフォルト: true
+  promotion?: string;
+  designApproach?: "minimal" | "bold" | "elegant" | "trendy"; // デフォルト: "trendy"
+  count?: number; // デフォルト: 3, 最大: 5
 }
 ```
 
 **出力**
 ```typescript
 {
-  id: number;
-  content: {
-    text: string;
-    json: InstagramContentJson;
-    markdown: string;
-  };
-  image: ContentImage | null;
+  results: Array<{
+    id: number;
+    approach: string;
+    result: string;
+  }>;
   message: string;
 }
 ```
 
-##### `generateBlogArticleWithImage`
+##### `generateWebsiteArticle`
 
 **入力スキーマ**
 ```typescript
 {
   userId: number;
+  strategyId?: number;
   campaignTitle: string;
   campaignDescription: string;
   targetAudience?: string;
-  tone?: string;
-  relatedTreatmentIds?: number[];
-  snsResearchIds?: number[];
   seoKeywords?: string[];
-  desiredLength?: "short" | "medium" | "long"; // デフォルト: "medium"
-  imagePreset?: "instagram_square" | "lp_banner" | "custom";
-  imageTheme?: string;
-  customSize?: { width: number; height: number };
-  generateImage?: boolean;
 }
 ```
 
@@ -1654,37 +1643,23 @@ PriorityScore(0–100) = 0.40*Demand + 0.25*UnitEconomics + 0.20*Feasibility + 0
 ```typescript
 {
   id: number;
-  content: {
-    text: string;
-    json: BlogArticleJson;
-    markdown: string;
-  };
-  image: ContentImage | null;
+  result: string;
   message: string;
 }
 ```
 
-##### `generateLpWithImage`
+##### `generateCampaignCopy`
 
 **入力スキーマ**
 ```typescript
 {
   userId: number;
+  strategyId?: number;
   campaignTitle: string;
   campaignDescription: string;
   targetAudience?: string;
-  tone?: string;
-  relatedTreatmentIds?: number[];
-  snsResearchIds?: number[];
-  primaryGoal?: "新規予約" | "LINE登録" | "キャンペーン認知";
-  priceInfo?: {
-    normalPrice?: string;
-    campaignPrice?: string;
-  };
-  imagePreset?: "instagram_square" | "lp_banner" | "custom";
-  imageTheme?: string;
-  customSize?: { width: number; height: number };
-  generateImage?: boolean;
+  promotion?: string;
+  tone?: "professional" | "friendly" | "trendy"; // デフォルト: "friendly"
 }
 ```
 
@@ -1692,37 +1667,27 @@ PriorityScore(0–100) = 0.40*Demand + 0.25*UnitEconomics + 0.20*Feasibility + 0
 ```typescript
 {
   id: number;
-  content: {
-    text: string;
-    json: LpContentJson;
-    markdown: string;
-  };
-  image: ContentImage | null;
+  result: string;
   message: string;
 }
 ```
 
-##### `listContents`
+##### `list`
 
 **入力スキーマ**
 ```typescript
 {
   userId: number;
-  contentType?: "instagram" | "blog" | "lp" | "instagram_lp" | "website_article" | "campaign_copy";
-  limit?: number; // デフォルト: 20, 最大: 50
-  cursor?: number;
+  contentType?: "instagram_lp" | "website_article" | "campaign_copy";
 }
 ```
 
 **出力**
 ```typescript
-{
-  contents: GeneratedContent[];
-  nextCursor?: number;
-}
+GeneratedContent[]
 ```
 
-##### `getContentDetail`
+##### `getById`
 
 **入力スキーマ**
 ```typescript
@@ -1735,31 +1700,33 @@ PriorityScore(0–100) = 0.40*Demand + 0.25*UnitEconomics + 0.20*Feasibility + 0
 **出力**
 ```typescript
 GeneratedContent & {
-  images: ContentImage[];
-  rawJson: unknown;
-  relatedTreatmentIds: number[];
-  snsResearchIds: number[];
+  metadata: unknown;
 }
 ```
 
-##### `regenerateImageOnly`
+##### `updateStatus`
 
 **入力スキーマ**
 ```typescript
 {
-  contentId: number;
+  id: number;
   userId: number;
-  imagePreset?: "instagram_square" | "lp_banner" | "custom";
-  imageTheme?: string;
-  customSize?: { width: number; height: number };
+  status: "draft" | "approved" | "published";
 }
 ```
 
 **出力**
 ```typescript
+GeneratedContent
+```
+
+##### `getCurrentModel`
+
+**出力**
+```typescript
 {
-  image: ContentImage;
-  message: string;
+  aiAgent: "chatgpt";
+  model: string;
 }
 ```
 
