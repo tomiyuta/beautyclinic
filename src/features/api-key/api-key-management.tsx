@@ -1,20 +1,12 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState } from "react";
 import Button from "@atlaskit/button";
 import TextField from "@atlaskit/textfield";
 import Banner from "@atlaskit/banner";
 import Badge from "@atlaskit/badge";
 import Spinner from "@atlaskit/spinner";
-import Select from "@atlaskit/select";
 import { api } from "@/trpc/react";
-
-const USER_ID_PLACEHOLDER = 1;
-
-const PROVIDER_OPTIONS = [
-  { label: "Claude API (Anthropic)", value: "claude" },
-  { label: "ChatGPT API (OpenAI)", value: "chatgpt" },
-];
 
 export default function ApiKeyManagement() {
   const [formData, setFormData] = useState({
@@ -40,47 +32,6 @@ export default function ApiKeyManagement() {
     refetchOnWindowFocus: false,
   });
   const [isTestingConnection, setIsTestingConnection] = useState(false);
-
-  // ユーザー設定の取得
-  const { data: userSettings, refetch: refetchUserSettings } = api.strategy.getUserSettings.useQuery({
-    userId: USER_ID_PLACEHOLDER,
-  });
-
-  // 現在選択されているプロバイダーのオプションを計算
-  const selectedProviderOption = useMemo(() => {
-    const currentProvider = userSettings?.strategyAIProvider || "chatgpt";
-    const found = PROVIDER_OPTIONS.find(opt => opt.value === currentProvider);
-    console.log("[API Key Settings] Current provider:", currentProvider, "Found option:", found);
-    // nullではなく、デフォルト値を返す
-    return found || PROVIDER_OPTIONS[1]; // デフォルトはChatGPT
-  }, [userSettings?.strategyAIProvider]);
-
-  // AIプロバイダー設定の更新
-  const updateUserSettings = api.strategy.updateUserSettings.useMutation({
-    onSuccess: (data) => {
-      console.log("[API Key Settings] Update successful:", data);
-      setSuccessMessage(`戦略分析のAIプロバイダー設定を更新しました: ${data.strategyAIProvider === "chatgpt" ? "ChatGPT API" : "Claude API"}`);
-      setErrorMessage(null);
-      refetchUserSettings();
-      setTimeout(() => setSuccessMessage(null), 5000);
-    },
-    onError: (error: unknown) => {
-      console.error("[API Key Settings] Update error:", error);
-      let message = "エラーが発生しました";
-      
-      if (error && typeof error === "object" && "message" in error) {
-        message = String(error.message);
-      } else if (error instanceof Error) {
-        message = error.message;
-      } else if (typeof error === "string") {
-        message = error;
-      }
-      
-      setErrorMessage(`設定の更新に失敗しました: ${message}`);
-      setSuccessMessage(null);
-      setTimeout(() => setErrorMessage(null), 10000);
-    },
-  });
   const setApiKeys = api.apiKey.setApiKeys.useMutation({
     onSuccess: () => {
       setSuccessMessage("APIキーを設定しました。変更を反映するには、サーバーを再起動してください。");
@@ -554,93 +505,12 @@ export default function ApiKeyManagement() {
         </form>
       </section>
 
-      {/* 戦略分析AIプロバイダー設定 */}
-      <section style={{ marginBottom: "32px", padding: "32px", background: "#FFFFFF", borderRadius: "8px", border: "1px solid #DFE1E6" }}>
-        <h2 style={{ fontSize: "16px", fontWeight: 600, marginBottom: "16px", color: "#172B4D" }}>
-          戦略分析で使用するAIプロバイダー
-        </h2>
-        <p style={{ fontSize: "14px", color: "#6B778C", marginBottom: "24px" }}>
-          戦略分析（総合分析、価格設定提案、キャンペーン案生成、新施術提案）で使用するAIプロバイダーを選択できます。
-        </p>
-        <div style={{ display: "flex", alignItems: "center", gap: "16px", marginBottom: "16px" }}>
-          <div style={{ flex: 1 }}>
-            <label style={{ display: "block", fontSize: "14px", fontWeight: 500, marginBottom: "8px", color: "#42526E" }}>
-              AIプロバイダー
-            </label>
-            <Select
-              options={PROVIDER_OPTIONS}
-              value={selectedProviderOption}
-              onChange={(option: unknown) => {
-                console.log("[API Key Settings] Select onChange called:", option);
-                console.log("[API Key Settings] Option type:", typeof option);
-                console.log("[API Key Settings] Is array:", Array.isArray(option));
-                console.log("[API Key Settings] Option keys:", option && typeof option === "object" ? Object.keys(option) : "N/A");
-                
-                // @atlaskit/selectのonChangeの型を確認
-                // 単一選択の場合、optionは { label: string, value: string } または null
-                let selectedValue: "claude" | "chatgpt" | null = null;
-                
-                if (option === null || option === undefined) {
-                  console.log("[API Key Settings] Option is null/undefined, ignoring");
-                  return;
-                }
-                
-                // オブジェクトの場合
-                if (typeof option === "object" && option !== null) {
-                  // 配列の場合
-                  if (Array.isArray(option)) {
-                    if (option.length > 0) {
-                      const firstOption = option[0];
-                      if (firstOption && typeof firstOption === "object" && "value" in firstOption) {
-                        selectedValue = firstOption.value as "claude" | "chatgpt";
-                      }
-                    }
-                  } 
-                  // 単一オブジェクトの場合
-                  else if ("value" in option) {
-                    selectedValue = (option as { value: string }).value as "claude" | "chatgpt";
-                  }
-                }
-                
-                if (selectedValue && (selectedValue === "claude" || selectedValue === "chatgpt")) {
-                  console.log("[API Key Settings] Valid value selected, updating to:", selectedValue);
-                  updateUserSettings.mutate({
-                    userId: USER_ID_PLACEHOLDER,
-                    strategyAIProvider: selectedValue,
-                  });
-                } else {
-                  console.error("[API Key Settings] Invalid option format:", option);
-                  setErrorMessage(`無効な選択値です: ${JSON.stringify(option)}`);
-                  setTimeout(() => setErrorMessage(null), 5000);
-                }
-              }}
-              isDisabled={updateUserSettings.isPending}
-              placeholder="AIプロバイダーを選択"
-              isClearable={false}
-              isSearchable={false}
-              menuPlacement="auto"
-            />
-          </div>
-        </div>
-        <div style={{ padding: "12px", borderRadius: "8px", background: "#F4F5F7", fontSize: "12px", color: "#6B778C" }}>
-          <strong>現在の設定:</strong>{" "}
-          {(userSettings?.strategyAIProvider || "chatgpt") === "chatgpt"
-            ? "ChatGPT API (OpenAI) を使用します"
-            : "Claude API (Anthropic) を使用します"}
-          <br />
-          <span style={{ marginTop: "4px", display: "block" }}>
-            選択したプロバイダーのAPIキーが設定されていることを確認してください。
-          </span>
-        </div>
-      </section>
-
       {/* 注意事項 */}
       <Banner appearance="warning">
         <div>
           <strong>⚠️ 重要な注意事項</strong>
           <ul style={{ marginTop: "8px", paddingLeft: "20px" }}>
             <li>APIキーを設定した後は、サーバーを再起動してください</li>
-            <li>AIプロバイダーの変更は即座に反映されます（サーバー再起動不要）</li>
             <li>APIキーは安全に管理し、他人に共有しないでください</li>
             <li>.envファイルは.gitignoreに含まれており、バージョン管理されません</li>
             <li>本番環境では環境変数の直接編集は推奨されません</li>
