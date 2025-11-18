@@ -100,13 +100,30 @@ export function StrategyAnalysis() {
       },
     });
 
-  const strategiesQuery = api.strategy.list.useQuery({
-    userId: USER_ID_PLACEHOLDER,
-  }, {
-    retry: 3,
-    retryDelay: 1000,
-    staleTime: 30000,
-  });
+  const strategiesQuery = api.strategy.list.useQuery(
+    {
+      userId: USER_ID_PLACEHOLDER,
+    },
+    {
+      retry: (failureCount, error) => {
+        // JSONパースエラーや404エラーはリトライしない
+        if (error && typeof error === "object") {
+          const errorMessage = String(error.message || "").toLowerCase();
+          if (
+            errorMessage.includes("unexpected token") ||
+            errorMessage.includes("not valid json") ||
+            errorMessage.includes("<!doctype")
+          ) {
+            return false;
+          }
+        }
+        return failureCount < 2;
+      },
+      retryDelay: 1000,
+      staleTime: 30000,
+      enabled: true,
+    },
+  );
 
   // 商品一覧を取得
   const productsQuery = api.product.list.useQuery({ userId: USER_ID_PLACEHOLDER });
@@ -275,7 +292,9 @@ export function StrategyAnalysis() {
           )}
           {productsQuery.error && (
             <Banner appearance="error">
-              エラー: {productsQuery.error.message}
+              エラー: {productsQuery.error.message.includes("<!DOCTYPE") || productsQuery.error.message.includes("Unexpected token")
+                ? "サーバーに接続できません。サーバーが起動しているか確認してください。"
+                : productsQuery.error.message}
             </Banner>
           )}
           {productsQuery.data && productsQuery.data.length === 0 && (
@@ -502,7 +521,9 @@ export function StrategyAnalysis() {
         )}
         {strategiesQuery.error && (
           <Banner appearance="error">
-            エラー: {strategiesQuery.error.message}
+            エラー: {strategiesQuery.error.message.includes("<!DOCTYPE") || strategiesQuery.error.message.includes("Unexpected token")
+              ? "サーバーに接続できません。サーバーが起動しているか確認してください。"
+              : strategiesQuery.error.message}
           </Banner>
         )}
         {strategiesQuery.data && strategiesQuery.data.length === 0 && (
