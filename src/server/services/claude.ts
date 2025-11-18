@@ -9,65 +9,107 @@ if (!apiKey) {
 
 const anthropic = apiKey ? new Anthropic({ apiKey }) : null;
 
-// 利用可能なモデル名のリスト（優先順位順）
+// 利用可能なモデル名のリスト（優先順位順 - 最新版を最優先）
 // APIキーの権限によって利用可能なモデルが異なる場合があります
+// 2025年11月時点で利用可能な最新モデル
+
+// Opus 4.1用のモデル候補（総合分析・新規導入提案用）
+const OPUS_4_1_CANDIDATES = [
+  "claude-opus-4-1",              // Claude Opus 4.1（最新版・2025年8月リリース・最高性能・確認済み）
+  "claude-3-opus-20240229",      // Claude 3 Opus（高性能版・非推奨・2026年1月5日終了予定・確認済み）
+  "claude-sonnet-4-5-20250929",  // Claude Sonnet 4.5（フォールバック）
+  "claude-3-5-sonnet-20241022",  // Claude 3.5 Sonnet（フォールバック）
+];
+
+// Sonnet 4.5用のモデル候補（価格設定提案・キャンペーン案用）
+const SONNET_4_5_CANDIDATES = [
+  "claude-sonnet-4-5-20250929",  // Claude Sonnet 4.5（2025年9月リリース・高性能・確認済み）
+  "claude-3-5-sonnet-20241022",  // Claude 3.5 Sonnet（2024年10月リリース・高性能）
+  "claude-3-5-sonnet",            // Claude 3.5 Sonnet（日付なし・互換性重視）
+  "claude-3-5-sonnet-20240620",  // Claude 3.5 Sonnet（2024年6月リリース）
+  "claude-3-sonnet-20240229",    // Claude 3 Sonnet（標準版）
+];
+
+// デフォルトのモデル候補（後方互換性のため）
 const DEFAULT_MODEL_CANDIDATES = [
-  "claude-3-5-sonnet",           // 日付なし（最も互換性が高い）
-  "claude-3-5-sonnet-20241022",  // 2024年10月リリース
-  "claude-3-5-sonnet-20240620",  // 2024年6月リリース
-  "claude-3-opus-20240229",      // Opusモデル
-  "claude-3-sonnet-20240229",    // Sonnetモデル
-  "claude-3-haiku-20240307",     // Haikuモデル（高速・低コスト）
+  "claude-opus-4-1",              // Claude Opus 4.1（最新版・2025年8月リリース・最高性能・確認済み）
+  "claude-sonnet-4-5-20250929",  // Claude Sonnet 4.5（2025年9月リリース・高性能・確認済み）
+  "claude-3-5-sonnet-20241022",  // Claude 3.5 Sonnet（2024年10月リリース・高性能）
+  "claude-3-5-haiku-20241022",   // Claude 3.5 Haiku（2024年10月リリース・高速・低コスト・確認済み）
+  "claude-3-5-sonnet",            // Claude 3.5 Sonnet（日付なし・互換性重視）
+  "claude-3-5-haiku",             // Claude 3.5 Haiku（日付なし・互換性重視）
+  "claude-3-5-sonnet-20240620",  // Claude 3.5 Sonnet（2024年6月リリース）
+  "claude-3-opus-20240229",      // Claude 3 Opus（高性能版・非推奨・2026年1月5日終了予定・確認済み）
+  "claude-3-sonnet-20240229",    // Claude 3 Sonnet（標準版）
+  "claude-3-haiku-20240307",     // Claude 3 Haiku（旧版・高速・低コスト）
 ];
 
 // 成功したモデル名をキャッシュ（サーバー起動中は保持）
-let cachedModelName: string | null = null;
+// 用途別にキャッシュを分ける
+const cachedModelNames: Record<string, string | null> = {
+  opus: null,
+  sonnet: null,
+  default: null,
+};
 
 /**
- * 利用可能なClaudeモデルを自動的に選択します
- * 1. 環境変数 CLAUDE_MODEL が設定されている場合はそれを使用
- * 2. キャッシュされたモデルがある場合はそれを使用
- * 3. それ以外の場合は候補リストから順に試行して最初に成功したものを使用
+ * Claude APIを呼び出します
+ * @param prompt - プロンプトテキスト
+ * @param preferredModelCandidates - 使用するモデル候補リスト（オプション）
+ * @param cacheKey - キャッシュキー（"opus", "sonnet", "default"など）
  */
-async function selectClaudeModel(): Promise<string> {
-  // 環境変数で指定されている場合はそれを使用
-  const envModel = process.env.CLAUDE_MODEL;
-  if (envModel) {
-    console.log(`Using Claude model from environment: ${envModel}`);
-    return envModel;
-  }
-
-  // キャッシュされたモデルがある場合はそれを使用
-  if (cachedModelName) {
-    return cachedModelName;
-  }
-
-  // デフォルトは最初の候補を使用（実際のエラーはAPI呼び出し時に検出）
-  return DEFAULT_MODEL_CANDIDATES[0]!;
-}
-
-export async function callClaude(prompt: string): Promise<string> {
+export async function callClaude(
+  prompt: string,
+  preferredModelCandidates?: string[],
+  cacheKey: string = "default",
+): Promise<string> {
   if (!anthropic) {
     throw new Error(
       "Claude API key is not configured. Please set CLAUDE_API_KEY environment variable.",
     );
   }
 
+  // 使用するモデル候補リストを決定
+  const modelCandidates = preferredModelCandidates || DEFAULT_MODEL_CANDIDATES;
+
+  // 環境変数で指定されている場合はそれのみを試行
+  const envModel = process.env.CLAUDE_MODEL;
+  if (envModel) {
+    console.log(`Using Claude model from environment: ${envModel}`);
+    // 環境変数で指定されている場合は、そのモデルのみを試行
+    const candidates = [envModel];
+    return tryModels(candidates, prompt, cacheKey);
+  }
+
+  // キャッシュされたモデルがある場合はそれのみを試行
+  const cachedModel = cachedModelNames[cacheKey];
+  if (cachedModel && modelCandidates.includes(cachedModel)) {
+    console.log(`Using cached Claude model for ${cacheKey}: ${cachedModel}`);
+    return tryModels([cachedModel], prompt, cacheKey);
+  }
+
   // 全ての候補モデルを順に試行
+  return tryModels(modelCandidates, prompt, cacheKey);
+}
+
+/**
+ * モデル候補リストを順に試行します
+ */
+async function tryModels(
+  modelCandidates: string[],
+  prompt: string,
+  cacheKey: string,
+): Promise<string> {
+  if (!anthropic) {
+    throw new Error(
+      "Claude API key is not configured. Please set CLAUDE_API_KEY environment variable.",
+    );
+  }
+
   let lastError: Error | null = null;
   const triedModels: string[] = [];
 
-  for (const modelName of DEFAULT_MODEL_CANDIDATES) {
-    // 環境変数で指定されている場合はそれのみを試行
-    if (process.env.CLAUDE_MODEL && modelName !== process.env.CLAUDE_MODEL) {
-      continue;
-    }
-
-    // キャッシュされたモデルがある場合はそれのみを試行
-    if (cachedModelName && modelName !== cachedModelName) {
-      continue;
-    }
-
+  for (const modelName of modelCandidates) {
     triedModels.push(modelName);
 
     try {
@@ -83,31 +125,18 @@ export async function callClaude(prompt: string): Promise<string> {
       });
 
       // 成功したモデルをキャッシュ
-      if (!cachedModelName) {
-        cachedModelName = modelName;
-        console.log(`Claude model cached: ${modelName}`);
+      if (!cachedModelNames[cacheKey]) {
+        cachedModelNames[cacheKey] = modelName;
+        console.log(`Claude model cached for ${cacheKey}: ${modelName}`);
       }
 
-      // レスポンスの検証
-      if (!message.content || message.content.length === 0) {
-        console.error(`[Claude API] Empty content array from model ${modelName}`);
-        throw new Error(`Claude API returned empty content array from model ${modelName}`);
-      }
-
-      const firstContent = message.content[0];
-      if (!firstContent || firstContent.type !== "text") {
-        console.error(`[Claude API] Invalid content type from model ${modelName}:`, firstContent?.type);
-        throw new Error(`Claude API returned invalid content type from model ${modelName}: ${firstContent?.type || "undefined"}`);
-      }
-
-      const responseText = firstContent.text || "";
+      const content = message.content[0]?.type === "text"
+        ? message.content[0].text
+        : "";
       
-      if (!responseText || typeof responseText !== "string" || responseText.trim().length === 0) {
-        console.warn(`[Claude API] Empty response text from model ${modelName}`);
-        throw new Error(`Claude API returned empty response text from model ${modelName}`);
-      }
-      
-      return responseText;
+      // 出力の冒頭に使用モデル情報を追加
+      const modelInfo = `【使用AIモデル: Claude ${modelName}】\n\n`;
+      return modelInfo + content;
     } catch (error) {
       console.error(`Claude API error with model ${modelName}:`, error);
 
@@ -218,7 +247,8 @@ export async function analyzeMarketPosition(
     location,
   });
 
-  return callClaude(prompt);
+  // 総合分析はOpus 4.1を使用
+  return callClaude(prompt, OPUS_4_1_CANDIDATES, "opus");
 }
 
 export async function generatePriceRecommendations(
@@ -258,7 +288,8 @@ export async function generatePriceRecommendations(
     marketPricing: JSON.stringify(marketPricing, null, 2),
   });
 
-  return callClaude(prompt);
+  // 価格設定提案はSonnet 4.5を使用
+  return callClaude(prompt, SONNET_4_5_CANDIDATES, "sonnet");
 }
 
 export async function generateCampaignProposals(
@@ -289,23 +320,14 @@ export async function generateCampaignProposals(
 
 最後に、キャンペーン戦略の総括と推奨実施時期を記載してください。`;
 
-  console.log(`[generateCampaignProposals] trends: ${trends.length}件, snsData: ${snsData.length}件`);
-  
   const template = await getPrompt("claude_generate_campaign_proposals", defaultPrompt);
   const prompt = replacePlaceholders(template, {
     trends: JSON.stringify(trends, null, 2),
     snsData: JSON.stringify(snsData, null, 2),
   });
 
-  console.log(`[generateCampaignProposals] Prompt length: ${prompt.length} characters`);
-  console.log(`[generateCampaignProposals] Prompt preview (first 500 chars): ${prompt.substring(0, 500)}`);
-
-  const result = await callClaude(prompt);
-  
-  console.log(`[generateCampaignProposals] Result length: ${result.length} characters`);
-  console.log(`[generateCampaignProposals] Result preview (first 500 chars): ${result.substring(0, 500)}`);
-
-  return result;
+  // キャンペーン案はSonnet 4.5を使用
+  return callClaude(prompt, SONNET_4_5_CANDIDATES, "sonnet");
 }
 
 export async function suggestNewTreatments(
@@ -347,8 +369,6 @@ export async function suggestNewTreatments(
 
 最後に、新施術導入戦略の総括と推奨導入タイムラインを記載してください。`;
 
-  console.log(`[suggestNewTreatments] currentTreatments: ${currentTreatments.length}件, marketTrends: ${marketTrends.length}件, snsTrends: ${snsTrends.length}件`);
-  
   const template = await getPrompt("claude_suggest_new_treatments", defaultPrompt);
   const prompt = replacePlaceholders(template, {
     currentTreatments: JSON.stringify(currentTreatments, null, 2),
@@ -356,14 +376,32 @@ export async function suggestNewTreatments(
     snsTrends: JSON.stringify(snsTrends, null, 2),
   });
 
-  console.log(`[suggestNewTreatments] Prompt length: ${prompt.length} characters`);
-  console.log(`[suggestNewTreatments] Prompt preview (first 500 chars): ${prompt.substring(0, 500)}`);
+  // 新規導入提案はOpus 4.1を使用
+  return callClaude(prompt, OPUS_4_1_CANDIDATES, "opus");
+}
 
-  const result = await callClaude(prompt);
+/**
+ * 現在使用中のClaudeモデル名を取得（用途別）
+ * @param cacheKey - キャッシュキー（"opus", "sonnet", "default"）
+ */
+export function getCurrentClaudeModel(cacheKey: string = "default"): string | null {
+  const envModel = process.env.CLAUDE_MODEL;
+  if (envModel) {
+    return envModel;
+  }
   
-  console.log(`[suggestNewTreatments] Result length: ${result.length} characters`);
-  console.log(`[suggestNewTreatments] Result preview (first 500 chars): ${result.substring(0, 500)}`);
-
-  return result;
+  const cachedModel = cachedModelNames[cacheKey];
+  if (cachedModel) {
+    return cachedModel;
+  }
+  
+  // デフォルトの候補リストから最初のものを返す
+  if (cacheKey === "opus") {
+    return OPUS_4_1_CANDIDATES[0] || null;
+  } else if (cacheKey === "sonnet") {
+    return SONNET_4_5_CANDIDATES[0] || null;
+  }
+  
+  return DEFAULT_MODEL_CANDIDATES[0] || null;
 }
 

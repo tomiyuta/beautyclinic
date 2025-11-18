@@ -6,6 +6,7 @@ import {
   researchCompetitorAnalysis,
   researchPriceComparison,
   researchTrendAnalysis,
+  getCurrentGeminiModel,
 } from "@/server/services/gemini";
 
 import { publicProcedure, router } from "../trpc";
@@ -22,12 +23,11 @@ export const marketResearchRouter = router({
       z.object({
         userId: z.number().int().positive(),
         location: z.string().min(1, "場所を入力してください"),
-        period: z.string().optional().default("last 90 days"),
       }),
     )
     .mutation(async ({ input }) => {
       try {
-        const result = await researchTrendAnalysis(input.location, input.period);
+        const result = await researchTrendAnalysis(input.location);
 
         // データベースに保存（テキスト形式で保存）
         const saved = await db.marketResearchResult.create({
@@ -68,7 +68,6 @@ export const marketResearchRouter = router({
         cities: z
           .array(z.string().min(1, "都市名を入力してください"))
           .min(1, "少なくとも1つの都市を指定してください"),
-        period: z.string().optional().default("last 90 days"),
       }),
     )
     .mutation(async ({ input }) => {
@@ -76,7 +75,6 @@ export const marketResearchRouter = router({
         const result = await researchPriceComparison(
           input.treatments,
           input.cities,
-          input.period,
         );
 
         // データベースに保存（テキスト形式で保存）
@@ -198,5 +196,12 @@ export const marketResearchRouter = router({
         processedData: result.processedData,
       };
     }),
+
+  getCurrentModel: publicProcedure.query(async () => {
+    return {
+      aiAgent: "gemini" as const,
+      model: getCurrentGeminiModel() || "gemini-2.5-pro",
+    };
+  }),
 });
 

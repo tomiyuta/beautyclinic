@@ -3,52 +3,14 @@ import { db } from "@/server/db";
 import { z } from "zod";
 
 import {
-  analyzeMarketPosition as claudeAnalyzeMarketPosition,
-  generateCampaignProposals as claudeGenerateCampaignProposals,
-  generatePriceRecommendations as claudeGeneratePriceRecommendations,
-  suggestNewTreatments as claudeSuggestNewTreatments,
+  analyzeMarketPosition,
+  generateCampaignProposals,
+  generatePriceRecommendations,
+  suggestNewTreatments,
+  getCurrentClaudeModel,
 } from "@/server/services/claude";
 
-import {
-  analyzeMarketPosition as chatgptAnalyzeMarketPosition,
-  generateCampaignProposals as chatgptGenerateCampaignProposals,
-  generatePriceRecommendations as chatgptGeneratePriceRecommendations,
-  suggestNewTreatments as chatgptSuggestNewTreatments,
-} from "@/server/services/chatgpt";
-
 import { publicProcedure, router } from "../trpc";
-import {
-  aggregateMarketResearchData,
-  aggregateSNSResearchData,
-} from "@/server/utils/parse-ai-results";
-
-/**
- * ユーザー設定に基づいて使用するAIプロバイダーを決定
- * ユーザー設定がない場合は環境変数STRATEGY_AI_PROVIDERを確認
- * どちらもない場合はChatGPT APIを使用（デフォルト）
- */
-async function getStrategyAIProvider(userId: number): Promise<"claude" | "chatgpt"> {
-  try {
-    // ユーザー設定を取得
-    const userSettings = await db.userSettings.findUnique({
-      where: { userId },
-    });
-
-    if (userSettings && userSettings.strategyAIProvider) {
-      const provider = userSettings.strategyAIProvider.toLowerCase();
-      if (provider === "chatgpt" || provider === "claude") {
-        return provider as "claude" | "chatgpt";
-      }
-    }
-  } catch (error) {
-    console.error("Failed to get user settings:", error);
-  }
-
-  // ユーザー設定がない場合は環境変数を確認
-  const provider = process.env.STRATEGY_AI_PROVIDER?.toLowerCase();
-  // デフォルトはChatGPT API
-  return provider === "claude" ? "claude" : "chatgpt";
-}
 
 export const strategyRouter = router({
   analyzeMarketPosition: publicProcedure
@@ -86,7 +48,7 @@ export const strategyRouter = router({
           });
         }
 
-        // 市場調査データを取得（構造化データとして）
+        // 市場調査データを取得
         const marketData: {
           trends: Record<string, unknown> | null;
           pricing: Record<string, unknown> | null;
@@ -99,65 +61,21 @@ export const strategyRouter = router({
             take: 10,
           });
 
-          // 構造化データに変換
-          const aggregated = aggregateMarketResearchData(
-            marketResults.map((r) => ({
-              researchType: r.researchType,
-              processedData: r.processedData,
-              aiAgent: r.aiAgent,
-              createdAt: r.createdAt,
-            })),
-          );
-
-          // 構造化データを優先的に使用（なければrawTextを使用）
-          marketData.trends = aggregated.trends
-            ? {
-                consensusJSON: aggregated.trends.consensusJSON,
-                reportMarkdown: aggregated.trends.reportMarkdown,
-                rawText: aggregated.trends.rawText,
-                aiAgent: aggregated.trends.aiAgent,
-                createdAt: aggregated.trends.createdAt.toISOString(),
-                // 構造化データから主要情報を抽出
-                treatments: aggregated.trends.consensusJSON?.treatments || null,
-                customerNeeds: aggregated.trends.consensusJSON?.customerNeeds || null,
-                sources: aggregated.trends.consensusJSON?.sources || null,
+          marketResults.forEach((result) => {
+            if (result.processedData) {
+              // テキスト形式として扱う
+              if (result.researchType === "trend_analysis") {
+                marketData.trends = { text: result.processedData } as Record<string, unknown>;
+              } else if (result.researchType === "price_research") {
+                marketData.pricing = { text: result.processedData } as Record<string, unknown>;
+              } else if (result.researchType === "competitor_analysis") {
+                marketData.competitors = { text: result.processedData } as Record<string, unknown>;
               }
-            : null;
-
-          marketData.pricing = aggregated.pricing
-            ? {
-                consensusJSON: aggregated.pricing.consensusJSON,
-                reportMarkdown: aggregated.pricing.reportMarkdown,
-                rawText: aggregated.pricing.rawText,
-                aiAgent: aggregated.pricing.aiAgent,
-                createdAt: aggregated.pricing.createdAt.toISOString(),
-                // 構造化データから主要情報を抽出
-                priceTable: aggregated.pricing.consensusJSON?.price_table || null,
-                areaSummary: aggregated.pricing.consensusJSON?.area_summary || null,
-                sources: aggregated.pricing.consensusJSON?.sources || null,
-              }
-            : null;
-
-          marketData.competitors = aggregated.competitors
-            ? {
-                consensusJSON: aggregated.competitors.consensusJSON,
-                reportMarkdown: aggregated.competitors.reportMarkdown,
-                rawText: aggregated.competitors.rawText,
-                aiAgent: aggregated.competitors.aiAgent,
-                createdAt: aggregated.competitors.createdAt.toISOString(),
-                // 構造化データから主要情報を抽出
-                competitors: aggregated.competitors.consensusJSON?.competitors || null,
-                areaSummary: aggregated.competitors.consensusJSON?.area_summary || null,
-                sources: aggregated.competitors.consensusJSON?.sources || null,
-              }
-            : null;
-
-          console.log(
-            `[Strategy] Market data aggregated: trends=${!!marketData.trends}, pricing=${!!marketData.pricing}, competitors=${!!marketData.competitors}`,
-          );
+            }
+          });
         }
 
-        // SNS調査データを取得（構造化データとして）
+        // SNS調査データを取得
         let snsData: Array<Record<string, unknown>> = [];
         if (input.includeSNSData) {
           const snsResults = await db.sNSResearchResult.findMany({
@@ -166,74 +84,38 @@ export const strategyRouter = router({
             take: 10,
           });
 
-          // 構造化データに変換
-          const aggregated = aggregateSNSResearchData(
-            snsResults.map((r) => ({
-              platform: r.platform,
-              trendData: r.trendData,
-              aiAgent: r.aiAgent,
-              createdAt: r.createdAt,
-            })),
-          );
-
-          snsData = aggregated.map((data) => ({
-            platform: data.platform,
-            consensusJSON: data.consensusJSON,
-            reportMarkdown: data.reportMarkdown,
-            rawText: data.rawText,
-            aiAgent: data.aiAgent,
-            createdAt: data.createdAt.toISOString(),
-            // 構造化データから主要情報を抽出
-            hashtags: data.consensusJSON?.hashtags || null,
-            influencers: data.consensusJSON?.influencers || null,
-            topPosts: data.consensusJSON?.top_posts || data.consensusJSON?.top_videos || null,
-            engagementTrends: data.consensusJSON?.engagement_trends || null,
-            audienceSignals: data.consensusJSON?.audience_signals || null,
-            sources: data.consensusJSON?.sources || null,
-          }));
-
-          console.log(`[Strategy] SNS data aggregated: ${snsData.length} platforms`);
+          snsData = snsResults
+            .map((result: { platform: string; trendData: string | null }) => {
+              if (!result.trendData) {
+                return null;
+              }
+              // テキスト形式として扱う
+              return {
+                platform: result.platform,
+                text: result.trendData,
+              } as Record<string, unknown>;
+            })
+            .filter((data): data is Record<string, unknown> => data !== null) as Array<Record<string, unknown>>;
         }
 
-        // AI APIで総合分析を実行（ユーザー設定に基づいてClaude/ChatGPTを選択）
-        const aiProvider = await getStrategyAIProvider(input.userId);
-        console.log(`[Strategy] Using AI provider: ${aiProvider} (userId: ${input.userId})`);
-
-        const result = aiProvider === "chatgpt"
-          ? await chatgptAnalyzeMarketPosition(
-              products.map((p) => ({
-                name: p.name,
-                costPrice: p.costPrice,
-                sellingPrice: p.sellingPrice,
-                category: p.category,
-              })),
-              marketData,
-              snsData as Array<{
-                platform: string;
-                hashtags?: unknown[];
-                influencers?: unknown[];
-                popularContent?: unknown[];
-                engagement?: Record<string, unknown>;
-              }>,
-              input.location,
-            )
-          : await claudeAnalyzeMarketPosition(
-              products.map((p) => ({
-                name: p.name,
-                costPrice: p.costPrice,
-                sellingPrice: p.sellingPrice,
-                category: p.category,
-              })),
-              marketData,
-              snsData as Array<{
-                platform: string;
-                hashtags?: unknown[];
-                influencers?: unknown[];
-                popularContent?: unknown[];
-                engagement?: Record<string, unknown>;
-              }>,
-              input.location,
-            );
+        // Claude APIで総合分析を実行
+        const result = await analyzeMarketPosition(
+          products.map((p) => ({
+            name: p.name,
+            costPrice: p.costPrice,
+            sellingPrice: p.sellingPrice,
+            category: p.category,
+          })),
+          marketData,
+          snsData as Array<{
+            platform: string;
+            hashtags?: unknown[];
+            influencers?: unknown[];
+            popularContent?: unknown[];
+            engagement?: Record<string, unknown>;
+          }>,
+          input.location,
+        );
 
         // データベースに保存（テキスト形式で保存）
         const saved = await db.strategyRecommendation.create({
@@ -284,7 +166,7 @@ export const strategyRouter = router({
           });
         }
 
-        // 価格調査データを取得（構造化データとして）
+        // 価格調査データを取得
         const priceResults = await db.marketResearchResult.findMany({
           where: {
             userId: input.userId,
@@ -294,73 +176,32 @@ export const strategyRouter = router({
           take: 5,
         });
 
-        // 最新の価格調査結果を構造化データに変換
-        const latestPriceResult = priceResults[0];
-        let marketPricing: Record<string, unknown> = {};
-        
-        if (latestPriceResult?.processedData) {
-          const parsed = aggregateMarketResearchData([
-            {
-              researchType: "price_research",
-              processedData: latestPriceResult.processedData,
-              aiAgent: latestPriceResult.aiAgent,
-              createdAt: latestPriceResult.createdAt,
-            },
-          ]);
+        const marketPricingArray = priceResults
+          .map((result) => {
+            if (result.processedData) {
+              // テキスト形式として扱う
+              return { text: result.processedData } as Record<string, unknown>;
+            }
+            return null;
+          })
+          .filter((data): data is Record<string, unknown> => data !== null);
 
-          if (parsed.pricing) {
-            marketPricing = {
-              consensusJSON: parsed.pricing.consensusJSON,
-              reportMarkdown: parsed.pricing.reportMarkdown,
-              rawText: parsed.pricing.rawText,
-              aiAgent: parsed.pricing.aiAgent,
-              createdAt: parsed.pricing.createdAt.toISOString(),
-              priceTable: parsed.pricing.consensusJSON?.price_table || null,
-              areaSummary: parsed.pricing.consensusJSON?.area_summary || null,
-              sources: parsed.pricing.consensusJSON?.sources || null,
-            };
-          }
-        }
+        const marketPricing: Record<string, unknown> =
+          marketPricingArray.length > 0
+            ? { data: marketPricingArray }
+            : {};
 
-        console.log(`[Price Recommendations] Market pricing data: ${Object.keys(marketPricing).length > 0 ? "構造化データあり" : "データなし"}`);
-
-        // AI APIで価格推奨を生成（ユーザー設定に基づいてClaude/ChatGPTを選択）
-        const aiProvider = await getStrategyAIProvider(input.userId);
-        console.log(`[Strategy] Using AI provider: ${aiProvider} (userId: ${input.userId})`);
-
-        const result = aiProvider === "chatgpt"
-          ? await chatgptGeneratePriceRecommendations(
-              products.map((p) => ({
-                name: p.name,
-                costPrice: p.costPrice,
-                sellingPrice: p.sellingPrice,
-                category: p.category,
-              })),
-              marketPricing,
-            )
-          : await claudeGeneratePriceRecommendations(
-              products.map((p) => ({
-                name: p.name,
-                costPrice: p.costPrice,
-                sellingPrice: p.sellingPrice,
-                category: p.category,
-              })),
-              marketPricing,
-            );
-
-        // データベースに保存
-        const saved = await db.strategyRecommendation.create({
-          data: {
-            userId: input.userId,
-            marketingStrategy: null,
-            priceRecommendations: result, // 価格推奨を保存
-            campaignProposals: null,
-            newTreatmentSuggestions: null,
-          },
-        });
+        const result = await generatePriceRecommendations(
+          products.map((p) => ({
+            name: p.name,
+            costPrice: p.costPrice,
+            sellingPrice: p.sellingPrice,
+            category: p.category,
+          })),
+          marketPricing,
+        );
 
         return {
-          id: saved.id,
           result: result, // テキスト形式の結果をそのまま返す
           message: "価格設定提案が完了しました",
         };
@@ -386,7 +227,7 @@ export const strategyRouter = router({
     )
     .mutation(async ({ input }) => {
       try {
-        // 市場トレンドデータを取得（構造化データとして）
+        // 市場トレンドデータを取得
         const trendResults = await db.marketResearchResult.findMany({
           where: {
             userId: input.userId,
@@ -398,114 +239,34 @@ export const strategyRouter = router({
 
         const trends = trendResults
           .map((result) => {
-            if (!result.processedData) {
-              return null;
+            if (result.processedData) {
+              // テキスト形式として扱う
+              return { text: result.processedData };
             }
-            const parsed = aggregateMarketResearchData([
-              {
-                researchType: "trend_analysis",
-                processedData: result.processedData,
-                aiAgent: result.aiAgent,
-                createdAt: result.createdAt,
-              },
-            ]);
-            
-            return parsed.trends
-              ? {
-                  consensusJSON: parsed.trends.consensusJSON,
-                  reportMarkdown: parsed.trends.reportMarkdown,
-                  rawText: parsed.trends.rawText,
-                  aiAgent: parsed.trends.aiAgent,
-                  createdAt: parsed.trends.createdAt.toISOString(),
-                  treatments: parsed.trends.consensusJSON?.treatments || null,
-                  customerNeeds: parsed.trends.consensusJSON?.customerNeeds || null,
-                  sources: parsed.trends.consensusJSON?.sources || null,
-                } as Record<string, unknown>
-              : null;
+            return null;
           })
-          .filter((data): data is Record<string, unknown> => data !== null);
+          .filter((data) => data !== null);
 
-        // SNSデータを取得（構造化データとして）
+        // SNSデータを取得
         const snsResults = await db.sNSResearchResult.findMany({
           where: { userId: input.userId },
           orderBy: { createdAt: "desc" },
           take: 10,
         });
 
-        const aggregatedSNS = aggregateSNSResearchData(
-          snsResults.map((r) => ({
-            platform: r.platform,
-            trendData: r.trendData,
-            aiAgent: r.aiAgent,
-            createdAt: r.createdAt,
-          })),
-        );
+        const snsData = snsResults
+          .map((result) => {
+            if (!result.trendData) {
+              return null;
+            }
+            // テキスト形式として扱う
+            return { text: result.trendData };
+          })
+          .filter((data) => data !== null);
 
-        const snsData = aggregatedSNS.map((data) => ({
-          platform: data.platform,
-          consensusJSON: data.consensusJSON,
-          reportMarkdown: data.reportMarkdown,
-          rawText: data.rawText,
-          aiAgent: data.aiAgent,
-          createdAt: data.createdAt.toISOString(),
-          hashtags: data.consensusJSON?.hashtags || null,
-          influencers: data.consensusJSON?.influencers || null,
-          topPosts: data.consensusJSON?.top_posts || data.consensusJSON?.top_videos || null,
-          engagementTrends: data.consensusJSON?.engagement_trends || null,
-          audienceSignals: data.consensusJSON?.audience_signals || null,
-          sources: data.consensusJSON?.sources || null,
-        }));
-
-        // データが空の場合のチェック
-        if (trends.length === 0 && snsData.length === 0) {
-          throw new TRPCError({
-            code: "BAD_REQUEST",
-            message: "市場トレンドデータまたはSNSデータが必要です。まず市場調査またはSNS調査を実行してください。",
-          });
-        }
-
-        console.log(`[Campaign Proposals] trends: ${trends.length}件, snsData: ${snsData.length}件`);
-
-        // AI APIでキャンペーン案を生成（ユーザー設定に基づいてClaude/ChatGPTを選択）
-        const aiProvider = await getStrategyAIProvider(input.userId);
-        console.log(`[Strategy] Using AI provider: ${aiProvider} (userId: ${input.userId})`);
-
-        let result: string;
-        try {
-          result = aiProvider === "chatgpt"
-            ? await chatgptGenerateCampaignProposals(trends, snsData)
-            : await claudeGenerateCampaignProposals(trends, snsData);
-        } catch (error) {
-          console.error("[Campaign Proposals] Generation error:", error);
-          throw new TRPCError({
-            code: "INTERNAL_SERVER_ERROR",
-            message: error instanceof Error 
-              ? `キャンペーン案の生成に失敗しました: ${error.message}`
-              : "キャンペーン案の生成に失敗しました",
-          });
-        }
-
-        if (!result || typeof result !== "string" || result.trim().length === 0) {
-          console.error("[Campaign Proposals] Empty result received");
-          throw new TRPCError({
-            code: "INTERNAL_SERVER_ERROR",
-            message: "キャンペーン案の生成に失敗しました。結果が空です。",
-          });
-        }
-
-        // データベースに保存
-        const saved = await db.strategyRecommendation.create({
-          data: {
-            userId: input.userId,
-            marketingStrategy: null,
-            priceRecommendations: null,
-            campaignProposals: result, // キャンペーン案を保存
-            newTreatmentSuggestions: null,
-          },
-        });
+        const result = await generateCampaignProposals(trends, snsData);
 
         return {
-          id: saved.id,
           result: result, // テキスト形式の結果をそのまま返す
           message: "キャンペーン案が生成されました",
         };
@@ -533,7 +294,7 @@ export const strategyRouter = router({
           where: { userId: input.userId },
         });
 
-        // 市場トレンドを取得（構造化データとして）
+        // 市場トレンドを取得
         const trendResults = await db.marketResearchResult.findMany({
           where: {
             userId: input.userId,
@@ -545,135 +306,51 @@ export const strategyRouter = router({
 
         const marketTrends = trendResults
           .map((result) => {
-            if (!result.processedData) {
-              return null;
+            if (result.processedData) {
+              try {
+                // 既存データがJSON形式の場合とテキスト形式の場合の両方に対応
+                return JSON.parse(result.processedData);
+              } catch {
+                // JSONでない場合はテキスト形式として扱う
+                return { text: result.processedData };
+              }
             }
-            const parsed = aggregateMarketResearchData([
-              {
-                researchType: "trend_analysis",
-                processedData: result.processedData,
-                aiAgent: result.aiAgent,
-                createdAt: result.createdAt,
-              },
-            ]);
-            
-            return parsed.trends
-              ? {
-                  consensusJSON: parsed.trends.consensusJSON,
-                  reportMarkdown: parsed.trends.reportMarkdown,
-                  rawText: parsed.trends.rawText,
-                  aiAgent: parsed.trends.aiAgent,
-                  createdAt: parsed.trends.createdAt.toISOString(),
-                  treatments: parsed.trends.consensusJSON?.treatments || null,
-                  customerNeeds: parsed.trends.consensusJSON?.customerNeeds || null,
-                  sources: parsed.trends.consensusJSON?.sources || null,
-                } as Record<string, unknown>
-              : null;
+            return null;
           })
-          .filter((data): data is Record<string, unknown> => data !== null);
+          .filter((data) => data !== null);
 
-        // SNSトレンドを取得（構造化データとして）
+        // SNSトレンドを取得
         const snsResults = await db.sNSResearchResult.findMany({
           where: { userId: input.userId },
           orderBy: { createdAt: "desc" },
           take: 10,
         });
 
-        const aggregatedSNS = aggregateSNSResearchData(
-          snsResults.map((r) => ({
-            platform: r.platform,
-            trendData: r.trendData,
-            aiAgent: r.aiAgent,
-            createdAt: r.createdAt,
+        const snsTrends = snsResults
+          .map((result) => {
+            if (!result.trendData) {
+              return null;
+            }
+            try {
+              // 既存データがJSON形式の場合とテキスト形式の場合の両方に対応
+              return JSON.parse(result.trendData);
+            } catch {
+              // JSONでない場合はテキスト形式として扱う
+              return { text: result.trendData };
+            }
+          })
+          .filter((data) => data !== null);
+
+        const result = await suggestNewTreatments(
+          products.map((p) => ({
+            name: p.name,
+            category: p.category,
           })),
+          marketTrends,
+          snsTrends,
         );
 
-        const snsTrends = aggregatedSNS.map((data) => ({
-          platform: data.platform,
-          consensusJSON: data.consensusJSON,
-          reportMarkdown: data.reportMarkdown,
-          rawText: data.rawText,
-          aiAgent: data.aiAgent,
-          createdAt: data.createdAt.toISOString(),
-          hashtags: data.consensusJSON?.hashtags || null,
-          influencers: data.consensusJSON?.influencers || null,
-          topPosts: data.consensusJSON?.top_posts || data.consensusJSON?.top_videos || null,
-          engagementTrends: data.consensusJSON?.engagement_trends || null,
-          audienceSignals: data.consensusJSON?.audience_signals || null,
-          sources: data.consensusJSON?.sources || null,
-        }));
-
-        // データが空の場合のチェック
-        if (products.length === 0) {
-          throw new TRPCError({
-            code: "BAD_REQUEST",
-            message: "商品データが必要です。まず商品を登録してください。",
-          });
-        }
-
-        if (marketTrends.length === 0 && snsTrends.length === 0) {
-          throw new TRPCError({
-            code: "BAD_REQUEST",
-            message: "市場トレンドデータまたはSNSトレンドデータが必要です。まず市場調査またはSNS調査を実行してください。",
-          });
-        }
-
-        console.log(`[New Treatments] products: ${products.length}件, marketTrends: ${marketTrends.length}件, snsTrends: ${snsTrends.length}件`);
-
-        // AI APIで新施術提案を生成（ユーザー設定に基づいてClaude/ChatGPTを選択）
-        const aiProvider = await getStrategyAIProvider(input.userId);
-        console.log(`[Strategy] Using AI provider: ${aiProvider} (userId: ${input.userId})`);
-
-        let result: string;
-        try {
-          result = aiProvider === "chatgpt"
-            ? await chatgptSuggestNewTreatments(
-                products.map((p) => ({
-                  name: p.name,
-                  category: p.category,
-                })),
-                marketTrends,
-                snsTrends,
-              )
-            : await claudeSuggestNewTreatments(
-                products.map((p) => ({
-                  name: p.name,
-                  category: p.category,
-                })),
-                marketTrends,
-                snsTrends,
-              );
-        } catch (error) {
-          console.error("[New Treatments] Generation error:", error);
-          throw new TRPCError({
-            code: "INTERNAL_SERVER_ERROR",
-            message: error instanceof Error 
-              ? `新施術提案の生成に失敗しました: ${error.message}`
-              : "新施術提案の生成に失敗しました",
-          });
-        }
-
-        if (!result || typeof result !== "string" || result.trim().length === 0) {
-          console.error("[New Treatments] Empty result received");
-          throw new TRPCError({
-            code: "INTERNAL_SERVER_ERROR",
-            message: "新施術提案の生成に失敗しました。結果が空です。",
-          });
-        }
-
-        // データベースに保存
-        const saved = await db.strategyRecommendation.create({
-          data: {
-            userId: input.userId,
-            marketingStrategy: null,
-            priceRecommendations: null,
-            campaignProposals: null,
-            newTreatmentSuggestions: result, // 新施術提案を保存
-          },
-        });
-
         return {
-          id: saved.id,
           result: result, // テキスト形式の結果をそのまま返す
           message: "新施術提案が完了しました",
         };
@@ -696,21 +373,10 @@ export const strategyRouter = router({
       }),
     )
     .query(async ({ input }) => {
-      try {
-        return await db.strategyRecommendation.findMany({
-          where: { userId: input.userId },
-          orderBy: { createdAt: "desc" },
-        });
-      } catch (error) {
-        console.error("Strategy list query error:", error);
-        throw new TRPCError({
-          code: "INTERNAL_SERVER_ERROR",
-          message:
-            error instanceof Error
-              ? `戦略提案履歴の取得に失敗しました: ${error.message}`
-              : "戦略提案履歴の取得に失敗しました",
-        });
-      }
+      return db.strategyRecommendation.findMany({
+        where: { userId: input.userId },
+        orderBy: { createdAt: "desc" },
+      });
     }),
 
   getById: publicProcedure
@@ -781,89 +447,32 @@ export const strategyRouter = router({
       });
     }),
 
-  // ユーザー設定の取得
-  getUserSettings: publicProcedure
+  getCurrentModel: publicProcedure
     .input(
       z.object({
-        userId: z.number().int().positive(),
+        functionType: z.enum(["analyzeMarketPosition", "suggestNewTreatments", "generatePriceRecommendations", "generateCampaignProposals"]).optional(),
       }),
     )
     .query(async ({ input }) => {
-      try {
-        let userSettings = await db.userSettings.findUnique({
-          where: { userId: input.userId },
-        });
-
-        // ユーザー設定が存在しない場合はデフォルト値で作成
-        if (!userSettings) {
-          userSettings = await db.userSettings.create({
-            data: {
-              userId: input.userId,
-              strategyAIProvider: "chatgpt",
-            },
-          });
-        }
-
+      // 総合分析・新規導入提案はOpus 4.1
+      if (input.functionType === "analyzeMarketPosition" || input.functionType === "suggestNewTreatments") {
         return {
-          strategyAIProvider: userSettings.strategyAIProvider as "claude" | "chatgpt",
-        };
-      } catch (error) {
-        console.error("Failed to get user settings:", error);
-        // エラー時はデフォルト値を返す
-        return {
-          strategyAIProvider: "chatgpt" as const,
+          aiAgent: "claude" as const,
+          model: getCurrentClaudeModel("opus") || "claude-opus-4-1",
         };
       }
-    }),
-
-  // ユーザー設定の更新
-  updateUserSettings: publicProcedure
-    .input(
-      z.object({
-        userId: z.number().int().positive(),
-        strategyAIProvider: z.enum(["claude", "chatgpt"]),
-      }),
-    )
-    .mutation(async ({ input }) => {
-      try {
-        console.log(`[updateUserSettings] Updating settings for userId=${input.userId}, provider=${input.strategyAIProvider}`);
-        
-        const userSettings = await db.userSettings.upsert({
-          where: { userId: input.userId },
-          update: {
-            strategyAIProvider: input.strategyAIProvider,
-          },
-          create: {
-            userId: input.userId,
-            strategyAIProvider: input.strategyAIProvider,
-          },
-        });
-
-        console.log(`[updateUserSettings] Successfully updated:`, userSettings);
-
+      // 価格設定提案・キャンペーン案はSonnet 4.5
+      if (input.functionType === "generatePriceRecommendations" || input.functionType === "generateCampaignProposals") {
         return {
-          success: true,
-          strategyAIProvider: userSettings.strategyAIProvider as "claude" | "chatgpt",
-          message: "設定を更新しました",
+          aiAgent: "claude" as const,
+          model: getCurrentClaudeModel("sonnet") || "claude-sonnet-4-5-20250929",
         };
-      } catch (error) {
-        console.error("[updateUserSettings] Failed to update user settings:", error);
-        console.error("[updateUserSettings] Error details:", {
-          message: error instanceof Error ? error.message : String(error),
-          stack: error instanceof Error ? error.stack : undefined,
-          input,
-        });
-        
-        const errorMessage = error instanceof Error 
-          ? `設定の更新に失敗しました: ${error.message}`
-          : "設定の更新に失敗しました";
-        
-        throw new TRPCError({
-          code: "INTERNAL_SERVER_ERROR",
-          message: errorMessage,
-          cause: error,
-        });
       }
+      // デフォルト（総合分析）
+      return {
+        aiAgent: "claude" as const,
+        model: getCurrentClaudeModel("opus") || "claude-opus-4-1",
+      };
     }),
 });
 

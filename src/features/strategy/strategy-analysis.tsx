@@ -6,6 +6,7 @@ import TextField from "@atlaskit/textfield";
 import Checkbox from "@atlaskit/checkbox";
 import Banner from "@atlaskit/banner";
 import Badge from "@atlaskit/badge";
+import Tag from "@atlaskit/tag";
 import Spinner from "@atlaskit/spinner";
 import EmptyState from "@atlaskit/empty-state";
 import Link from "next/link";
@@ -55,7 +56,6 @@ export function StrategyAnalysis() {
           message: "価格設定提案が完了しました",
         });
         setTimeout(() => setFeedback({ type: null, message: "" }), 5000);
-        void utils.strategy.list.invalidate({ userId: USER_ID_PLACEHOLDER });
       },
       onError: (error: unknown) => {
         const message = error instanceof Error ? error.message : "エラーが発生しました。もう一度お試しください。";
@@ -74,7 +74,6 @@ export function StrategyAnalysis() {
         message: "キャンペーン案が生成されました",
       });
       setTimeout(() => setFeedback({ type: null, message: "" }), 5000);
-      void utils.strategy.list.invalidate({ userId: USER_ID_PLACEHOLDER });
     },
     onError: (error) => {
       setFeedback({ type: "error", message: error.message });
@@ -90,7 +89,6 @@ export function StrategyAnalysis() {
           message: "新施術提案が完了しました",
         });
         setTimeout(() => setFeedback({ type: null, message: "" }), 5000);
-        void utils.strategy.list.invalidate({ userId: USER_ID_PLACEHOLDER });
       },
       onError: (error: unknown) => {
         const message = error instanceof Error ? error.message : "エラーが発生しました。もう一度お試しください。";
@@ -112,6 +110,14 @@ export function StrategyAnalysis() {
 
   // 商品一覧を取得
   const productsQuery = api.product.list.useQuery({ userId: USER_ID_PLACEHOLDER });
+
+  const modelInfoQuery = api.strategy.getCurrentModel.useQuery(
+    { functionType: "analyzeMarketPosition" }, // デフォルトは総合分析
+    {
+      retry: 2,
+      staleTime: 60000, // 1分間キャッシュ
+    }
+  );
 
   const handleAnalyzeMarketPosition = async (
     e: React.FormEvent<HTMLFormElement>,
@@ -221,9 +227,27 @@ export function StrategyAnalysis() {
   return (
     <div style={{ maxWidth: "1000px", margin: "0 auto", padding: "48px 16px" }}>
       <header style={{ marginBottom: "40px" }}>
-        <h1 style={{ fontSize: "24px", fontWeight: 600, marginBottom: "8px", color: "#172B4D" }}>
-          戦略分析
-        </h1>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "8px" }}>
+          <h1 style={{ fontSize: "24px", fontWeight: 600, margin: 0, color: "#172B4D" }}>
+            戦略分析
+          </h1>
+          {modelInfoQuery.data && (
+            <div
+              style={{
+                padding: "4px 12px",
+                borderRadius: "3px",
+                backgroundColor: "#0052CC",
+                color: "#FFFFFF",
+                fontSize: "12px",
+                fontWeight: 500,
+                whiteSpace: "nowrap",
+                display: "inline-block",
+              }}
+            >
+              使用AI: {modelInfoQuery.data.aiAgent.toUpperCase()} ({modelInfoQuery.data.model})
+            </div>
+          )}
+        </div>
         <p style={{ fontSize: "14px", color: "#6B778C" }}>
           収集したデータを分析し、戦略的な提案を受けることができます
         </p>
@@ -466,206 +490,96 @@ export function StrategyAnalysis() {
       </section>
 
       {/* 戦略提案履歴 */}
-      <section style={{ marginTop: "32px", display: "flex", flexDirection: "column", gap: "24px" }}>
-        <h2 style={{ fontSize: "16px", fontWeight: 600, marginBottom: "8px", color: "#172B4D" }}>
+      <section style={{ marginTop: "32px", padding: "24px", background: "#FFFFFF", borderRadius: "8px", border: "1px solid #DFE1E6" }}>
+        <h2 style={{ fontSize: "16px", fontWeight: 600, marginBottom: "16px", color: "#172B4D" }}>
           戦略提案履歴
         </h2>
-        
         {strategiesQuery.isLoading && (
-          <div style={{ display: "flex", alignItems: "center", gap: "8px", padding: "16px", background: "#FFFFFF", borderRadius: "8px", border: "1px solid #DFE1E6" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: "8px", padding: "16px" }}>
             <Spinner size="small" />
             <span style={{ fontSize: "14px", color: "#6B778C" }}>読み込み中...</span>
           </div>
         )}
-        
         {strategiesQuery.error && (
           <Banner appearance="error">
             エラー: {strategiesQuery.error.message}
           </Banner>
         )}
-
-        {strategiesQuery.data && (
-          <>
-            {/* 総合分析履歴 */}
-            <div style={{ padding: "24px", background: "#FFFFFF", borderRadius: "8px", border: "1px solid #DFE1E6" }}>
-              <h3 style={{ fontSize: "14px", fontWeight: 600, marginBottom: "16px", color: "#172B4D" }}>
-                総合分析履歴
-              </h3>
-              {strategiesQuery.data.filter((s) => s.marketingStrategy).length === 0 ? (
-                <EmptyState
-                  header="まだ総合分析がありません"
-                  description="総合分析を実行すると、ここに履歴が表示されます"
-                />
-              ) : (
-                <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
-                  {strategiesQuery.data
-                    .filter((s) => s.marketingStrategy)
-                    .map((strategy) => (
-                      <div
-                        key={strategy.id}
-                        style={{ padding: "16px", borderRadius: "8px", border: "1px solid #DFE1E6", background: "#F4F5F7" }}
-                      >
-                        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "8px" }}>
-                          <span style={{ fontSize: "12px", color: "#6B778C" }}>
-                            {new Date(strategy.createdAt).toLocaleString("ja-JP")}
-                          </span>
-                          <Badge appearance={strategy.implementationStatus === "completed" ? "added" : strategy.implementationStatus === "in_progress" ? "default" : "removed"}>
-                            {strategy.implementationStatus === "completed"
-                              ? "完了"
-                              : strategy.implementationStatus === "in_progress"
-                                ? "進行中"
-                                : "未着手"}
-                          </Badge>
-                        </div>
-                        <details>
-                          <summary style={{ cursor: "pointer", fontSize: "14px", fontWeight: 500, color: "#42526E", listStyle: "none" }}>
-                            分析内容を表示
-                          </summary>
-                          <div style={{ marginTop: "8px", maxHeight: "200px", overflow: "auto", whiteSpace: "pre-wrap", borderRadius: "4px", background: "#FFFFFF", padding: "12px", fontSize: "14px", color: "#172B4D" }}>
-                            {strategy.marketingStrategy}
-                          </div>
-                        </details>
-                      </div>
-                    ))}
+        {strategiesQuery.data && strategiesQuery.data.length === 0 && (
+          <EmptyState
+            header="まだ戦略提案がありません"
+            description="上記の分析機能を使用すると、ここに履歴が表示されます"
+          />
+        )}
+        {strategiesQuery.data && strategiesQuery.data.length > 0 && (
+          <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
+            {strategiesQuery.data.map((strategy) => (
+              <div
+                key={strategy.id}
+                style={{ padding: "16px", borderRadius: "8px", border: "1px solid #DFE1E6" }}
+              >
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "8px" }}>
+                  <span style={{ fontSize: "12px", color: "#6B778C" }}>
+                    {new Date(strategy.createdAt).toLocaleString("ja-JP")}
+                  </span>
+                  <Badge appearance={strategy.implementationStatus === "completed" ? "added" : strategy.implementationStatus === "in_progress" ? "default" : "removed"}>
+                    {strategy.implementationStatus === "completed"
+                      ? "完了"
+                      : strategy.implementationStatus === "in_progress"
+                        ? "進行中"
+                        : "未着手"}
+                  </Badge>
                 </div>
-              )}
-            </div>
-
-            {/* 価格設定提案履歴 */}
-            <div style={{ padding: "24px", background: "#FFFFFF", borderRadius: "8px", border: "1px solid #DFE1E6" }}>
-              <h3 style={{ fontSize: "14px", fontWeight: 600, marginBottom: "16px", color: "#172B4D" }}>
-                価格設定提案履歴
-              </h3>
-              {strategiesQuery.data.filter((s) => s.priceRecommendations).length === 0 ? (
-                <EmptyState
-                  header="まだ価格設定提案がありません"
-                  description="価格提案を生成すると、ここに履歴が表示されます"
-                />
-              ) : (
-                <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
-                  {strategiesQuery.data
-                    .filter((s) => s.priceRecommendations)
-                    .map((strategy) => (
-                      <div
-                        key={strategy.id}
-                        style={{ padding: "16px", borderRadius: "8px", border: "1px solid #DFE1E6", background: "#F4F5F7" }}
-                      >
-                        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "8px" }}>
-                          <span style={{ fontSize: "12px", color: "#6B778C" }}>
-                            {new Date(strategy.createdAt).toLocaleString("ja-JP")}
-                          </span>
-                          <Badge appearance={strategy.implementationStatus === "completed" ? "added" : strategy.implementationStatus === "in_progress" ? "default" : "removed"}>
-                            {strategy.implementationStatus === "completed"
-                              ? "完了"
-                              : strategy.implementationStatus === "in_progress"
-                                ? "進行中"
-                                : "未着手"}
-                          </Badge>
+                <details style={{ marginTop: "8px" }}>
+                  <summary style={{ cursor: "pointer", fontSize: "14px", fontWeight: 500, color: "#42526E", listStyle: "none" }}>
+                    提案内容を表示
+                  </summary>
+                  <div style={{ marginTop: "12px", display: "flex", flexDirection: "column", gap: "12px" }}>
+                    {strategy.priceRecommendations && (
+                      <div>
+                        <h4 style={{ fontSize: "14px", fontWeight: 500, color: "#42526E", marginBottom: "4px" }}>
+                          価格設定提案
+                        </h4>
+                        <div style={{ maxHeight: "160px", overflow: "auto", whiteSpace: "pre-wrap", borderRadius: "4px", background: "#F4F5F7", padding: "12px", fontSize: "14px", color: "#172B4D" }}>
+                          {strategy.priceRecommendations}
                         </div>
-                        <details>
-                          <summary style={{ cursor: "pointer", fontSize: "14px", fontWeight: 500, color: "#42526E", listStyle: "none" }}>
-                            提案内容を表示
-                          </summary>
-                          <div style={{ marginTop: "8px", maxHeight: "200px", overflow: "auto", whiteSpace: "pre-wrap", borderRadius: "4px", background: "#FFFFFF", padding: "12px", fontSize: "14px", color: "#172B4D" }}>
-                            {strategy.priceRecommendations}
-                          </div>
-                        </details>
                       </div>
-                    ))}
-                </div>
-              )}
-            </div>
-
-            {/* キャンペーン案履歴 */}
-            <div style={{ padding: "24px", background: "#FFFFFF", borderRadius: "8px", border: "1px solid #DFE1E6" }}>
-              <h3 style={{ fontSize: "14px", fontWeight: 600, marginBottom: "16px", color: "#172B4D" }}>
-                キャンペーン案履歴
-              </h3>
-              {strategiesQuery.data.filter((s) => s.campaignProposals).length === 0 ? (
-                <EmptyState
-                  header="まだキャンペーン案がありません"
-                  description="キャンペーン案を生成すると、ここに履歴が表示されます"
-                />
-              ) : (
-                <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
-                  {strategiesQuery.data
-                    .filter((s) => s.campaignProposals)
-                    .map((strategy) => (
-                      <div
-                        key={strategy.id}
-                        style={{ padding: "16px", borderRadius: "8px", border: "1px solid #DFE1E6", background: "#F4F5F7" }}
-                      >
-                        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "8px" }}>
-                          <span style={{ fontSize: "12px", color: "#6B778C" }}>
-                            {new Date(strategy.createdAt).toLocaleString("ja-JP")}
-                          </span>
-                          <Badge appearance={strategy.implementationStatus === "completed" ? "added" : strategy.implementationStatus === "in_progress" ? "default" : "removed"}>
-                            {strategy.implementationStatus === "completed"
-                              ? "完了"
-                              : strategy.implementationStatus === "in_progress"
-                                ? "進行中"
-                                : "未着手"}
-                          </Badge>
+                    )}
+                    {strategy.campaignProposals && (
+                      <div>
+                        <h4 style={{ fontSize: "14px", fontWeight: 500, color: "#42526E", marginBottom: "4px" }}>
+                          キャンペーン案
+                        </h4>
+                        <div style={{ maxHeight: "160px", overflow: "auto", whiteSpace: "pre-wrap", borderRadius: "4px", background: "#F4F5F7", padding: "12px", fontSize: "14px", color: "#172B4D" }}>
+                          {strategy.campaignProposals}
                         </div>
-                        <details>
-                          <summary style={{ cursor: "pointer", fontSize: "14px", fontWeight: 500, color: "#42526E", listStyle: "none" }}>
-                            提案内容を表示
-                          </summary>
-                          <div style={{ marginTop: "8px", maxHeight: "200px", overflow: "auto", whiteSpace: "pre-wrap", borderRadius: "4px", background: "#FFFFFF", padding: "12px", fontSize: "14px", color: "#172B4D" }}>
-                            {strategy.campaignProposals}
-                          </div>
-                        </details>
                       </div>
-                    ))}
-                </div>
-              )}
-            </div>
-
-            {/* 新施術提案履歴 */}
-            <div style={{ padding: "24px", background: "#FFFFFF", borderRadius: "8px", border: "1px solid #DFE1E6" }}>
-              <h3 style={{ fontSize: "14px", fontWeight: 600, marginBottom: "16px", color: "#172B4D" }}>
-                新施術提案履歴
-              </h3>
-              {strategiesQuery.data.filter((s) => s.newTreatmentSuggestions).length === 0 ? (
-                <EmptyState
-                  header="まだ新施術提案がありません"
-                  description="新施術提案を生成すると、ここに履歴が表示されます"
-                />
-              ) : (
-                <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
-                  {strategiesQuery.data
-                    .filter((s) => s.newTreatmentSuggestions)
-                    .map((strategy) => (
-                      <div
-                        key={strategy.id}
-                        style={{ padding: "16px", borderRadius: "8px", border: "1px solid #DFE1E6", background: "#F4F5F7" }}
-                      >
-                        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "8px" }}>
-                          <span style={{ fontSize: "12px", color: "#6B778C" }}>
-                            {new Date(strategy.createdAt).toLocaleString("ja-JP")}
-                          </span>
-                          <Badge appearance={strategy.implementationStatus === "completed" ? "added" : strategy.implementationStatus === "in_progress" ? "default" : "removed"}>
-                            {strategy.implementationStatus === "completed"
-                              ? "完了"
-                              : strategy.implementationStatus === "in_progress"
-                                ? "進行中"
-                                : "未着手"}
-                          </Badge>
+                    )}
+                    {strategy.newTreatmentSuggestions && (
+                      <div>
+                        <h4 style={{ fontSize: "14px", fontWeight: 500, color: "#42526E", marginBottom: "4px" }}>
+                          新施術提案
+                        </h4>
+                        <div style={{ maxHeight: "160px", overflow: "auto", whiteSpace: "pre-wrap", borderRadius: "4px", background: "#F4F5F7", padding: "12px", fontSize: "14px", color: "#172B4D" }}>
+                          {strategy.newTreatmentSuggestions}
                         </div>
-                        <details>
-                          <summary style={{ cursor: "pointer", fontSize: "14px", fontWeight: 500, color: "#42526E", listStyle: "none" }}>
-                            提案内容を表示
-                          </summary>
-                          <div style={{ marginTop: "8px", maxHeight: "200px", overflow: "auto", whiteSpace: "pre-wrap", borderRadius: "4px", background: "#FFFFFF", padding: "12px", fontSize: "14px", color: "#172B4D" }}>
-                            {strategy.newTreatmentSuggestions}
-                          </div>
-                        </details>
                       </div>
-                    ))}
-                </div>
-              )}
-            </div>
-          </>
+                    )}
+                    {strategy.marketingStrategy && (
+                      <div>
+                        <h4 style={{ fontSize: "14px", fontWeight: 500, color: "#42526E", marginBottom: "4px" }}>
+                          マーケティング戦略
+                        </h4>
+                        <div style={{ maxHeight: "160px", overflow: "auto", whiteSpace: "pre-wrap", borderRadius: "4px", background: "#F4F5F7", padding: "12px", fontSize: "14px", color: "#172B4D" }}>
+                          {strategy.marketingStrategy}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </details>
+              </div>
+            ))}
+          </div>
         )}
       </section>
     </div>

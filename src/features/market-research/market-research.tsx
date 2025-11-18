@@ -111,6 +111,11 @@ export function MarketResearch() {
     staleTime: 30000,
   });
 
+  const modelInfoQuery = api.marketResearch.getCurrentModel.useQuery(undefined, {
+    retry: 2,
+    staleTime: 60000, // 1分間キャッシュ
+  });
+
   const handleAddTreatment = () => {
     if (treatmentInput.trim() && !treatments.includes(treatmentInput.trim())) {
       setTreatments([...treatments, treatmentInput.trim()]);
@@ -214,9 +219,27 @@ export function MarketResearch() {
   return (
     <div style={{ maxWidth: "1000px", margin: "0 auto", padding: "48px 16px" }}>
       <header style={{ marginBottom: "40px" }}>
-        <h1 style={{ fontSize: "24px", fontWeight: 600, marginBottom: "8px", color: "#172B4D" }}>
-          市場調査
-        </h1>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "8px" }}>
+          <h1 style={{ fontSize: "24px", fontWeight: 600, margin: 0, color: "#172B4D" }}>
+            市場調査
+          </h1>
+          {modelInfoQuery.data && (
+            <div
+              style={{
+                padding: "4px 12px",
+                borderRadius: "3px",
+                backgroundColor: "#0052CC",
+                color: "#FFFFFF",
+                fontSize: "12px",
+                fontWeight: 500,
+                whiteSpace: "nowrap",
+                display: "inline-block",
+              }}
+            >
+              使用AI: {modelInfoQuery.data.aiAgent.toUpperCase()} ({modelInfoQuery.data.model})
+            </div>
+          )}
+        </div>
         <p style={{ fontSize: "14px", color: "#6B778C" }}>
           市場動向、価格情報、競合情報を自動収集します
         </p>

@@ -5,8 +5,9 @@ import { z } from "zod";
 import {
   analyzeInstagramTrends,
   analyzeYouTubeTrends,
+  getCurrentGeminiModel,
 } from "@/server/services/gemini";
-import { analyzeTwitterTrends } from "@/server/services/grok";
+import { analyzeTwitterTrends, getCurrentGrokModel } from "@/server/services/grok";
 import { logError } from "@/server/services/error-logger";
 
 import { publicProcedure, router } from "../trpc";
@@ -23,12 +24,11 @@ export const snsResearchRouter = router({
           .array(z.string().min(1))
           .min(1, "少なくとも1つのキーワードを指定してください"),
         timeRange: timeRangeSchema.optional().default("last_month"),
-        location: z.string().optional().default("unknown"),
       }),
     )
     .mutation(async ({ input }) => {
       try {
-        const result = await analyzeTwitterTrends(input.keywords, input.timeRange, input.location);
+        const result = await analyzeTwitterTrends(input.keywords, input.timeRange);
 
         // データベースに保存（テキスト形式で保存）
         const saved = await db.sNSResearchResult.create({
@@ -84,12 +84,11 @@ export const snsResearchRouter = router({
           .array(z.string().min(1))
           .min(1, "少なくとも1つのキーワードを指定してください"),
         timeRange: timeRangeSchema.optional().default("last_month"),
-        location: z.string().optional().default("unknown"),
       }),
     )
     .mutation(async ({ input }) => {
       try {
-        const result = await analyzeInstagramTrends(input.keywords, input.timeRange, input.location);
+        const result = await analyzeInstagramTrends(input.keywords, input.timeRange);
 
         // データベースに保存（テキスト形式で保存）
         const saved = await db.sNSResearchResult.create({
@@ -145,12 +144,11 @@ export const snsResearchRouter = router({
           .array(z.string().min(1))
           .min(1, "少なくとも1つのキーワードを指定してください"),
         timeRange: timeRangeSchema.optional().default("last_month"),
-        location: z.string().optional().default("unknown"),
       }),
     )
     .mutation(async ({ input }) => {
       try {
-        const result = await analyzeYouTubeTrends(input.keywords, input.timeRange, input.location);
+        const result = await analyzeYouTubeTrends(input.keywords, input.timeRange);
 
         // データベースに保存（テキスト形式で保存）
         const saved = await db.sNSResearchResult.create({
@@ -243,6 +241,27 @@ export const snsResearchRouter = router({
         ...result,
         trendData: result.trendData,
       };
+    }),
+
+  getCurrentModel: publicProcedure
+    .input(
+      z.object({
+        platform: snsPlatformSchema.optional(),
+      }),
+    )
+    .query(async ({ input }) => {
+      if (input.platform === "twitter") {
+        return {
+          aiAgent: "grok" as const,
+          model: getCurrentGrokModel() || "grok-4",
+        };
+      } else {
+        // Instagram, YouTube は Gemini
+        return {
+          aiAgent: "gemini" as const,
+          model: getCurrentGeminiModel() || "gemini-2.5-pro",
+        };
+      }
     }),
 });
 
