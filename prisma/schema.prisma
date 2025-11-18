@@ -196,3 +196,13 @@ model PromptTemplate {
 
   @@map("promptTemplates")
 }
+
+model UserSettings {
+  id                  Int      @id @default(autoincrement())
+  userId              Int      @unique
+  strategyAIProvider  String   @default("chatgpt") @db.VarChar(20) // "claude" or "chatgpt"
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+
+  @@map("userSettings")
+}

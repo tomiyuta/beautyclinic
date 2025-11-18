@@ -3,14 +3,64 @@ import { db } from "@/server/db";
 import { z } from "zod";
 
 import {
-  analyzeMarketPosition,
-  generateCampaignProposals,
-  generatePriceRecommendations,
-  suggestNewTreatments,
+  analyzeMarketPosition as claudeAnalyzeMarketPosition,
+  generateCampaignProposals as claudeGenerateCampaignProposals,
+  generatePriceRecommendations as claudeGeneratePriceRecommendations,
+  suggestNewTreatments as claudeSuggestNewTreatments,
   getCurrentClaudeModel,
 } from "@/server/services/claude";
 
+import {
+  analyzeMarketPosition as chatgptAnalyzeMarketPosition,
+  generateCampaignProposals as chatgptGenerateCampaignProposals,
+  generatePriceRecommendations as chatgptGeneratePriceRecommendations,
+  suggestNewTreatments as chatgptSuggestNewTreatments,
+  getCurrentChatGPTModel,
+} from "@/server/services/chatgpt";
+
 import { publicProcedure, router } from "../trpc";
+
+/**
+ * ユーザー設定に基づいて使用するAIプロバイダーを決定
+ * ユーザー設定がない場合は環境変数STRATEGY_AI_PROVIDERを確認
+ * どちらもない場合はChatGPT APIを使用（デフォルト）
+ */
+async function getStrategyAIProvider(userId: number): Promise<"claude" | "chatgpt"> {
+  try {
+    // ユーザー設定を取得
+    // PrismaクライアントにuserSettingsプロパティが存在するか確認
+    if (!("userSettings" in db)) {
+      console.warn("Prisma client does not have userSettings property. Using default provider.");
+      const provider = process.env.STRATEGY_AI_PROVIDER?.toLowerCase();
+      return provider === "claude" ? "claude" : "chatgpt";
+    }
+
+    const userSettings = await db.userSettings.findUnique({
+      where: { userId },
+    });
+
+    if (userSettings && userSettings.strategyAIProvider) {
+      const provider = userSettings.strategyAIProvider.toLowerCase();
+      if (provider === "chatgpt" || provider === "claude") {
+        return provider as "claude" | "chatgpt";
+      }
+    }
+  } catch (error) {
+    console.error("Failed to get user settings:", error);
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    console.error("Error details:", {
+      message: errorMessage,
+      stack: error instanceof Error ? error.stack : undefined,
+      userId,
+    });
+    // エラーが発生した場合はデフォルトを使用
+  }
+
+  // ユーザー設定がない場合は環境変数を確認
+  const provider = process.env.STRATEGY_AI_PROVIDER?.toLowerCase();
+  // デフォルトはChatGPT API
+  return provider === "claude" ? "claude" : "chatgpt";
+}
 
 export const strategyRouter = router({
   analyzeMarketPosition: publicProcedure
@@ -98,24 +148,45 @@ export const strategyRouter = router({
             .filter((data): data is Record<string, unknown> => data !== null) as Array<Record<string, unknown>>;
         }
 
-        // Claude APIで総合分析を実行
-        const result = await analyzeMarketPosition(
-          products.map((p) => ({
-            name: p.name,
-            costPrice: p.costPrice,
-            sellingPrice: p.sellingPrice,
-            category: p.category,
-          })),
-          marketData,
-          snsData as Array<{
-            platform: string;
-            hashtags?: unknown[];
-            influencers?: unknown[];
-            popularContent?: unknown[];
-            engagement?: Record<string, unknown>;
-          }>,
-          input.location,
-        );
+        // AI APIで総合分析を実行（ユーザー設定に基づいてClaude/ChatGPTを選択）
+        const aiProvider = await getStrategyAIProvider(input.userId);
+        console.log(`[Strategy] Using AI provider: ${aiProvider} (userId: ${input.userId})`);
+
+        const result = aiProvider === "chatgpt"
+          ? await chatgptAnalyzeMarketPosition(
+              products.map((p) => ({
+                name: p.name,
+                costPrice: p.costPrice,
+                sellingPrice: p.sellingPrice,
+                category: p.category,
+              })),
+              marketData,
+              snsData as Array<{
+                platform: string;
+                hashtags?: unknown[];
+                influencers?: unknown[];
+                popularContent?: unknown[];
+                engagement?: Record<string, unknown>;
+              }>,
+              input.location,
+            )
+          : await claudeAnalyzeMarketPosition(
+              products.map((p) => ({
+                name: p.name,
+                costPrice: p.costPrice,
+                sellingPrice: p.sellingPrice,
+                category: p.category,
+              })),
+              marketData,
+              snsData as Array<{
+                platform: string;
+                hashtags?: unknown[];
+                influencers?: unknown[];
+                popularContent?: unknown[];
+                engagement?: Record<string, unknown>;
+              }>,
+              input.location,
+            );
 
         // データベースに保存（テキスト形式で保存）
         const saved = await db.strategyRecommendation.create({
@@ -191,15 +262,40 @@ export const strategyRouter = router({
             ? { data: marketPricingArray }
             : {};
 
-        const result = await generatePriceRecommendations(
-          products.map((p) => ({
-            name: p.name,
-            costPrice: p.costPrice,
-            sellingPrice: p.sellingPrice,
-            category: p.category,
-          })),
-          marketPricing,
-        );
+        // AI APIで価格設定提案を実行（ユーザー設定に基づいてClaude/ChatGPTを選択）
+        const aiProvider = await getStrategyAIProvider(input.userId);
+        console.log(`[Strategy] Using AI provider: ${aiProvider} (userId: ${input.userId})`);
+
+        const result = aiProvider === "chatgpt"
+          ? await chatgptGeneratePriceRecommendations(
+              products.map((p) => ({
+                name: p.name,
+                costPrice: p.costPrice,
+                sellingPrice: p.sellingPrice,
+                category: p.category,
+              })),
+              marketPricing,
+            )
+          : await claudeGeneratePriceRecommendations(
+              products.map((p) => ({
+                name: p.name,
+                costPrice: p.costPrice,
+                sellingPrice: p.sellingPrice,
+                category: p.category,
+              })),
+              marketPricing,
+            );
+
+        // データベースに保存
+        await db.strategyRecommendation.create({
+          data: {
+            userId: input.userId,
+            priceRecommendations: result,
+            campaignProposals: null,
+            newTreatmentSuggestions: null,
+            marketingStrategy: null,
+          },
+        });
 
         return {
           result: result, // テキスト形式の結果をそのまま返す
@@ -264,7 +360,24 @@ export const strategyRouter = router({
           })
           .filter((data) => data !== null);
 
-        const result = await generateCampaignProposals(trends, snsData);
+        // AI APIでキャンペーン案を生成（ユーザー設定に基づいてClaude/ChatGPTを選択）
+        const aiProvider = await getStrategyAIProvider(input.userId);
+        console.log(`[Strategy] Using AI provider: ${aiProvider} (userId: ${input.userId})`);
+
+        const result = aiProvider === "chatgpt"
+          ? await chatgptGenerateCampaignProposals(trends, snsData)
+          : await claudeGenerateCampaignProposals(trends, snsData);
+
+        // データベースに保存
+        await db.strategyRecommendation.create({
+          data: {
+            userId: input.userId,
+            priceRecommendations: null,
+            campaignProposals: result,
+            newTreatmentSuggestions: null,
+            marketingStrategy: null,
+          },
+        });
 
         return {
           result: result, // テキスト形式の結果をそのまま返す
@@ -341,14 +454,38 @@ export const strategyRouter = router({
           })
           .filter((data) => data !== null);
 
-        const result = await suggestNewTreatments(
-          products.map((p) => ({
-            name: p.name,
-            category: p.category,
-          })),
-          marketTrends,
-          snsTrends,
-        );
+        // AI APIで新施術提案を実行（ユーザー設定に基づいてClaude/ChatGPTを選択）
+        const aiProvider = await getStrategyAIProvider(input.userId);
+        console.log(`[Strategy] Using AI provider: ${aiProvider} (userId: ${input.userId})`);
+
+        const result = aiProvider === "chatgpt"
+          ? await chatgptSuggestNewTreatments(
+              products.map((p) => ({
+                name: p.name,
+                category: p.category,
+              })),
+              marketTrends,
+              snsTrends,
+            )
+          : await claudeSuggestNewTreatments(
+              products.map((p) => ({
+                name: p.name,
+                category: p.category,
+              })),
+              marketTrends,
+              snsTrends,
+            );
+
+        // データベースに保存
+        await db.strategyRecommendation.create({
+          data: {
+            userId: input.userId,
+            priceRecommendations: null,
+            campaignProposals: null,
+            newTreatmentSuggestions: result,
+            marketingStrategy: null,
+          },
+        });
 
         return {
           result: result, // テキスト形式の結果をそのまま返す
@@ -451,9 +588,22 @@ export const strategyRouter = router({
     .input(
       z.object({
         functionType: z.enum(["analyzeMarketPosition", "suggestNewTreatments", "generatePriceRecommendations", "generateCampaignProposals"]).optional(),
+        userId: z.number().int().positive().optional(),
       }),
     )
     .query(async ({ input }) => {
+      // ユーザー設定に基づいてAIプロバイダーを決定
+      const userId = input.userId || 1; // デフォルトは1
+      const aiProvider = await getStrategyAIProvider(userId);
+
+      if (aiProvider === "chatgpt") {
+        return {
+          aiAgent: "chatgpt" as const,
+          model: getCurrentChatGPTModel() || "gpt-5.1",
+        };
+      }
+
+      // Claudeの場合
       // 総合分析・新規導入提案はOpus 4.1
       if (input.functionType === "analyzeMarketPosition" || input.functionType === "suggestNewTreatments") {
         return {
@@ -473,6 +623,116 @@ export const strategyRouter = router({
         aiAgent: "claude" as const,
         model: getCurrentClaudeModel("opus") || "claude-opus-4-1",
       };
+    }),
+
+  getUserSettings: publicProcedure
+    .input(
+      z.object({
+        userId: z.number().int().positive(),
+      }),
+    )
+    .query(async ({ input }) => {
+      try {
+        // PrismaクライアントにuserSettingsプロパティが存在するか確認
+        if (!("userSettings" in db)) {
+          console.warn("Prisma client does not have userSettings property. Returning default settings.");
+          // デフォルト設定を返す
+          return {
+            userId: input.userId,
+            strategyAIProvider: "chatgpt",
+          };
+        }
+
+        const userSettings = await db.userSettings.findUnique({
+          where: { userId: input.userId },
+        });
+
+        if (!userSettings) {
+          // デフォルト設定を返す
+          return {
+            userId: input.userId,
+            strategyAIProvider: "chatgpt",
+          };
+        }
+
+        return {
+          userId: userSettings.userId,
+          strategyAIProvider: userSettings.strategyAIProvider,
+        };
+      } catch (error) {
+        console.error("Failed to get user settings:", error);
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        console.error("Error details:", {
+          message: errorMessage,
+          stack: error instanceof Error ? error.stack : undefined,
+          userId: input.userId,
+          dbHasUserSettings: "userSettings" in db,
+        });
+        
+        // エラーが発生した場合はデフォルト設定を返す（エラーを投げない）
+        console.warn("Returning default settings due to error");
+        return {
+          userId: input.userId,
+          strategyAIProvider: "chatgpt",
+        };
+      }
+    }),
+
+  updateUserSettings: publicProcedure
+    .input(
+      z.object({
+        userId: z.number().int().positive(),
+        strategyAIProvider: z.enum(["claude", "chatgpt"]),
+      }),
+    )
+    .mutation(async ({ input }) => {
+      try {
+        // PrismaクライアントにuserSettingsプロパティが存在するか確認
+        if (!("userSettings" in db)) {
+          const errorMsg = "Prisma client does not have userSettings property. Please restart the server after running 'npx prisma generate'.";
+          console.error(errorMsg);
+          throw new TRPCError({
+            code: "INTERNAL_SERVER_ERROR",
+            message: `ユーザー設定の更新に失敗しました: ${errorMsg}`,
+          });
+        }
+
+        const userSettings = await db.userSettings.upsert({
+          where: { userId: input.userId },
+          update: {
+            strategyAIProvider: input.strategyAIProvider,
+          },
+          create: {
+            userId: input.userId,
+            strategyAIProvider: input.strategyAIProvider,
+          },
+        });
+
+        return {
+          userId: userSettings.userId,
+          strategyAIProvider: userSettings.strategyAIProvider,
+        };
+      } catch (error) {
+        console.error("Failed to update user settings:", error);
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        console.error("Error details:", {
+          message: errorMessage,
+          stack: error instanceof Error ? error.stack : undefined,
+          userId: input.userId,
+          strategyAIProvider: input.strategyAIProvider,
+          dbHasUserSettings: "userSettings" in db,
+        });
+        
+        // TRPCErrorの場合はそのまま投げる
+        if (error instanceof TRPCError) {
+          throw error;
+        }
+        
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: `ユーザー設定の更新に失敗しました: ${errorMessage}`,
+        });
+      }
     }),
 });
 
