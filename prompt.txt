@@ -3061,3 +3061,104 @@ ${snsContext}
 ================================================================================
 END OF FILE
 ================================================================================
+
+
+================================================================================
+7. プロンプトの実装詳細と使用箇所
+================================================================================
+
+
+--------------------------------------------------------------------------------
+7.1 プロンプトの取得フロー
+--------------------------------------------------------------------------------
+
+1. 各サービスファイル（chatgpt.ts, claude.ts, gemini.ts, grok.ts, content-generation.ts）から
+   getPrompt()関数を呼び出し
+
+2. getPrompt()関数（prompt-helper.ts）:
+   - データベース（PromptTemplateテーブル）からプロンプトを取得
+   - 存在しない場合は、DEFAULT_PROMPTSから取得
+   - addWebResearchInstruction()でWeb検索指示を自動追加
+
+3. replacePlaceholders()関数でプレースホルダーを置換
+
+4. 各サービスファイルで、必要に応じてWeb検索結果を追加
+
+5. AI APIに送信
+
+
+--------------------------------------------------------------------------------
+7.2 プロンプトの種類と使用箇所
+--------------------------------------------------------------------------------
+
+【Claude用プロンプト】
+- claude_analyze_market_position: strategy.ts → analyzeMarketPosition (ChatGPT/Gemini/Claude)
+- claude_generate_price_recommendations: strategy.ts → generatePriceRecommendations (ChatGPT/Gemini/Claude)
+- claude_generate_campaign_proposals: strategy.ts → generateCampaignProposals (ChatGPT/Gemini/Claude)
+- claude_suggest_new_treatments: strategy.ts → suggestNewTreatments (ChatGPT/Gemini/Claude)
+
+【Gemini用プロンプト】
+- gemini_research_trend_analysis: market-research.ts → executeTrendAnalysis
+- gemini_research_price_comparison: market-research.ts → executePriceResearch
+- gemini_research_competitor_analysis: market-research.ts → executeCompetitorAnalysis
+- gemini_analyze_instagram_trends: sns-research.ts → analyzeInstagram
+- gemini_analyze_youtube_trends: sns-research.ts → analyzeYouTube
+
+【Grok用プロンプト】
+- grok_analyze_twitter_trends: sns-research.ts → analyzeTwitter
+
+【ChatGPT用プロンプト】
+- chatgpt_system_prompt: システムプロンプト（基本設定）
+- chatgpt_generate_instagram_lp: content.ts → generateInstagramLP（旧機能）
+- chatgpt_generate_website_article: content.ts → generateWebsiteArticle（旧機能）
+- chatgpt_generate_campaign_copy: content.ts → generateCampaignCopy（旧機能）
+
+【コンテンツ生成プロンプト（新機能）】
+- generateInstagramPost: content.ts → generateInstagramPostWithImage
+- generateBlogArticle: content.ts → generateBlogArticleWithImage
+- generateLpContent: content.ts → generateLpWithImage
+
+
+--------------------------------------------------------------------------------
+7.3 プロンプトの特徴
+--------------------------------------------------------------------------------
+
+【構造化データの優先使用】
+- <CONSENSUS_JSON>タグで囲まれた構造化データを優先的に使用
+- <REPORT_MARKDOWN>タグで囲まれたMarkdown形式のレポートを人間向けに表示
+
+【Web検索統合】
+- 全てのプロンプトにWeb検索指示が自動的に追加される
+- 各サービスファイルで、実際のWeb検索結果をプロンプトに追加
+
+【医療広告ガイドライン対応】
+- 誇大・断定・比較優良誤認表現の禁止
+- 禁止ワードの自動フィルタリング
+- 注意書きの自動付与
+
+【トークン量最適化】
+- JSON.stringify()のインデントを削除（null, 2 → なし）
+- データラッパーの削除（{ text: data } → data）
+- 構造化データの優先使用（consensusJSONを優先）
+
+
+--------------------------------------------------------------------------------
+7.4 プロンプトのカスタマイズ
+--------------------------------------------------------------------------------
+
+プロンプトは以下の方法でカスタマイズ可能です：
+
+1. **データベース経由**: PromptTemplateテーブルにプロンプトを保存
+   - フロントエンドのプロンプト管理画面から編集可能
+   - データベースに保存されたプロンプトが優先的に使用される
+
+2. **コード経由**: prompt-helper.tsのDEFAULT_PROMPTSを編集
+   - データベースにプロンプトが存在しない場合のフォールバック
+
+3. **各サービスファイル**: 各関数内のdefaultPromptを編集
+   - その関数専用のプロンプトを定義
+
+
+================================================================================
+END OF FILE
+================================================================================
