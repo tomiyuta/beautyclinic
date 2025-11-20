@@ -21,12 +21,16 @@ const nextConfig = {
   experimental: {
     outputFileTracingIncludes: {
       '/api/trpc/**': [
-        './src/generated/prisma/**/*',
-        './node_modules/.prisma/client/**/*',
-        './node_modules/@prisma/client/**/*',
+        './src/generated/prisma/**/*.node',
+        './src/generated/prisma/**/*.so.node',
+        './node_modules/.prisma/client/**/*.node',
+        './node_modules/@prisma/client/**/*.node',
       ],
     },
   },
+  
+  // VercelでのPrisma Clientバイナリ検出を確実にする
+  serverExternalPackages: ['@prisma/client', 'prisma'],
 };
 
 module.exports = nextConfig;
