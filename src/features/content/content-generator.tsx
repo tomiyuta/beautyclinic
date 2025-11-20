@@ -124,21 +124,21 @@ export function ContentGenerator() {
   const snsResearchQuery = api.snsResearch.list.useQuery({ userId: USER_ID_PLACEHOLDER });
 
   // Mutations
-  const instagramMutation = api.content.generateInstagramPostWithImage.useMutation({
+  const instagramMutation = api.content.generateInstagramLP.useMutation({
     onSuccess: (data) => {
       setFeedback({
         type: "success",
         message: data.message || "Instagram投稿が生成されました",
       });
       setTimeout(() => setFeedback({ type: null, message: "" }), 5000);
-      void utils.content.listContents.invalidate({ userId: USER_ID_PLACEHOLDER });
-      setPreviewContent({
-        id: data.id,
-        content: data.content,
-        image: data.image && typeof data.image === "object" && data.image !== null && "url" in data.image
-          ? { url: String((data.image as { url: string }).url) }
-          : null,
-      });
+      void utils.content.list.invalidate({ userId: USER_ID_PLACEHOLDER });
+      if (data.results && data.results.length > 0) {
+        setPreviewContent({
+          id: data.results[0]?.id || 0,
+          content: data.results[0]?.result || "",
+          image: null,
+        });
+      }
       resetForm();
     },
     onError: (error: unknown) => {
@@ -148,20 +148,18 @@ export function ContentGenerator() {
     },
   });
 
-  const blogMutation = api.content.generateBlogArticleWithImage.useMutation({
+  const blogMutation = api.content.generateWebsiteArticle.useMutation({
     onSuccess: (data) => {
       setFeedback({
         type: "success",
         message: data.message || "ブログ記事が生成されました",
       });
       setTimeout(() => setFeedback({ type: null, message: "" }), 5000);
-      void utils.content.listContents.invalidate({ userId: USER_ID_PLACEHOLDER });
+      void utils.content.list.invalidate({ userId: USER_ID_PLACEHOLDER });
       setPreviewContent({
         id: data.id,
-        content: data.content,
-        image: data.image && typeof data.image === "object" && data.image !== null && "url" in data.image
-          ? { url: String((data.image as { url: string }).url) }
-          : null,
+        content: data.result || "",
+        image: null,
       });
       resetForm();
     },
@@ -172,20 +170,18 @@ export function ContentGenerator() {
     },
   });
 
-  const lpMutation = api.content.generateLpWithImage.useMutation({
+  const lpMutation = api.content.generateCampaignCopy.useMutation({
     onSuccess: (data) => {
       setFeedback({
         type: "success",
         message: data.message || "LPテキストが生成されました",
       });
       setTimeout(() => setFeedback({ type: null, message: "" }), 5000);
-      void utils.content.listContents.invalidate({ userId: USER_ID_PLACEHOLDER });
+      void utils.content.list.invalidate({ userId: USER_ID_PLACEHOLDER });
       setPreviewContent({
         id: data.id,
-        content: data.content,
-        image: data.image && typeof data.image === "object" && data.image !== null && "url" in data.image
-          ? { url: String((data.image as { url: string }).url) }
-          : null,
+        content: data.result || "",
+        image: null,
       });
       resetForm();
     },
@@ -197,10 +193,9 @@ export function ContentGenerator() {
   });
 
   // 履歴取得
-  const contentsQuery = api.content.listContents.useQuery({
+  const contentsQuery = api.content.list.useQuery({
     userId: USER_ID_PLACEHOLDER,
-    contentType: contentType || undefined,
-    limit: 20,
+    contentType: contentType === "instagram" ? "instagram_lp" : contentType === "blog" ? "website_article" : contentType === "lp" ? "campaign_copy" : undefined,
   });
 
   const resetForm = () => {
@@ -266,27 +261,29 @@ export function ContentGenerator() {
 
       if (contentType === "instagram") {
         await instagramMutation.mutateAsync({
-          ...commonParams,
-          hashtagsPreference: { maxCount: hashtagsMaxCount },
-          callToActionType,
+          userId: USER_ID_PLACEHOLDER,
+          campaignTitle: campaignTitle.trim(),
+          campaignDescription: campaignDescription.trim(),
+          targetAudience: targetAudience.trim() || undefined,
+          promotion: undefined,
+          count: 1,
         });
       } else if (contentType === "blog") {
         await blogMutation.mutateAsync({
-          ...commonParams,
-          seoKeywords,
-          desiredLength,
+          userId: USER_ID_PLACEHOLDER,
+          campaignTitle: campaignTitle.trim(),
+          campaignDescription: campaignDescription.trim(),
+          targetAudience: targetAudience.trim() || undefined,
+          seoKeywords: seoKeywords.length > 0 ? seoKeywords : undefined,
         });
       } else if (contentType === "lp") {
         await lpMutation.mutateAsync({
-          ...commonParams,
-          primaryGoal,
-          priceInfo:
-            normalPrice || campaignPrice
-              ? {
-                  normalPrice: normalPrice || undefined,
-                  campaignPrice: campaignPrice || undefined,
-                }
-              : undefined,
+          userId: USER_ID_PLACEHOLDER,
+          campaignTitle: campaignTitle.trim(),
+          campaignDescription: campaignDescription.trim(),
+          targetAudience: targetAudience.trim() || undefined,
+          promotion: undefined,
+          tone: (tone === "プロフェッショナル" ? "professional" : tone === "カジュアルで親しみやすい" ? "friendly" : "trendy") as "professional" | "friendly" | "trendy",
         });
       }
     } catch (error) {
@@ -954,15 +951,15 @@ export function ContentGenerator() {
         {contentsQuery.error && (
           <Banner appearance="error">エラー: {contentsQuery.error.message}</Banner>
         )}
-        {contentsQuery.data && contentsQuery.data.contents.length === 0 && (
+        {contentsQuery.data && contentsQuery.data.length === 0 && (
           <EmptyState
             header="まだ生成されたコンテンツがありません"
             description="上記のフォームからコンテンツを生成してください"
           />
         )}
-        {contentsQuery.data && contentsQuery.data.contents.length > 0 && (
+        {contentsQuery.data && contentsQuery.data.length > 0 && (
           <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
-            {contentsQuery.data.contents.map((content) => (
+            {contentsQuery.data.map((content) => (
               <div
                 key={content.id}
                 style={{ padding: "16px", borderRadius: "8px", border: "1px solid #DFE1E6" }}
@@ -1040,7 +1037,7 @@ export function ContentGenerator() {
                         whiteSpace: "pre-wrap",
                       }}
                     >
-                      {content.bodyMarkdown || content.content}
+                      {content.content}
                     </pre>
                   </div>
                 </details>
