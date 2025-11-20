@@ -255,13 +255,97 @@ export async function analyzeMarketPosition(
 6. 分析総括`;
 
     const template = await getPrompt("claude_analyze_market_position", defaultPrompt);
+    
+    // データを構造化してフォーマット（ChatGPT/Geminiと同様の処理）
+    const clinicProductsFormatted = clinicProducts.map(p => ({
+      商品名: p.name,
+      原価: p.costPrice,
+      販売価格: p.sellingPrice,
+      カテゴリ: p.category || "未分類",
+    }));
+    
+    // 市場データを処理（文字列の場合はそのまま使用、オブジェクトの場合は構造化）
+    const marketDataFormatted: Record<string, unknown> = {};
+    
+    if (marketData.trends) {
+      // 文字列の場合はそのまま使用（トークン量削減）
+      if (typeof marketData.trends === "string") {
+        marketDataFormatted.トレンド = marketData.trends;
+      } else {
+        // オブジェクトの場合は構造化データを優先的に使用
+        const trends = marketData.trends as Record<string, unknown>;
+        if (trends.consensusJSON) {
+          marketDataFormatted.トレンド = trends.consensusJSON;
+        } else if (trends.text) {
+          marketDataFormatted.トレンド = trends.text;
+        } else {
+          marketDataFormatted.トレンド = trends;
+        }
+      }
+    }
+    
+    if (marketData.pricing) {
+      // 文字列の場合はそのまま使用（トークン量削減）
+      if (typeof marketData.pricing === "string") {
+        marketDataFormatted.価格情報 = marketData.pricing;
+      } else {
+        // オブジェクトの場合は構造化データを優先的に使用
+        const pricing = marketData.pricing as Record<string, unknown>;
+        if (pricing.consensusJSON) {
+          marketDataFormatted.価格情報 = pricing.consensusJSON;
+        } else if (pricing.text) {
+          marketDataFormatted.価格情報 = pricing.text;
+        } else {
+          marketDataFormatted.価格情報 = pricing;
+        }
+      }
+    }
+    
+    if (marketData.competitors) {
+      // 文字列の場合はそのまま使用（トークン量削減）
+      if (typeof marketData.competitors === "string") {
+        marketDataFormatted.競合情報 = marketData.competitors;
+      } else {
+        // オブジェクトの場合は構造化データを優先的に使用
+        const competitors = marketData.competitors as Record<string, unknown>;
+        if (competitors.consensusJSON) {
+          marketDataFormatted.競合情報 = competitors.consensusJSON;
+        } else if (competitors.text) {
+          marketDataFormatted.競合情報 = competitors.text;
+        } else {
+          marketDataFormatted.競合情報 = competitors;
+        }
+      }
+    }
+    
+    // SNSデータを処理（文字列の場合はそのまま使用、オブジェクトの場合は構造化）
+    const snsDataFormatted = snsData.map(s => {
+      // 文字列の場合はそのまま使用（トークン量削減）
+      if (typeof s === "string") {
+        return s;
+      }
+      // オブジェクトの場合は構造化データを優先的に使用
+      const data = s as Record<string, unknown>;
+      if (data.consensusJSON) {
+        return data.consensusJSON;
+      } else if (data.text) {
+        return data.text;
+      } else if (data.platform) {
+        // platformプロパティがある場合は、データをそのまま返す（Grokデータの識別のため）
+        return data;
+      }
+      return s;
+    });
+
     // JSON.stringifyのインデントを削除してトークン量を削減
     const prompt = replacePlaceholders(template, {
-      clinicProducts: JSON.stringify(clinicProducts),
-      marketData: JSON.stringify(marketData),
-      snsData: JSON.stringify(snsData),
+      clinicProducts: JSON.stringify(clinicProductsFormatted),
+      marketData: JSON.stringify(marketDataFormatted),
+      snsData: JSON.stringify(snsDataFormatted),
       location,
     });
+    
+    console.log(`[Claude analyzeMarketPosition] 商品数: ${clinicProducts.length}, 市場データ: ${JSON.stringify(marketDataFormatted).length}文字, SNSデータ: ${snsData.length}件`);
 
     // Web検索結果をプロンプトに追加
     const promptWithWebSearch = `${prompt}\n\n${webSearchResults}`;
@@ -361,11 +445,40 @@ export async function generatePriceRecommendations(
 最後に、価格戦略の総括と全体的な推奨事項を記載してください。`;
 
     const template = await getPrompt("claude_generate_price_recommendations", defaultPrompt);
+    
+    // データを構造化してフォーマット（ChatGPT/Geminiと同様の処理）
+    const productsFormatted = products.map(p => ({
+      商品名: p.name,
+      現在価格: p.sellingPrice,
+      原価: p.costPrice,
+      カテゴリ: p.category || "未分類",
+    }));
+
+    // 市場価格データを処理（文字列の場合はそのまま使用、オブジェクトの場合は構造化）
+    let marketPricingFormatted: unknown = marketPricing;
+    
+    if (marketPricing && typeof marketPricing === "object") {
+      const pricing = marketPricing as Record<string, unknown>;
+      // 構造化データを優先的に使用
+      if (pricing.consensusJSON) {
+        marketPricingFormatted = pricing.consensusJSON;
+      } else if (pricing.text) {
+        marketPricingFormatted = pricing.text;
+      } else if (pricing.data && Array.isArray(pricing.data)) {
+        // 配列データの場合はそのまま使用
+        marketPricingFormatted = pricing.data;
+      } else {
+        marketPricingFormatted = pricing;
+      }
+    }
+
     // JSON.stringifyのインデントを削除してトークン量を削減
     const prompt = replacePlaceholders(template, {
-      products: JSON.stringify(products),
-      marketPricing: JSON.stringify(marketPricing),
+      products: JSON.stringify(productsFormatted),
+      marketPricing: JSON.stringify(marketPricingFormatted),
     });
+    
+    console.log(`[Claude generatePriceRecommendations] 商品数: ${products.length}, 市場価格データ: ${JSON.stringify(marketPricingFormatted).length}文字`);
 
     // Web検索結果をプロンプトに追加
     const promptWithWebSearch = `${prompt}\n\n${webSearchResults}`;
@@ -457,11 +570,48 @@ export async function generateCampaignProposals(
 最後に、キャンペーン戦略の総括と推奨実施時期を記載してください。`;
 
     const template = await getPrompt("claude_generate_campaign_proposals", defaultPrompt);
+    
+    // データを処理（文字列の場合はそのまま使用、オブジェクトの場合は構造化データを優先）
+    const trendsFormatted = trends.map(t => {
+      // 文字列の場合はそのまま使用（トークン量削減）
+      if (typeof t === "string") {
+        return t;
+      }
+      // オブジェクトの場合は構造化データを優先的に使用
+      const trendData = t as Record<string, unknown>;
+      if (trendData.consensusJSON) {
+        return trendData.consensusJSON;
+      } else if (trendData.text) {
+        return trendData.text;
+      }
+      return t;
+    });
+    
+    const snsDataFormatted = snsData.map(s => {
+      // 文字列の場合はそのまま使用（トークン量削減）
+      if (typeof s === "string") {
+        return s;
+      }
+      // オブジェクトの場合は構造化データを優先的に使用
+      const snsDataItem = s as Record<string, unknown>;
+      if (snsDataItem.consensusJSON) {
+        return snsDataItem.consensusJSON;
+      } else if (snsDataItem.text) {
+        return snsDataItem.text;
+      } else if (snsDataItem.platform) {
+        // platformプロパティがある場合は、データをそのまま返す（Grokデータの識別のため）
+        return snsDataItem;
+      }
+      return s;
+    });
+
     // JSON.stringifyのインデントを削除してトークン量を削減
     const prompt = replacePlaceholders(template, {
-      trends: JSON.stringify(trends),
-      snsData: JSON.stringify(snsData),
+      trends: JSON.stringify(trendsFormatted),
+      snsData: JSON.stringify(snsDataFormatted),
     });
+    
+    console.log(`[Claude generateCampaignProposals] trends: ${trends.length}件, snsData: ${snsData.length}件`);
 
     // Web検索結果をプロンプトに追加
     const promptWithWebSearch = `${prompt}\n\n${webSearchResults}`;
@@ -564,12 +714,54 @@ export async function suggestNewTreatments(
 最後に、新施術導入戦略の総括と推奨導入タイムラインを記載してください。`;
 
     const template = await getPrompt("claude_suggest_new_treatments", defaultPrompt);
+    
+    // データを処理（文字列の場合はそのまま使用、オブジェクトの場合は構造化データを優先）
+    const currentTreatmentsFormatted = currentTreatments.map(t => ({
+      施術名: t.name,
+      カテゴリ: t.category || "未分類",
+    }));
+    
+    const marketTrendsFormatted = marketTrends.map(t => {
+      // 文字列の場合はそのまま使用（トークン量削減）
+      if (typeof t === "string") {
+        return t;
+      }
+      // オブジェクトの場合は構造化データを優先的に使用
+      const trendData = t as Record<string, unknown>;
+      if (trendData.consensusJSON) {
+        return trendData.consensusJSON;
+      } else if (trendData.text) {
+        return trendData.text;
+      }
+      return t;
+    });
+    
+    const snsTrendsFormatted = snsTrends.map(s => {
+      // 文字列の場合はそのまま使用（トークン量削減）
+      if (typeof s === "string") {
+        return s;
+      }
+      // オブジェクトの場合は構造化データを優先的に使用
+      const snsDataItem = s as Record<string, unknown>;
+      if (snsDataItem.consensusJSON) {
+        return snsDataItem.consensusJSON;
+      } else if (snsDataItem.text) {
+        return snsDataItem.text;
+      } else if (snsDataItem.platform) {
+        // platformプロパティがある場合は、データをそのまま返す（Grokデータの識別のため）
+        return snsDataItem;
+      }
+      return s;
+    });
+
     // JSON.stringifyのインデントを削除してトークン量を削減
     const prompt = replacePlaceholders(template, {
-      currentTreatments: JSON.stringify(currentTreatments),
-      marketTrends: JSON.stringify(marketTrends),
-      snsTrends: JSON.stringify(snsTrends),
+      currentTreatments: JSON.stringify(currentTreatmentsFormatted),
+      marketTrends: JSON.stringify(marketTrendsFormatted),
+      snsTrends: JSON.stringify(snsTrendsFormatted),
     });
+    
+    console.log(`[Claude suggestNewTreatments] currentTreatments: ${currentTreatments.length}件, marketTrends: ${marketTrends.length}件, snsTrends: ${snsTrends.length}件`);
 
     // Web検索結果をプロンプトに追加
     const promptWithWebSearch = `${prompt}\n\n${webSearchResults}`;
