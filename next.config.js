@@ -28,9 +28,6 @@ const nextConfig = {
       ],
     },
   },
-  
-  // VercelでのPrisma Clientバイナリ検出を確実にする
-  serverExternalPackages: ['@prisma/client', 'prisma'],
 };
 
 module.exports = nextConfig;
