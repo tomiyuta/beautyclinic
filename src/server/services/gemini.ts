@@ -843,7 +843,14 @@ ${webSearchResults}
     currentMonth: currentMonth.toString()
   });
   
-  return callGemini(prompt);
+  console.log(`[Price Comparison] プロンプト長: ${prompt.length}文字`);
+  console.log(`[Price Comparison] Web検索結果の長さ: ${webSearchResults.length}文字`);
+  console.log(`[Price Comparison] 施術数: ${treatments.length}, 都市数: ${cities.length}`);
+  
+  const result = await callGemini(prompt);
+  console.log(`[Price Comparison] AI応答の長さ: ${result.length}文字`);
+  
+  return result;
 }
 
 export async function analyzeInstagramTrends(
