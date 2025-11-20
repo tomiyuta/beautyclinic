@@ -1116,13 +1116,13 @@ ${keywords.join(", ")} に関連する**美容施術のトレンド**（施術�
 
       "representative_posts": [
 
-        { "url": "https://www.tiktok.com/@.../video/...", "format": "short|mid|long", "er_pct": number | "unknown", "fetchedAt": "{{ISO8601}}" }
+        { "url": "https://www.tiktok.com/@.../video/...", "format": "short|mid|long", "er_pct": number | "unknown", "fetchedAt": "${iso8601Date}" }
 
       ],
 
       "evidence": [
 
-        { "url": "https://www.tiktok.com/...", "caption_snippet": "string", "fetchedAt": "{{ISO8601}}" }
+        { "url": "https://www.tiktok.com/...", "caption_snippet": "string", "fetchedAt": "${iso8601Date}" }
 
       ]
 
@@ -1140,7 +1140,7 @@ ${keywords.join(", ")} に関連する**美容施術のトレンド**（施術�
 
       "risk_flags": ["before_after","medical_claims","giveaway","affiliate"],
 
-      "evidence":[{ "url":"https://www.tiktok.com/...", "fetchedAt":"{{ISO8601}}" }] }
+      "evidence":[{ "url":"https://www.tiktok.com/...", "fetchedAt":"${iso8601Date}" }] }
 
   ],
 
@@ -1154,7 +1154,7 @@ ${keywords.join(", ")} に関連する**美容施術のトレンド**（施術�
 
       "notes":"研究上の関連付け（運用示唆は出さない）",
 
-      "evidence":[{ "url":"https://www.tiktok.com/@.../video/...", "fetchedAt":"{{ISO8601}}" }] }
+      "evidence":[{ "url":"https://www.tiktok.com/@.../video/...", "fetchedAt":"${iso8601Date}" }] }
 
   ],
 
@@ -1166,7 +1166,7 @@ ${keywords.join(", ")} に関連する**美容施術のトレンド**（施術�
 
       "style_notes":"美容文脈での使われ方（研究所見）", "risk_flags":["beauty_filter_overuse"],
 
-      "evidence":[{ "url":"https://www.tiktok.com/@.../video/...", "fetchedAt":"{{ISO8601}}" }] }
+      "evidence":[{ "url":"https://www.tiktok.com/@.../video/...", "fetchedAt":"${iso8601Date}" }] }
 
   ],
 
