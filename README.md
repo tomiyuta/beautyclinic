@@ -2339,3 +2339,85 @@ npm run dev
 ## サポート
 
 問題が発生した場合は、GitHubのIssuesで報告してください。
+
+---
+
+## 主な変更履歴
+
+### 2025年11月 - トークン量最適化とデータ受け渡し改善
+
+#### トークン量削減の最適化
+- **データラッパーの削除**: `{ text: processedData }` 形式のラッパーを削除し、データを直接渡すように変更
+- **JSONインデントの削除**: `JSON.stringify(data, null, 2)` から `JSON.stringify(data)` に変更し、不要な空白を削減
+- **構造化データの優先使用**: `consensusJSON`が存在する場合はそれを優先的に使用
+- **冗長メタデータの削除**: 「あり」「なし」「unknown」などのメタデータを削除
+
+**期待される効果**:
+- ChatGPT/Gemini: 実際のデータが使用され、冗長なメタデータが削減
+- Claude: 3-5%のトークン削減（インデント削除）
+- 全体的: データの損失を防止し、トークン使用量を削減
+
+#### Grokデータの受け渡し改善
+- **プラットフォーム情報の明示的な含める**: SNS調査データを戦略分析に渡す際、`platform`と`aiAgent`情報を明示的に含めるように変更
+- **データ形式の統一**: テキスト形式のデータも`{ platform, aiAgent, data }`形式で統一
+- **Grokデータの識別**: AI APIがGrokのTwitterデータを正しく識別できるように改善
+
+**修正箇所**:
+- `strategy.ts`: `analyzeMarketPosition`, `generateCampaignProposals`, `suggestNewTreatments`関数
+- すべての戦略分析関数でプラットフォーム情報を含めるように統一
+
+#### API連携ドキュメントの追加
+- **API_INTEGRATION_DOCUMENTATION.md**: 全APIの連携状況を詳細に記載したドキュメントを追加
+  - 外部API一覧（6つ）
+  - 内部API（tRPCルーター）一覧（9つ）
+  - API連携フロー図
+  - 各APIの詳細仕様
+  - データフロー
+  - エラーハンドリング
+  - 環境変数設定
+  - トークン量最適化
+
+### 2025年11月 - コンテンツ生成機能の拡張
+
+#### 新機能追加
+- Instagram投稿生成（キャプション + ハッシュタグ + 画像）
+- ブログ記事生成（SEO最適化 + アイキャッチ画像）
+- LPテキスト生成（セクション構造 + コピー + LPヘッダー画像）
+- 画像生成機能（DALL·E 3統合）
+  - プリセット: `instagram_square` (1080x1080), `lp_banner` (1200x630), `custom`
+  - テーマ: `before_after`, `season_event`, `clinic_interior`, `texture_skin`
+
+#### データベーススキーマ拡張
+- `GeneratedContent`モデルに新フィールド追加:
+  - `bodyMarkdown`: Markdown形式の本文
+  - `rawJson`: 構造化JSONデータ
+  - `brandTone`: ブランドトーン
+  - `targetAudience`: ターゲット層
+  - `relatedTreatmentIds`: 関連施術ID（JSON配列）
+  - `snsResearchIds`: SNS調査ID（JSON配列）
+- `ContentImage`モデル追加: 生成画像の管理
+
+#### SNS調査統合
+- コンテンツ生成時にSNS調査結果を参照可能に
+- プロンプトにSNS調査データを自動統合
+
+#### 医療広告ガイドライン対応
+- 禁止ワードの自動フィルタリング
+- 誇大・断定表現の自動修正
+- 注意書きの自動付与
+
+### 2025年11月 - Gemini統合とWeb検索機能
+
+#### Gemini API統合
+- 市場調査（トレンド分析、価格比較、競合分析）
+- SNS調査（Instagram、YouTubeトレンド分析）
+- 戦略分析（ChatGPT/Claudeの代替として選択可能）
+
+#### Web検索統合
+- SerpAPI統合（優先）
+- Google Custom Search API統合（フォールバック）
+- 戦略分析に最新情報を反映
+
+#### Claude Web検索対応
+- Claudeの戦略分析関数にWeb検索機能を追加
+- ChatGPT/Geminiと同様に最新情報を活用可能に
