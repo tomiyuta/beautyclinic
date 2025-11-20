@@ -1305,12 +1305,14 @@ ${webSearchResults}`;
 export async function analyzeYouTubeTrends(
   keywords: string[],
   timeRange: "last_week" | "last_month" | "last_3months" = "last_month",
+  location: string = "unknown",
 ): Promise<string> {
   // 現在の日付を取得（最新情報を取得するため）
   const currentDate = new Date();
   const currentYear = currentDate.getFullYear();
   const currentMonth = currentDate.getMonth() + 1;
   const currentDateStr = `${currentYear}年${currentMonth}月`;
+  const iso8601Date = currentDate.toISOString();
 
   const timeRangeText = {
     last_week: "過去1週間",
@@ -1332,38 +1334,465 @@ export async function analyzeYouTubeTrends(
     webSearchResults = `【注意】Web検索APIが設定されていないため、最新情報の取得に制限があります。\n${error instanceof Error ? error.message : "Unknown error"}\n`;
   }
 
-  const defaultPrompt = `あなたはYouTubeマーケティングの専門家です。
-YouTubeで以下のキーワードに関連する最新のトレンドを調査してください：
+  const defaultPrompt = `<SYS>
 
-キーワード: ${keywords.join(", ")}
-期間: ${timeRangeText}
+あなたはYouTube上の美容施術トレンドを調査するリサーチ専門家です（チャンネル運用の助言は出さない）。
+
+出力は「2部構成・日本語・順番厳守」。次のタグで区切って返してください：
+
+
+
+1) <CONSENSUS_JSON> … AI合議・採点用の"隠しJSON"（機械処理用）。UIには表示しない。
+
+2) <REPORT_MARKDOWN> … 人が読む研究レポート（Markdown）。運用Tips（投稿時間/推奨形式等）は含めない。
+
+
+
+厳格ルール：
+
+- 対象は ${timeRangeText} の**公開**動画/チャンネルのみ。非公開や規約違反取得は行わない。
+
+- すべての主張・数値は、動画/チャンネル等の**根拠URLと取得日時**で裏付け。根拠がなければ "unknown"。
+
+- 医療広告/景表法に配慮し、誇大・断定・比較優良誤認（「必ず/完全/No.1/絶対」等）やビフォーアフター断定は避ける。
+
+- JSONは厳密構造。説明・解釈は <REPORT_MARKDOWN> 側のみ（運用助言は記載しない）。
+
+</SYS>
+
+
+
+<DEV>
+
+【目的】
+
+${keywords.join(", ")} に関連する**美容施術のトレンド**（施術名/悩み語/価格言及/安全性の話題/誤情報兆候/ライフサイクル）を、
+
+公開指標と根拠URLつきで客観可視化する。**運用ノウハウは出さない**。
+
+
+
+【指標・定義（研究用）】
+
+- engagement_rate_pct = (likes + comments) / views * 100（%）。views=0/不明は "unknown"。
+
+- view_velocity_per_day = 期間内の増加再生 ≒ 直近views増分 / 経過日数（推定可。推定時は methodology.notes に記載）。
+
+- format ∈ {short(≤60s), long(>60s), live} は**研究分類**としてのみ使用（運用示唆は出さない）。
+
+- length_bins: <60s / 1–3m / 3–8m / 8–20m / >20m（m=分）
+
+- lifecycle ∈ {emerging, peaking, maturing, declining}（増勢/半減期/話題遷移で判定）
+
+- misinformation_patterns：誤情報リスク（即効断定/禁忌無視/過度の比較/加工による誤認 等）
+
+- safety_topics：安全性・禁忌・ダウンタイムへの言及有無
+
+
+
+【バイアス管理】
+
+- 懸賞/アフィ/クリックベイト/広告強めは risk_flags に明記し、数値解釈を慎重に。
+
+- 一過性バズ/アルゴリズム変動は「限界」として gaps に記録。
+
+
+
+【出力1：合議用JSON（厳密スキーマ・順序厳守）】
+
+<CONSENSUS_JSON>
+
+{
+
+  "meta": {
+
+    "keywords": ${JSON.stringify(keywords)},                 // 例: ["ダーマペン","ピコレーザー","ヒアルロン酸"]
+
+    "timeRange": "${timeRangeText}",              // 例: "last 30 days"
+
+    "location": "${location}",                    // 例: "Japan"（未指定なら "unknown"）
+
+    "generatedAt": "${iso8601Date}"
+
+  },
+
+  "methodology": {
+
+    "query_plan": [
+
+      "日本語/英語/同義語/機器名/薬剤名（microneedling, dermapen4, pico laser, HIFU, botox, hyaluronic acid 等）で検索",
+
+      "公開動画のタイトル/説明/チャプター/タグから語を抽出し、関連動画→派生テーマを追跡",
+
+      "広告/懸賞/明確なプロモはバイアス注記"
+
+    ],
+
+    "definitions": {
+
+      "engagement_rate_pct": "(likes + comments)/views * 100",
+
+      "view_velocity_per_day": "期間内増分/経過日数（推定可）",
+
+      "format": ["short","long","live"],
+
+      "length_bins": ["<60s","1-3m","3-8m","8-20m",">20m"],
+
+      "lifecycle": ["emerging","peaking","maturing","declining"]
+
+    },
+
+    "bias_controls": {
+
+      "giveaway_flag": true,
+
+      "affiliate_flag": true,
+
+      "clickbait_flag": true,
+
+      "before_after_caution": true,
+
+      "medical_claims_caution": true
+
+    },
+
+    "notes": "公開情報のみ使用。視聴維持や平均視聴時間など非公開メトリクスは扱わない。"
+
+  },
+
+
+
+  "treatments": [
+
+    {
+
+      "name": "string",                             // 例: ダーマペン
+
+      "aliases": ["string"],                        // 同義語・機器名・薬剤名
+
+      "concerns": ["string"],                       // 共起する悩み語（毛穴/赤み/小顔 等）
+
+      "signals": {
+
+        "volume_est": number | "unknown",           // 期間中の関連動画推定本数
+
+        "growth_rate_pct": number | "unknown",
+
+        "median_engagement_rate_pct": number | "unknown",
+
+        "view_velocity_per_day": number | "unknown"
+
+      },
+
+      "format_mix_pct": { "short": number | "unknown", "long": number | "unknown", "live": number | "unknown" },
+
+      "length_mix_bins_pct": { "<60s": number | "unknown", "1-3m": number | "unknown", "3-8m": number | "unknown", "8-20m": number | "unknown", ">20m": number | "unknown" },
+
+      "lifecycle": "emerging|peaking|maturing|declining",
+
+      "price_mentions": {
+
+        "examples": ["¥18000 など"],
+
+        "range_jpy": { "p25": number | "unknown", "median": number | "unknown", "p75": number | "unknown" }
+
+      },
+
+      "safety_topics": ["ダウンタイム","内出血","禁忌","麻酔"],
+
+      "misinformation_patterns": ["string"],        // 例：即効断定/比較優良誤認 等
+
+      "representative_videos": [
+
+        { "url": "https://www.youtube.com/watch?v=...", "format": "short|long|live", "length_bin": "1-3m|...", "engagement_rate_pct": number | "unknown", "fetchedAt": "${iso8601Date}" }
+
+      ],
+
+      "evidence": [
+
+        { "url": "https://www.youtube.com/watch?v=...", "title_snippet": "string", "fetchedAt": "${iso8601Date}" }
+
+      ]
+
+    }
+
+  ],
+
+
+
+  "trending_keywords": [
+
+    {
+
+      "term": "string",                               // 例: 毛穴, 赤み, ダウンタイム
+
+      "type": "keyword|hashtag|question",
+
+      "volume_est": number | "unknown",
+
+      "growth_rate_pct": number | "unknown",
+
+      "co_terms": ["string"]
+
+    }
+
+  ],
+
+
+
+  "top_videos": [
+
+    {
+
+      "title": "string",
+
+      "url": "https://www.youtube.com/watch?v=...",
+
+      "channel_title": "string",
+
+      "channel_url": "https://www.youtube.com/@...",
+
+      "subscribers": number | "unknown",
+
+      "publishAt": "${iso8601Date}",
+
+      "duration_sec": number | "unknown",
+
+      "format": "short|long|live",
+
+      "views": number | "unknown",
+
+      "likes": number | "unknown",
+
+      "comments": number | "unknown",
+
+      "view_velocity_per_day": number | "unknown",
+
+      "engagement_rate_pct": number | "unknown",
+
+      "keywords_extracted": ["string"],
+
+      "thumbnail_features": {
+
+        "has_text_overlay": boolean | "unknown",
+
+        "face_closeup": boolean | "unknown",
+
+        "clinical_image_flag": boolean | "unknown",
+
+        "before_after_flag": boolean | "unknown"
+
+      },
+
+      "risk_flags": ["medical_claims","before_after","giveaway","affiliate","clickbait"],
+
+      "fetchedAt": "${iso8601Date}"
+
+    }
+
+  ],
+
+
+
+  "top_creators": [
+
+    {
+
+      "channel_title": "string",
+
+      "channel_url": "https://www.youtube.com/@...",
+
+      "category": "clinic|doctor|influencer|device_brand|media",
+
+      "subscribers": number | "unknown",
+
+      "median_views_30d": number | "unknown",
+
+      "post_freq_per_week": number | "unknown",
+
+      "format_mix_pct": { "short": number | "unknown", "long": number | "unknown", "live": number | "unknown" },
+
+      "representative_videos": [
+
+        { "url": "https://www.youtube.com/watch?v=...", "format": "short|long|live", "fetchedAt": "${iso8601Date}" }
+
+      ],
+
+      "notes": "string"
+
+    }
+
+  ],
+
+
+
+  "content_stats": {
+
+    "format_distribution_pct": { "short": number | "unknown", "long": number | "unknown", "live": number | "unknown" },
+
+    "median_views_by_length_bin": [
+
+      { "bin": "<60s", "median_views": number | "unknown" },
+
+      { "bin": "1-3m", "median_views": number | "unknown" },
+
+      { "bin": "3-8m", "median_views": number | "unknown" },
+
+      { "bin": "8-20m", "median_views": number | "unknown" },
+
+      { "bin": ">20m", "median_views": number | "unknown" }
+
+    ],
+
+    "median_engagement_rate_pct_by_length_bin": [
+
+      { "bin": "<60s", "median_er_pct": number | "unknown" },
+
+      { "bin": "1-3m", "median_er_pct": number | "unknown" },
+
+      { "bin": "3-8m", "median_er_pct": number | "unknown" },
+
+      { "bin": "8-20m", "median_er_pct": number | "unknown" },
+
+      { "bin": ">20m", "median_er_pct": number | "unknown" }
+
+    ]
+
+  },
+
+
+
+  "audience_signals": [
+
+    { "theme": "ダウンタイム・赤み", "example_comments": ["何日休めば？","当日はメイク可能？"] },
+
+    { "theme": "価格・初回・モニター", "example_comments": ["初回いくら？","モニター募集は？"] },
+
+    { "theme": "安全性・痛み", "example_comments": ["神経/血管リスク？","麻酔は？"] }
+
+  ],
+
+
+
+  "biasNotes": "懸賞/プロモ/クリックベイトによりERが歪む可能性。一過性バズに注意。",
+
+  "sources": [{ "video_or_channel": "https://www.youtube.com/...", "count": number }],
+
+  "gaps": ["視聴維持等の非公開指標は評価に含められない", "view_velocityは推定誤差を含む"]
+
+}
+
+</CONSENSUS_JSON>
+
+
+
+【出力2：人向けMarkdown（研究レポート。運用Tipsは含めない）】
+
+<REPORT_MARKDOWN>
+
+## 概要
+
+- 対象キーワード：${keywords.join(", ")} / 期間：${timeRangeText}（${location}）
+
+- 観測要点（3点）：施術 × 悩み語 × ライフサイクルの所見（簡潔に）
+
+
+
+### 1. 施術トレンドの全体像
+
+- 投稿量/増勢/ER中央値を総合した上位施術（要約）
+
+- ライフサイクルの分布（emerging/peaking/maturing/declining）
+
+
+
+### 2. 施術別の詳細（上位）
+
+| 施術 | 共起する悩み語 | 投稿数(推定) | 増加率 | ER中央値(%) | ライフサイクル | 価格言及(中央値) |
+
+|---|---|---:|---:|---:|---|---:|
+
+| 例 | 毛穴, 赤み | 1.2k | +18% | 3.1 | peaking | ¥18,000 |
+
+
+
+### 3. キーワード・タイトル傾向
+
+- よく使われる語/表記/疑問形や数値の有無など、**研究所見**として記載（運用助言はしない）
+
+
+
+### 4. 長さ・構成と反応
+
+- 長さの区分別の中央値（views/ER）を**観察結果**として記載（推奨は記さない）
+
+- 章立て（チャプター）の有無と説明の丁寧さに関する所見
+
+
+
+### 5. 安全性・誤情報
+
+- よく触れられる安全性トピック（ダウンタイム/禁忌/麻酔 等）
+
+- 誤情報パターン（即効断定/比較優良誤認/加工による誤認）と、その出典例
+
+
+
+### 6. 価格言及（参考）
+
+- キャプション/コメントから抽出できた価格レンジ（存在する場合のみ）と信頼性の注記
+
+
+
+### 7. 方法・限界
+
+- データ取得・正規化・ライフサイクル判定の方法
+
+- サンプリングや一過性要因などの限界
+
+
+
+### 8. 代表URL
+
+- 動画/チャンネルの代表的なURLを列挙
+
+
+
+### 総括
+
+- 本期間における**施術トレンドの核心**（需要の横断所見）を1段落でまとめる
+
+</REPORT_MARKDOWN>
+
+</DEV>
+
+
+
+<USER>
+
+- キーワード: ${keywords.join(", ")}        // 例: ["ダーマペン","ピコレーザー","ヒアルロン酸"]
+
+- 期間: ${timeRangeText}          // 例: "last 30 days"
+
+- 地域(任意): ${location}        // 例: "Japan"（未指定なら "unknown"）
+
+</USER>
+
+
 
 【重要】以下のWeb検索結果を基に、最新のYouTubeトレンドを分析してください。
 現在の日付は${currentDateStr}です。${currentYear}年${currentMonth}月時点の最新情報を優先的に使用してください。
 
-${webSearchResults}
-
-【分析指示】
-以下の観点から、上記のWeb検索結果を基に分析してください：
-1. 人気の動画タイトルやキーワード
-2. 影響力のあるチャンネルやクリエイター
-3. 人気の動画ジャンルやフォーマット
-4. エンゲージメント（視聴回数、いいね、コメント）の傾向
-5. 動画の長さや構成のトレンド
-
-【重要】
-- Web検索結果に含まれる最新の情報を優先的に使用してください
-- 2024年以前の古い情報は使用しないでください
-- 情報の出典（URL）を可能な限り明記してください
-- 調査結果のタイトルや冒頭には「${currentDateStr}時点のWeb情報に基づき実施」と記載してください
-
-わかりやすく読みやすい形式で、調査結果をまとめてください。最後に、トレンド分析の総括を記載してください。`;
+${webSearchResults}`;
 
   const { getPrompt, replacePlaceholders } = await import("./prompt-helper");
   const template = await getPrompt("gemini_analyze_youtube_trends", defaultPrompt);
   const prompt = replacePlaceholders(template, { 
     keywords: keywords.join(", "),
-    timeRange: timeRangeText
+    keywords_json: JSON.stringify(keywords),
+    timeRange: timeRangeText,
+    location: location || "unknown",
+    generatedAt: iso8601Date,
   });
   
   return callGemini(prompt);
