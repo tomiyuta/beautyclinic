@@ -527,39 +527,141 @@ export function MarketResearch() {
           />
         )}
         {resultsQuery.data && resultsQuery.data.length > 0 && (
-          <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
-            {resultsQuery.data.map((result) => (
-              <div
-                key={result.id}
-                style={{ padding: "16px", borderRadius: "8px", border: "1px solid #DFE1E6" }}
-              >
-                <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between" }}>
-                  <div style={{ flex: 1 }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "8px", flexWrap: "wrap" }}>
-                      <Badge appearance="added">
-                        {getResearchTypeLabel(result.researchType)}
-                      </Badge>
-                      <span style={{ fontSize: "12px", color: "#6B778C" }}>
-                        {result.location}
-                      </span>
-                      <span style={{ fontSize: "12px", color: "#6B778C" }}>
-                        {new Date(result.createdAt).toLocaleString("ja-JP")}
-                      </span>
-                    </div>
-                    {result.processedData && (
-                      <details style={{ marginTop: "8px" }}>
-                        <summary style={{ cursor: "pointer", fontSize: "14px", fontWeight: 500, color: "#42526E", listStyle: "none" }}>
-                          結果を表示
-                        </summary>
-                        <div style={{ marginTop: "8px", maxHeight: "240px", overflow: "auto", whiteSpace: "pre-wrap", padding: "12px", borderRadius: "4px", background: "#F4F5F7", fontSize: "14px", color: "#172B4D" }}>
-                          {result.processedData}
+          <div style={{ display: "flex", flexDirection: "column", gap: "32px" }}>
+            {/* 価格調査 */}
+            {resultsQuery.data.filter((r) => r.researchType === "price_research").length > 0 && (
+              <div>
+                <h3 style={{ fontSize: "14px", fontWeight: 600, marginBottom: "12px", color: "#172B4D", display: "flex", alignItems: "center", gap: "8px" }}>
+                  <Badge appearance="added">価格調査</Badge>
+                  <span style={{ fontSize: "12px", color: "#6B778C", fontWeight: 400 }}>
+                    ({resultsQuery.data.filter((r) => r.researchType === "price_research").length}件)
+                  </span>
+                </h3>
+                <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+                  {resultsQuery.data
+                    .filter((r) => r.researchType === "price_research")
+                    .map((result) => (
+                      <div
+                        key={result.id}
+                        style={{ padding: "16px", borderRadius: "8px", border: "1px solid #DFE1E6", backgroundColor: "#F4F5F7" }}
+                      >
+                        <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between" }}>
+                          <div style={{ flex: 1 }}>
+                            <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "8px", flexWrap: "wrap" }}>
+                              <span style={{ fontSize: "12px", color: "#6B778C" }}>
+                                {result.location}
+                              </span>
+                              <span style={{ fontSize: "12px", color: "#6B778C" }}>
+                                {new Date(result.createdAt).toLocaleString("ja-JP")}
+                              </span>
+                            </div>
+                            {result.processedData && (
+                              <details style={{ marginTop: "8px" }}>
+                                <summary style={{ cursor: "pointer", fontSize: "14px", fontWeight: 500, color: "#42526E", listStyle: "none" }}>
+                                  結果を表示
+                                </summary>
+                                <div style={{ marginTop: "8px", maxHeight: "240px", overflow: "auto", whiteSpace: "pre-wrap", padding: "12px", borderRadius: "4px", background: "#FFFFFF", fontSize: "14px", color: "#172B4D" }}>
+                                  {result.processedData}
+                                </div>
+                              </details>
+                            )}
+                          </div>
                         </div>
-                      </details>
-                    )}
-                  </div>
+                      </div>
+                    ))}
                 </div>
               </div>
-            ))}
+            )}
+
+            {/* トレンド分析 */}
+            {resultsQuery.data.filter((r) => r.researchType === "trend_analysis").length > 0 && (
+              <div>
+                <h3 style={{ fontSize: "14px", fontWeight: 600, marginBottom: "12px", color: "#172B4D", display: "flex", alignItems: "center", gap: "8px" }}>
+                  <Badge appearance="added">トレンド分析</Badge>
+                  <span style={{ fontSize: "12px", color: "#6B778C", fontWeight: 400 }}>
+                    ({resultsQuery.data.filter((r) => r.researchType === "trend_analysis").length}件)
+                  </span>
+                </h3>
+                <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+                  {resultsQuery.data
+                    .filter((r) => r.researchType === "trend_analysis")
+                    .map((result) => (
+                      <div
+                        key={result.id}
+                        style={{ padding: "16px", borderRadius: "8px", border: "1px solid #DFE1E6", backgroundColor: "#F4F5F7" }}
+                      >
+                        <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between" }}>
+                          <div style={{ flex: 1 }}>
+                            <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "8px", flexWrap: "wrap" }}>
+                              <span style={{ fontSize: "12px", color: "#6B778C" }}>
+                                {result.location}
+                              </span>
+                              <span style={{ fontSize: "12px", color: "#6B778C" }}>
+                                {new Date(result.createdAt).toLocaleString("ja-JP")}
+                              </span>
+                            </div>
+                            {result.processedData && (
+                              <details style={{ marginTop: "8px" }}>
+                                <summary style={{ cursor: "pointer", fontSize: "14px", fontWeight: 500, color: "#42526E", listStyle: "none" }}>
+                                  結果を表示
+                                </summary>
+                                <div style={{ marginTop: "8px", maxHeight: "240px", overflow: "auto", whiteSpace: "pre-wrap", padding: "12px", borderRadius: "4px", background: "#FFFFFF", fontSize: "14px", color: "#172B4D" }}>
+                                  {result.processedData}
+                                </div>
+                              </details>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                </div>
+              </div>
+            )}
+
+            {/* 競合分析 */}
+            {resultsQuery.data.filter((r) => r.researchType === "competitor_analysis").length > 0 && (
+              <div>
+                <h3 style={{ fontSize: "14px", fontWeight: 600, marginBottom: "12px", color: "#172B4D", display: "flex", alignItems: "center", gap: "8px" }}>
+                  <Badge appearance="added">競合分析</Badge>
+                  <span style={{ fontSize: "12px", color: "#6B778C", fontWeight: 400 }}>
+                    ({resultsQuery.data.filter((r) => r.researchType === "competitor_analysis").length}件)
+                  </span>
+                </h3>
+                <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+                  {resultsQuery.data
+                    .filter((r) => r.researchType === "competitor_analysis")
+                    .map((result) => (
+                      <div
+                        key={result.id}
+                        style={{ padding: "16px", borderRadius: "8px", border: "1px solid #DFE1E6", backgroundColor: "#F4F5F7" }}
+                      >
+                        <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between" }}>
+                          <div style={{ flex: 1 }}>
+                            <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "8px", flexWrap: "wrap" }}>
+                              <span style={{ fontSize: "12px", color: "#6B778C" }}>
+                                {result.location}
+                              </span>
+                              <span style={{ fontSize: "12px", color: "#6B778C" }}>
+                                {new Date(result.createdAt).toLocaleString("ja-JP")}
+                              </span>
+                            </div>
+                            {result.processedData && (
+                              <details style={{ marginTop: "8px" }}>
+                                <summary style={{ cursor: "pointer", fontSize: "14px", fontWeight: 500, color: "#42526E", listStyle: "none" }}>
+                                  結果を表示
+                                </summary>
+                                <div style={{ marginTop: "8px", maxHeight: "240px", overflow: "auto", whiteSpace: "pre-wrap", padding: "12px", borderRadius: "4px", background: "#FFFFFF", fontSize: "14px", color: "#172B4D" }}>
+                                  {result.processedData}
+                                </div>
+                              </details>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                </div>
+              </div>
+            )}
           </div>
         )}
       </section>
