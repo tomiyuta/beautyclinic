@@ -28,6 +28,7 @@ export function MarketResearch() {
   const [radius, setRadius] = useState(5);
   const [treatments, setTreatments] = useState<string[]>([]);
   const [treatmentInput, setTreatmentInput] = useState("");
+  const [selectedProductIds, setSelectedProductIds] = useState<number[]>([]);
   const [cities, setCities] = useState<string[]>([]);
   const [cityInput, setCityInput] = useState("");
   const [feedback, setFeedback] = useState<{
@@ -116,6 +117,14 @@ export function MarketResearch() {
     staleTime: 60000, // 1分間キャッシュ
   });
 
+  // 商品管理から商品一覧を取得
+  const productsQuery = api.product.list.useQuery({
+    userId: USER_ID_PLACEHOLDER,
+  }, {
+    retry: 2,
+    staleTime: 60000, // 1分間キャッシュ
+  });
+
   const handleAddTreatment = () => {
     if (treatmentInput.trim() && !treatments.includes(treatmentInput.trim())) {
       setTreatments([...treatments, treatmentInput.trim()]);
@@ -125,6 +134,30 @@ export function MarketResearch() {
 
   const handleRemoveTreatment = (treatment: string) => {
     setTreatments(treatments.filter((t) => t !== treatment));
+  };
+
+  const handleProductSelectionChange = (selectedOptions: Array<{ value: number; label: string }>) => {
+    const productIds = selectedOptions.map(opt => opt.value);
+    setSelectedProductIds(productIds);
+    
+    // 選択した商品名をtreatmentsに追加（重複を避ける）
+    const productNames = selectedOptions.map(opt => opt.label);
+    const newTreatments = [...treatments];
+    productNames.forEach(name => {
+      if (!newTreatments.includes(name)) {
+        newTreatments.push(name);
+      }
+    });
+    
+    // 選択解除された商品名をtreatmentsから削除
+    const currentProductNames = productsQuery.data
+      ?.filter(p => productIds.includes(p.id))
+      .map(p => p.name) || [];
+    const treatmentsToKeep = newTreatments.filter(t => 
+      currentProductNames.includes(t) || !productsQuery.data?.some(p => p.name === t)
+    );
+    
+    setTreatments(treatmentsToKeep);
   };
 
   const handleAddCity = () => {
@@ -296,42 +329,90 @@ export function MarketResearch() {
                 <label style={{ display: "block", marginBottom: "8px", fontSize: "14px", fontWeight: 500, color: "#42526E" }}>
                   調査対象施術 *
                 </label>
-                <div style={{ display: "flex", gap: "8px", marginBottom: "8px" }}>
-                  <TextField
-                    type="text"
-                    value={treatmentInput}
-                    onChange={(e) => setTreatmentInput((e.target as HTMLInputElement).value)}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter") {
-                        e.preventDefault();
-                        handleAddTreatment();
-                      }
-                    }}
-                    placeholder="例：ダーマペン4"
-                    style={{ flex: 1 }}
-                  />
-                  <Button
-                    type="button"
-                    appearance="default"
-                    onClick={handleAddTreatment}
-                  >
-                    追加
-                  </Button>
+                
+                {/* 商品管理から選択 */}
+                {productsQuery.data && productsQuery.data.length > 0 && (
+                  <div style={{ marginBottom: "16px" }}>
+                    <label style={{ display: "block", marginBottom: "8px", fontSize: "12px", fontWeight: 500, color: "#6B778C" }}>
+                      登録済み商品から選択
+                    </label>
+                    <Select
+                      isMulti
+                      options={productsQuery.data
+                        .filter(p => p.isActive)
+                        .map(p => ({ value: p.id, label: p.name }))}
+                      value={productsQuery.data
+                        .filter(p => selectedProductIds.includes(p.id))
+                        .map(p => ({ value: p.id, label: p.name }))}
+                      onChange={(selected) => {
+                        if (selected && Array.isArray(selected)) {
+                          handleProductSelectionChange(selected as Array<{ value: number; label: string }>);
+                        } else {
+                          handleProductSelectionChange([]);
+                        }
+                      }}
+                      placeholder="商品を選択してください（複数選択可）"
+                      isClearable
+                    />
+                  </div>
+                )}
+                
+                {/* 自由入力 */}
+                <div style={{ marginBottom: "8px" }}>
+                  <label style={{ display: "block", marginBottom: "8px", fontSize: "12px", fontWeight: 500, color: "#6B778C" }}>
+                    自由入力
+                  </label>
+                  <div style={{ display: "flex", gap: "8px" }}>
+                    <TextField
+                      type="text"
+                      value={treatmentInput}
+                      onChange={(e) => setTreatmentInput((e.target as HTMLInputElement).value)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") {
+                          e.preventDefault();
+                          handleAddTreatment();
+                        }
+                      }}
+                      placeholder="例：ダーマペン4"
+                      style={{ flex: 1 }}
+                    />
+                    <Button
+                      type="button"
+                      appearance="default"
+                      onClick={handleAddTreatment}
+                    >
+                      追加
+                    </Button>
+                  </div>
                 </div>
+                
+                {/* 選択された施術の一覧 */}
                 {treatments.length > 0 && (
-                  <div style={{ display: "flex", flexWrap: "wrap", gap: "8px" }}>
-                    {treatments.map((treatment) => (
-                      <div key={treatment} style={{ display: "flex", alignItems: "center", gap: "4px" }}>
-                        <Tag text={treatment} />
-                        <Button
-                          appearance="subtle-link"
-                          onClick={() => handleRemoveTreatment(treatment)}
-                          style={{ padding: "0", minWidth: "auto" }}
-                        >
-                          ×
-                        </Button>
-                      </div>
-                    ))}
+                  <div style={{ marginTop: "8px" }}>
+                    <div style={{ fontSize: "12px", fontWeight: 500, color: "#6B778C", marginBottom: "8px" }}>
+                      選択された施術 ({treatments.length}件)
+                    </div>
+                    <div style={{ display: "flex", flexWrap: "wrap", gap: "8px" }}>
+                      {treatments.map((treatment) => (
+                        <div key={treatment} style={{ display: "flex", alignItems: "center", gap: "4px" }}>
+                          <Tag text={treatment} />
+                          <Button
+                            appearance="subtle-link"
+                            onClick={() => {
+                              handleRemoveTreatment(treatment);
+                              // 商品選択からも削除
+                              const product = productsQuery.data?.find(p => p.name === treatment);
+                              if (product) {
+                                setSelectedProductIds(selectedProductIds.filter(id => id !== product.id));
+                              }
+                            }}
+                            style={{ padding: "0", minWidth: "auto" }}
+                          >
+                            ×
+                          </Button>
+                        </div>
+                      ))}
+                    </div>
                   </div>
                 )}
               </div>
