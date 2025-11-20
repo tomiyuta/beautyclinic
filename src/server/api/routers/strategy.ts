@@ -296,7 +296,14 @@ export const strategyRouter = router({
           .map((result) => {
             if (result.processedData) {
               // データを直接渡す（ラッパーを削除してトークン量を削減）
-              return result.processedData as unknown as Record<string, unknown>;
+              // JSON形式の場合はパース、テキスト形式の場合はそのまま
+              try {
+                // JSON形式の場合はパースして返す
+                return JSON.parse(result.processedData) as Record<string, unknown>;
+              } catch {
+                // テキスト形式の場合はそのまま返す
+                return { text: result.processedData } as Record<string, unknown>;
+              }
             }
             return null;
           })
