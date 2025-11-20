@@ -5,6 +5,7 @@ import { z } from "zod";
 import {
   analyzeInstagramTrends,
   analyzeYouTubeTrends,
+  analyzeTikTokTrends,
   getCurrentGeminiModel,
 } from "@/server/services/gemini";
 import { analyzeTwitterTrends, getCurrentGrokModel } from "@/server/services/grok";
@@ -12,7 +13,7 @@ import { logError } from "@/server/services/error-logger";
 
 import { publicProcedure, router } from "../trpc";
 
-const snsPlatformSchema = z.enum(["twitter", "instagram", "youtube"]);
+const snsPlatformSchema = z.enum(["twitter", "instagram", "youtube", "tiktok"]);
 const timeRangeSchema = z.enum(["last_week", "last_month", "last_3months"]);
 
 export const snsResearchRouter = router({
@@ -196,6 +197,66 @@ export const snsResearchRouter = router({
       }
     }),
 
+  analyzeTikTok: publicProcedure
+    .input(
+      z.object({
+        userId: z.number().int().positive(),
+        keywords: z
+          .array(z.string().min(1))
+          .min(1, "少なくとも1つのキーワードを指定してください"),
+        timeRange: timeRangeSchema.optional().default("last_month"),
+      }),
+    )
+    .mutation(async ({ input }) => {
+      try {
+        const result = await analyzeTikTokTrends(input.keywords, input.timeRange);
+
+        // データベースに保存（テキスト形式で保存）
+        const saved = await db.sNSResearchResult.create({
+          data: {
+            userId: input.userId,
+            platform: "tiktok",
+            keywords: input.keywords.join(","),
+            aiAgent: "gemini",
+            trendData: result, // テキスト形式で保存
+          },
+        });
+
+        return {
+          id: saved.id,
+          result: result, // テキスト形式の結果をそのまま返す
+          message: "TikTok調査が完了しました",
+        };
+      } catch (error) {
+        console.error("TikTok research error:", error);
+        
+        // エラーログに記録
+        await logError({
+          userId: input.userId,
+          module: "sns_research",
+          errorType: "API_ERROR",
+          errorMessage: error instanceof Error ? error.message : "TikTok調査の実行に失敗しました",
+          stackTrace: error instanceof Error ? error.stack : undefined,
+          context: {
+            platform: "tiktok",
+            keywords: input.keywords,
+            timeRange: input.timeRange,
+          },
+          aiAgent: "gemini",
+        }).catch((logError) => {
+          console.error("Failed to log error:", logError);
+        });
+
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message:
+            error instanceof Error
+              ? error.message
+              : "TikTok調査の実行に失敗しました",
+        });
+      }
+    }),
+
   list: publicProcedure
     .input(
       z.object({
@@ -256,7 +317,7 @@ export const snsResearchRouter = router({
           model: getCurrentGrokModel() || "grok-4",
         };
       } else {
-        // Instagram, YouTube は Gemini
+        // Instagram, YouTube, TikTok は Gemini
         return {
           aiAgent: "gemini" as const,
           model: getCurrentGeminiModel() || "gemini-2.5-pro",

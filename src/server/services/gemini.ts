@@ -920,6 +920,76 @@ ${webSearchResults}
   return callGemini(prompt);
 }
 
+export async function analyzeTikTokTrends(
+  keywords: string[],
+  timeRange: "last_week" | "last_month" | "last_3months" = "last_month",
+): Promise<string> {
+  // 現在の日付を取得（最新情報を取得するため）
+  const currentDate = new Date();
+  const currentYear = currentDate.getFullYear();
+  const currentMonth = currentDate.getMonth() + 1;
+  const currentDateStr = `${currentYear}年${currentMonth}月`;
+
+  const timeRangeText = {
+    last_week: "過去1週間",
+    last_month: "過去1ヶ月",
+    last_3months: "過去3ヶ月",
+  }[timeRange];
+
+  // Web検索を実行して最新情報を取得
+  let webSearchResults = "";
+  try {
+    const { performWebSearch, formatSearchResults, generateTikTokTrendSearchQuery } = await import("./web-search");
+    const searchQuery = generateTikTokTrendSearchQuery(keywords, currentYear, currentMonth);
+    console.log(`[TikTok Trends] Web検索実行: ${searchQuery}`);
+    const searchResults = await performWebSearch(searchQuery, 10);
+    webSearchResults = formatSearchResults(searchResults);
+    console.log(`[TikTok Trends] Web検索結果: ${searchResults.length}件取得`);
+  } catch (error) {
+    console.warn("[TikTok Trends] Web検索に失敗しましたが、続行します:", error);
+    webSearchResults = `【注意】Web検索APIが設定されていないため、最新情報の取得に制限があります。\n${error instanceof Error ? error.message : "Unknown error"}\n`;
+  }
+
+  const defaultPrompt = `あなたはTikTokマーケティングの専門家です。
+TikTokで以下のキーワードに関連する最新のトレンドを調査してください：
+
+キーワード: ${keywords.join(", ")}
+期間: ${timeRangeText}
+
+【重要】以下のWeb検索結果を基に、最新のTikTokトレンドを分析してください。
+現在の日付は${currentDateStr}です。${currentYear}年${currentMonth}月時点の最新情報を優先的に使用してください。
+
+${webSearchResults}
+
+【分析指示】
+以下の観点から、上記のWeb検索結果を基に分析してください：
+1. 人気のハッシュタグやチャレンジ
+2. 影響力のあるクリエイターやアカウント
+3. 人気の動画フォーマットやスタイル（ショート動画、音楽、エフェクトなど）
+4. エンゲージメント（いいね、コメント、シェア、再生回数）の傾向
+5. トレンドの変化速度とライフサイクル
+6. 若年層への訴求力と拡散力
+7. サウンドや音楽のトレンド
+8. 視覚的エフェクトやフィルターのトレンド
+
+【重要】
+- Web検索結果に含まれる最新の情報を優先的に使用してください
+- 2024年以前の古い情報は使用しないでください
+- 情報の出典（URL）を可能な限り明記してください
+- 調査結果のタイトルや冒頭には「${currentDateStr}時点のWeb情報に基づき実施」と記載してください
+
+わかりやすく読みやすい形式で、調査結果をまとめてください。最後に、トレンド分析の総括を記載してください。`;
+
+  const { getPrompt, replacePlaceholders } = await import("./prompt-helper");
+  const template = await getPrompt("gemini_analyze_tiktok_trends", defaultPrompt);
+  const prompt = replacePlaceholders(template, { 
+    keywords: keywords.join(", "),
+    timeRange: timeRangeText
+  });
+  
+  return callGemini(prompt);
+}
+
 export async function analyzeYouTubeTrends(
   keywords: string[],
   timeRange: "last_week" | "last_month" | "last_3months" = "last_month",

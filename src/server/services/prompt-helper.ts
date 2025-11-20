@@ -9,6 +9,7 @@ type PromptType =
   | "gemini_research_price_comparison"
   | "gemini_analyze_instagram_trends"
   | "gemini_analyze_youtube_trends"
+  | "gemini_analyze_tiktok_trends"
   | "gemini_research_competitor_analysis"
   | "grok_analyze_twitter_trends"
   | "chatgpt_system_prompt"
@@ -208,6 +209,24 @@ YouTubeで以下のキーワードに関連する最新のトレンドを調査�
 3. 人気の動画ジャンルやフォーマット
 4. エンゲージメント（視聴回数、いいね、コメント）の傾向
 5. 動画の長さや構成のトレンド
+
+わかりやすく読みやすい形式で、調査結果をまとめてください。最後に、トレンド分析の総括を記載してください。`,
+
+  gemini_analyze_tiktok_trends: `あなたはTikTokマーケティングの専門家です。
+TikTokで以下のキーワードに関連する最新のトレンドを調査してください：
+
+キーワード: \${keywords}
+期間: \${timeRangeText}
+
+以下の観点から分析してください：
+1. 人気のハッシュタグやチャレンジ
+2. 影響力のあるクリエイターやアカウント
+3. 人気の動画フォーマットやスタイル（ショート動画、音楽、エフェクトなど）
+4. エンゲージメント（いいね、コメント、シェア、再生回数）の傾向
+5. トレンドの変化速度とライフサイクル
+6. 若年層への訴求力と拡散力
+7. サウンドや音楽のトレンド
+8. 視覚的エフェクトやフィルターのトレンド
 
 わかりやすく読みやすい形式で、調査結果をまとめてください。最後に、トレンド分析の総括を記載してください。`,
 

@@ -12,7 +12,7 @@ import EmptyState from "@atlaskit/empty-state";
 import { api } from "@/trpc/react";
 import { TRPCClientError } from "@trpc/client";
 
-type SNSPlatform = "twitter" | "instagram" | "youtube";
+type SNSPlatform = "twitter" | "instagram" | "youtube" | "tiktok";
 type TimeRange = "last_week" | "last_month" | "last_3months";
 
 const USER_ID_PLACEHOLDER = 1;
@@ -21,6 +21,7 @@ const platformOptions = [
   { label: "Twitter/X (Grok API)", value: "twitter" },
   { label: "Instagram (Gemini API)", value: "instagram" },
   { label: "YouTube (Gemini API)", value: "youtube" },
+  { label: "TikTok (Gemini API)", value: "tiktok" },
 ];
 
 const timeRangeOptions = [
@@ -68,6 +69,28 @@ export function SNSResearch() {
       setFeedback({
         type: "success",
         message: "Instagram調査が完了しました",
+      });
+      setTimeout(() => setFeedback({ type: null, message: "" }), 5000);
+      void utils.snsResearch.list.invalidate({
+        userId: USER_ID_PLACEHOLDER,
+      });
+      setKeywords([]);
+    },
+    onError: (error: unknown) => {
+      const message = error instanceof Error ? error.message : "エラーが発生しました。もう一度お試しください。";
+      setFeedback({ 
+        type: "error", 
+        message
+      });
+      setTimeout(() => setFeedback({ type: null, message: "" }), 5000);
+    },
+  });
+
+  const tiktokMutation = api.snsResearch.analyzeTikTok.useMutation({
+    onSuccess: () => {
+      setFeedback({
+        type: "success",
+        message: "TikTok調査が完了しました",
       });
       setTimeout(() => setFeedback({ type: null, message: "" }), 5000);
       void utils.snsResearch.list.invalidate({
@@ -170,6 +193,8 @@ export function SNSResearch() {
         await instagramMutation.mutateAsync(input);
       } else if (platform === "youtube") {
         await youtubeMutation.mutateAsync(input);
+      } else if (platform === "tiktok") {
+        await tiktokMutation.mutateAsync(input);
       }
     } catch (error) {
       if (error instanceof TRPCClientError) {
@@ -187,12 +212,14 @@ export function SNSResearch() {
         return "Instagram";
       case "youtube":
         return "YouTube";
+      case "tiktok":
+        return "TikTok";
       default:
         return p;
     }
   };
 
-  const isPending = twitterMutation.isPending || instagramMutation.isPending || youtubeMutation.isPending;
+  const isPending = twitterMutation.isPending || instagramMutation.isPending || youtubeMutation.isPending || tiktokMutation.isPending;
 
   return (
     <div style={{ maxWidth: "1000px", margin: "0 auto", padding: "48px 16px" }}>

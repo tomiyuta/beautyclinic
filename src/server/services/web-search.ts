@@ -184,6 +184,18 @@ export function generateYouTubeTrendSearchQuery(
 }
 
 /**
+ * TikTokトレンド分析用のWeb検索クエリを生成
+ */
+export function generateTikTokTrendSearchQuery(
+  keywords: string[],
+  currentYear: number,
+  currentMonth: number,
+): string {
+  const keywordStr = keywords.join(" ");
+  return `TikTok ${keywordStr} トレンド ${currentYear}年${currentMonth}月 美容`;
+}
+
+/**
  * 競合分析用のWeb検索クエリを生成
  */
 export function generateCompetitorSearchQuery(

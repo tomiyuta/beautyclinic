@@ -35,6 +35,7 @@ enum SNSPlatform {
   twitter
   instagram
   youtube
+  tiktok
 }
 
 enum ImplementationStatus {
@@ -72,6 +73,7 @@ enum PromptType {
   gemini_research_price_comparison
   gemini_analyze_instagram_trends
   gemini_analyze_youtube_trends
+  gemini_analyze_tiktok_trends
   gemini_research_competitor_analysis
   // Grok
   grok_analyze_twitter_trends
