@@ -30,20 +30,16 @@ export function Navigation() {
         maxWidth: "1400px", 
         margin: "0 auto", 
         display: "flex", 
-        alignItems: "center", 
-        justifyContent: "center",
-        flexWrap: "wrap",
-        gap: "16px",
-        position: "relative"
+        flexDirection: "column",
+        alignItems: "center",
+        gap: "16px"
       }}>
-        <div style={{ flex: 1 }}></div>
         <h1 style={{ 
           fontSize: "18px", 
           fontWeight: 600, 
           color: "#172B4D",
           margin: 0,
-          textAlign: "center",
-          flex: "0 0 auto"
+          textAlign: "center"
         }}>
           クリマケ(クリニック向けAI統合リサーチ)
         </h1>
@@ -51,8 +47,7 @@ export function Navigation() {
           display: "flex", 
           gap: "8px",
           flexWrap: "wrap",
-          flex: 1,
-          justifyContent: "flex-end"
+          justifyContent: "center"
         }}>
           {navigationItems.map((item) => {
             const isActive = pathname === item.href;
