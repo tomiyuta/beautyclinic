@@ -30,6 +30,91 @@ const timeRangeOptions = [
   { label: "過去3ヶ月", value: "last_3months" },
 ];
 
+/**
+ * 調査履歴の表示用に、読みやすい日本語形式に変換する
+ * - TikTok: <REPORT_MARKDOWN>セクションのみを抽出
+ * - Instagram/YouTube/Twitter: JSON形式の場合は読みやすい形式に変換、またはMarkdown形式のみを抽出
+ */
+function formatTrendDataForDisplay(trendData: string | null, platform: string): string {
+  if (!trendData) {
+    return "";
+  }
+
+  // TikTokの場合は<REPORT_MARKDOWN>セクションのみを抽出
+  if (platform === "tiktok") {
+    const reportMatch = trendData.match(/<REPORT_MARKDOWN>([\s\S]*?)<\/REPORT_MARKDOWN>/);
+    if (reportMatch) {
+      return reportMatch[1]!.trim();
+    }
+    // <REPORT_MARKDOWN>タグがない場合は、<CONSENSUS_JSON>セクションを除去
+    const withoutConsensus = trendData.replace(/<CONSENSUS_JSON>[\s\S]*?<\/CONSENSUS_JSON>/g, "").trim();
+    if (withoutConsensus) {
+      return withoutConsensus;
+    }
+  }
+
+  // JSON形式の場合は、読みやすい形式に変換を試みる
+  try {
+    const parsed = JSON.parse(trendData);
+    // JSON形式の場合は、Markdown形式に変換を試みる
+    if (typeof parsed === "object" && parsed !== null) {
+      // <REPORT_MARKDOWN>セクションがある場合はそれを抽出
+      const reportMatch = trendData.match(/<REPORT_MARKDOWN>([\s\S]*?)<\/REPORT_MARKDOWN>/);
+      if (reportMatch) {
+        return reportMatch[1]!.trim();
+      }
+      // オブジェクトの場合は、読みやすい形式に整形
+      return formatJSONToReadableText(parsed);
+    }
+  } catch {
+    // JSON形式でない場合は、そのまま返す
+    // ただし、<CONSENSUS_JSON>セクションがある場合は除去
+    const withoutConsensus = trendData.replace(/<CONSENSUS_JSON>[\s\S]*?<\/CONSENSUS_JSON>/g, "").trim();
+    if (withoutConsensus) {
+      return withoutConsensus;
+    }
+  }
+
+  return trendData;
+}
+
+/**
+ * JSONオブジェクトを読みやすいテキスト形式に変換
+ */
+function formatJSONToReadableText(obj: unknown, indent: number = 0): string {
+  if (obj === null || obj === undefined) {
+    return "";
+  }
+
+  if (typeof obj === "string") {
+    return obj;
+  }
+
+  if (typeof obj === "number" || typeof obj === "boolean") {
+    return String(obj);
+  }
+
+  if (Array.isArray(obj)) {
+    return obj.map((item, index) => {
+      const prefix = `${"  ".repeat(indent)}${index + 1}. `;
+      const formatted = formatJSONToReadableText(item, indent + 1);
+      return `${prefix}${formatted}`;
+    }).join("\n");
+  }
+
+  if (typeof obj === "object") {
+    return Object.entries(obj)
+      .map(([key, value]) => {
+        const prefix = `${"  ".repeat(indent)}## ${key}\n`;
+        const formatted = formatJSONToReadableText(value, indent + 1);
+        return `${prefix}${formatted}`;
+      })
+      .join("\n\n");
+  }
+
+  return String(obj);
+}
+
 export function SNSResearch() {
   const [platform, setPlatform] = useState<SNSPlatform | "">("");
   const [keywords, setKeywords] = useState<string[]>([]);
@@ -404,7 +489,7 @@ export function SNSResearch() {
                             調査結果を表示
                           </summary>
                           <div style={{ marginTop: "12px", whiteSpace: "pre-wrap", borderRadius: "4px", background: "#F4F5F7", padding: "16px", fontSize: "14px", color: "#172B4D", maxHeight: "240px", overflow: "auto" }}>
-                            {result.trendData}
+                            {formatTrendDataForDisplay(result.trendData, result.platform)}
                           </div>
                         </details>
                       )}
@@ -464,7 +549,7 @@ export function SNSResearch() {
                             調査結果を表示
                           </summary>
                           <div style={{ marginTop: "12px", whiteSpace: "pre-wrap", borderRadius: "4px", background: "#F4F5F7", padding: "16px", fontSize: "14px", color: "#172B4D", maxHeight: "240px", overflow: "auto" }}>
-                            {result.trendData}
+                            {formatTrendDataForDisplay(result.trendData, result.platform)}
                           </div>
                         </details>
                       )}
@@ -524,7 +609,7 @@ export function SNSResearch() {
                             調査結果を表示
                           </summary>
                           <div style={{ marginTop: "12px", whiteSpace: "pre-wrap", borderRadius: "4px", background: "#F4F5F7", padding: "16px", fontSize: "14px", color: "#172B4D", maxHeight: "240px", overflow: "auto" }}>
-                            {result.trendData}
+                            {formatTrendDataForDisplay(result.trendData, result.platform)}
                           </div>
                         </details>
                       )}
@@ -584,7 +669,7 @@ export function SNSResearch() {
                             調査結果を表示
                           </summary>
                           <div style={{ marginTop: "12px", whiteSpace: "pre-wrap", borderRadius: "4px", background: "#F4F5F7", padding: "16px", fontSize: "14px", color: "#172B4D", maxHeight: "240px", overflow: "auto" }}>
-                            {result.trendData}
+                            {formatTrendDataForDisplay(result.trendData, result.platform)}
                           </div>
                         </details>
                       )}
