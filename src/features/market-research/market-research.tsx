@@ -136,28 +136,28 @@ export function MarketResearch() {
     setTreatments(treatments.filter((t) => t !== treatment));
   };
 
-  const handleProductSelectionChange = (selectedOptions: Array<{ value: number; label: string }>) => {
-    const productIds = selectedOptions.map(opt => opt.value);
+  const handleProductSelectionChange = (selectedOptions: Array<{ value: number; label: string }> | null) => {
+    const selected = selectedOptions || [];
+    const productIds = selected.map(opt => opt.value);
     setSelectedProductIds(productIds);
     
-    // 選択した商品名をtreatmentsに追加（重複を避ける）
-    const productNames = selectedOptions.map(opt => opt.label);
-    const newTreatments = [...treatments];
-    productNames.forEach(name => {
-      if (!newTreatments.includes(name)) {
-        newTreatments.push(name);
+    // 選択された商品名のリスト
+    const selectedProductNames = selected.map(opt => opt.label);
+    
+    // 現在のtreatmentsから、商品管理に登録されている商品名を除外
+    const freeInputTreatments = treatments.filter(t => 
+      !productsQuery.data?.some(p => p.name === t)
+    );
+    
+    // 自由入力の施術 + 選択された商品名を統合（重複を避ける）
+    const allTreatments = [...freeInputTreatments];
+    selectedProductNames.forEach(name => {
+      if (!allTreatments.includes(name)) {
+        allTreatments.push(name);
       }
     });
     
-    // 選択解除された商品名をtreatmentsから削除
-    const currentProductNames = productsQuery.data
-      ?.filter(p => productIds.includes(p.id))
-      .map(p => p.name) || [];
-    const treatmentsToKeep = newTreatments.filter(t => 
-      currentProductNames.includes(t) || !productsQuery.data?.some(p => p.name === t)
-    );
-    
-    setTreatments(treatmentsToKeep);
+    setTreatments(allTreatments);
   };
 
   const handleAddCity = () => {
