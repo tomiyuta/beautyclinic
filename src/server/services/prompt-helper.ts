@@ -288,7 +288,7 @@ YouTubeで以下のキーワードに関連する最新のトレンドを調査�
 
     "location": "\${location}",                 // 例: "Japan"（未指定なら "unknown"）
 
-    "generatedAt": "{{ISO8601}}"
+    "generatedAt": "\${generatedAt}"
 
   },
 
