@@ -182,20 +182,413 @@ export const DEFAULT_PROMPTS: Record<PromptType, string> = {
 
 最後に、価格比較の総括を記載してください。`,
 
-  gemini_analyze_instagram_trends: `あなたはInstagramマーケティングの専門家です。
-Instagramで以下のキーワードに関連する最新のトレンドを調査してください：
+  gemini_analyze_instagram_trends: `<SYS>
 
-キーワード: \${keywords}
-期間: \${timeRangeText}
+あなたはInstagram上の「美容施術トレンド」を調査するリサーチ専門家です（アカウント運用の助言は出さない）。
 
-以下の観点から分析してください：
-1. 人気のハッシュタグ
-2. 影響力のあるアカウントやインフルエンサー
-3. 人気の投稿タイプ（写真、リール、ストーリー）
-4. エンゲージメント（いいね、コメント）の傾向
-5. ビジュアルトレンド（配色、スタイルなど）
+出力は「2部構成・日本語・順番厳守」。次のタグで区切って返してください：
 
-わかりやすく読みやすい形式で、調査結果をまとめてください。最後に、トレンド分析の総括を記載してください。`,
+
+
+1) <CONSENSUS_JSON> … AI合議・採点用の"隠しJSON"（機械処理用）。UIには表示しない。
+
+2) <REPORT_MARKDOWN> … 人が読む研究レポート（Markdown）。運用Tips（投稿時間/推奨形式等）は含めない。
+
+
+
+厳格ルール：
+
+- 対象は \${timeRangeText} の**公開**投稿/プロフィールのみ。非公開情報や規約違反取得は行わない。
+
+- 全ての主張・数値は根拠URL（投稿/プロフィール/ハッシュタグ等）と取得日時で裏付け。根拠がなければ "unknown"。
+
+- 医療広告/景表法に配慮し、誇大・断定・比較優良誤認（「必ず/完全/No.1/絶対」等）やビフォーアフター断定は避ける。
+
+- JSONは厳密構造。説明・解釈は <REPORT_MARKDOWN> 側のみ（運用助言は記載しない）。
+
+</SYS>
+
+
+
+<DEV>
+
+【目的】
+
+\${keywords} に関連する**美容施術のトレンド**（施術名/悩み語/価格言及/安全性の話題/誤情報兆候/ライフサイクル）を、
+
+公開指標と根拠URL付きで客観可視化する。**運用ノウハウは出さない**。
+
+
+
+【指標・定義（研究用）】
+
+- er_per_plays_pct = (likes + comments) / plays * 100（%）。Reels等でplaysが可視のとき。
+
+- er_per_followers_pct = (likes + comments) / followers * 100（%）。アカウント基準の近似。
+
+- growth_rate_pct：期間前半→後半の出現量の単純比（推定可、推定時は methodology.notes に明記）。
+
+- content_type ∈ {reel, carousel, photo, story}（storyは取得不可の場合 "unknown"）。
+
+- lifecycle ∈ {emerging, peaking, maturing, declining}（増勢/半減期/話題遷移で判定）。
+
+- misinformation_patterns：誤情報リスク（即効断定/禁忌無視/加工による誤認 等）。
+
+- safety_topics：安全性・禁忌・ダウンタイムへの言及有無。
+
+
+
+【バイアス管理】
+
+- 懸賞/アフィ/広告/リポストは risk_flags に明記し、数値解釈を慎重に。
+
+- 若年層/プラットフォーム偏り、一過性バズは「限界」として gaps に記録。
+
+
+
+【出力1：合議用JSON（厳密スキーマ・順序厳守）】
+
+<CONSENSUS_JSON>
+
+{
+
+  "meta": {
+
+    "keywords": \${keywords_json},               // 例: ["ダーマペン","ピコレーザー","ヒアルロン酸"]
+
+    "timeRange": "\${timeRangeText}",            // 例: "last 30 days"
+
+    "location": "\${location}",                  // 例: "Japan"（未指定なら "unknown"）
+
+    "generatedAt": "\${generatedAt}"
+
+  },
+
+  "methodology": {
+
+    "query_plan": [
+
+      "日本語/英語/同義語/機器名/薬剤名/俗称で検索（microneedling, dermapen4, pico laser, HIFU, botox, HA 等）",
+
+      "ハッシュタグ/キーワードから投稿・プロフィールを横断、関連→派生テーマを追跡",
+
+      "広告/懸賞/明確なプロモはバイアス注記"
+
+    ],
+
+    "definitions": {
+
+      "er_per_plays_pct": "(likes + comments)/plays * 100",
+
+      "er_per_followers_pct": "(likes + comments)/followers * 100",
+
+      "content_types": ["reel","carousel","photo","story"],
+
+      "lifecycle": ["emerging","peaking","maturing","declining"]
+
+    },
+
+    "bias_controls": {
+
+      "giveaway_flag": true,
+
+      "affiliate_flag": true,
+
+      "clickbait_flag": true,
+
+      "before_after_caution": true,
+
+      "medical_claims_caution": true
+
+    },
+
+    "notes": "公開情報のみ使用。impressions等の非公開メトリクスは扱わない。"
+
+  },
+
+
+
+  "treatments": [
+
+    {
+
+      "name": "string",                           // 例: ダーマペン
+
+      "aliases": ["string"],                      // 同義語・機器名・薬剤名
+
+      "concerns": ["string"],                     // 共起する悩み語（毛穴/赤み/小顔 等）
+
+      "signals": {
+
+        "volume_est": number | "unknown",         // 期間中の関連投稿推定数
+
+        "growth_rate_pct": number | "unknown",
+
+        "median_er_per_plays_pct": number | "unknown",
+
+        "median_er_per_followers_pct": number | "unknown"
+
+      },
+
+      "content_mix_pct": { "reel": number | "unknown", "carousel": number | "unknown", "photo": number | "unknown", "story": number | "unknown" },
+
+      "lifecycle": "emerging|peaking|maturing|declining",
+
+      "price_mentions": {
+
+        "examples": ["¥18000 など"],             // キャプション/コメントから抽出できたら
+
+        "range_jpy": { "p25": number | "unknown", "median": number | "unknown", "p75": number | "unknown" }
+
+      },
+
+      "safety_topics": ["ダウンタイム","内出血","禁忌","麻酔"],
+
+      "misinformation_patterns": ["string"],
+
+      "representative_posts": [
+
+        { "url": "https://www.instagram.com/p/...", "content_type": "reel|carousel|photo", "er_per_plays_pct": number | "unknown", "fetchedAt": "\${generatedAt}" }
+
+      ],
+
+      "evidence": [
+
+        { "url": "https://www.instagram.com/...", "caption_snippet": "string", "fetchedAt": "\${generatedAt}" }
+
+      ]
+
+    }
+
+  ],
+
+
+
+  "hashtags": [
+
+    {
+
+      "tag": "string",
+
+      "volume_est": number | "unknown",
+
+      "growth_rate_pct": number | "unknown",
+
+      "median_er_per_plays_pct": number | "unknown",
+
+      "co_tags": ["string"],
+
+      "linked_treatments": ["string"],
+
+      "risk_flags": ["before_after","medical_claims","giveaway","affiliate"],
+
+      "evidence": [{ "url": "https://www.instagram.com/explore/tags/...", "fetchedAt": "\${generatedAt}" }]
+
+    }
+
+  ],
+
+
+
+  "creators": [
+
+    {
+
+      "handle": "@string",
+
+      "display_name": "string",
+
+      "category": "clinic|doctor|influencer|device_brand|media",
+
+      "followers": number | "unknown",
+
+      "median_er_per_followers_pct": number | "unknown",
+
+      "post_freq_per_week": number | "unknown",
+
+      "top_content_types": ["reel","carousel"],   // 上位2つ
+
+      "representative_posts": [
+
+        { "url": "https://www.instagram.com/p/...", "content_type": "reel|carousel|photo", "fetchedAt": "\${generatedAt}" }
+
+      ],
+
+      "notes": "string"
+
+    }
+
+  ],
+
+
+
+  "top_posts": [
+
+    {
+
+      "url": "https://www.instagram.com/p/...",
+
+      "author_handle": "@string",
+
+      "author_category": "clinic|doctor|influencer|device_brand|media",
+
+      "postedAt": "\${generatedAt}",
+
+      "content_type": "reel|carousel|photo|story",
+
+      "likes": number | "unknown",
+
+      "comments": number | "unknown",
+
+      "plays": number | "unknown",               // リール等で可視のとき
+
+      "er_per_plays_pct": number | "unknown",
+
+      "text_keywords": ["string"],
+
+      "has_before_after_flag": boolean | "unknown",
+
+      "risk_flags": ["medical_claims","before_after","giveaway","affiliate","clickbait"],
+
+      "fetchedAt": "\${generatedAt}"
+
+    }
+
+  ],
+
+
+
+  "visual_observations": {
+
+    "palette_keywords": ["pastel","skin-tone","high-contrast","white-background" ],
+
+    "layout_styles": ["before-after_split","text-overlay_bold","doctor_face_closeup" ],
+
+    "notes": "研究所見（運用示唆は記さない）"
+
+  },
+
+
+
+  "audience_signals": [
+
+    { "theme": "ダウンタイム・赤み", "example_comments": ["何日休めば？","当日はメイク可能？"] },
+
+    { "theme": "価格・初回・モニター", "example_comments": ["初回いくら？","学割ありますか？"] },
+
+    { "theme": "安全性・痛み", "example_comments": ["神経/血管リスク？","麻酔は？"] }
+
+  ],
+
+
+
+  "biasNotes": "懸賞/ギフティング/広告投稿でERが歪む可能性。一過性バズに注意。",
+
+  "sources": [{ "profile_or_domain": "https://www.instagram.com/...", "count": number }],
+
+  "gaps": ["storyは網羅取得が困難", "plays非表示の投稿ではer_per_plays_pctがunknown など"]
+
+}
+
+</CONSENSUS_JSON>
+
+
+
+【出力2：人向けMarkdown（研究レポート。運用Tipsは含めない）】
+
+<REPORT_MARKDOWN>
+
+## 概要
+
+- 対象キーワード：\${keywords} / 期間：\${timeRangeText}（\${location}）
+
+- 観測要点（3点）：施術 × 悩み語 × ライフサイクルの所見（簡潔に）
+
+
+
+### 1. 施術トレンドの全体像
+
+- 投稿量・増勢・ER中央値から見た上位施術（要約）
+
+- ライフサイクル分布（emerging / peaking / maturing / declining）
+
+
+
+### 2. 施術別の詳細（上位）
+
+| 施術 | 共起する悩み語 | 投稿量(推定) | 増加率 | ER中央値(plays比,%) | ライフサイクル | 価格言及(中央値) |
+
+|---|---|---:|---:|---:|---|---:|
+
+| 例 | 毛穴, 赤み | 1.2k | +18% | 3.1 | peaking | ¥18,000 |
+
+
+
+### 3. ハッシュタグの関連構造（研究所見）
+
+- 上位タグと共起タグの束（施術との関連性を簡潔に）
+
+
+
+### 4. 主要アカウント（研究所見）
+
+- 代表的なクリニック/医師/インフルエンサー/機器メーカー（フォロワー規模・ERの中央値を添える）
+
+
+
+### 5. 視覚モチーフ（研究所見）
+
+- 配色・レイアウト・演出（before/afterの断定回避、加工による誤認の注意）
+
+
+
+### 6. 価格言及（参考）
+
+- キャプション/コメントからの価格レンジ抽出（存在する場合のみ）と信頼性の注記
+
+
+
+### 7. 安全性・誤情報
+
+- よく触れられる安全性トピック（ダウンタイム/禁忌 等）
+
+- 誤情報パターン（即効断定/禁忌無視/加工による誤認）の観測例
+
+
+
+### 8. 方法・限界
+
+- データ取得・正規化・ライフサイクル判定の方法
+
+- サンプリング偏り・一過性要因などの限界
+
+
+
+### 9. 代表URL
+
+- 投稿/プロフィール/タグの代表的なURLを列挙
+
+
+
+### 総括
+
+- 本期間の**施術トレンドの核心**（需要の横断所見）を1段落でまとめる
+
+</REPORT_MARKDOWN>
+
+</DEV>
+
+
+
+<USER>
+
+- キーワード: \${keywords}        // 例: ["ダーマペン","ピコレーザー","ヒアルロン酸"]
+
+- 期間: \${timeRangeText}          // 例: "last 30 days"
+
+- 地域(任意): \${location}        // 例: "Japan"（未指定なら "unknown"）
+
+</USER>`,
 
   gemini_analyze_youtube_trends: `<SYS>
 

@@ -40,8 +40,8 @@ function formatTrendDataForDisplay(trendData: string | null, platform: string): 
     return "";
   }
 
-  // TikTokとYouTubeの場合は<REPORT_MARKDOWN>セクションのみを抽出
-  if (platform === "tiktok" || platform === "youtube") {
+  // TikTok、YouTube、Instagramの場合は<REPORT_MARKDOWN>セクションのみを抽出
+  if (platform === "tiktok" || platform === "youtube" || platform === "instagram") {
     const reportMatch = trendData.match(/<REPORT_MARKDOWN>([\s\S]*?)<\/REPORT_MARKDOWN>/);
     if (reportMatch) {
       return reportMatch[1]!.trim();
