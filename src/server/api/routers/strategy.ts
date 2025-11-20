@@ -163,8 +163,8 @@ export const strategyRouter = router({
                 return null;
               }
               
-              // TikTokの場合は<CONSENSUS_JSON>セクションを抽出してJSON形式で送信
-              if (result.platform === "tiktok") {
+              // TikTokとYouTubeの場合は<CONSENSUS_JSON>セクションを抽出してJSON形式で送信
+              if (result.platform === "tiktok" || result.platform === "youtube") {
                 const consensusMatch = result.trendData.match(/<CONSENSUS_JSON>([\s\S]*?)<\/CONSENSUS_JSON>/);
                 if (consensusMatch) {
                   try {
@@ -186,7 +186,7 @@ export const strategyRouter = router({
                 // <CONSENSUS_JSON>セクションがない場合は、全体をJSONとしてパースを試みる
               }
               
-              // その他のプラットフォームまたはTikTokで<CONSENSUS_JSON>がない場合
+              // その他のプラットフォームまたはTikTok/YouTubeで<CONSENSUS_JSON>がない場合
               // JSON形式の場合はパース、テキスト形式の場合はそのまま
               // プラットフォーム情報とAIエージェント情報を明示的に含める（Grokデータの識別のため）
               try {
