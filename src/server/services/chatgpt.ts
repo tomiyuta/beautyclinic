@@ -453,17 +453,11 @@ export async function analyzeMarketPosition(
     category?: string | null;
   }>,
   marketData: {
-    trends?: Record<string, unknown> | null;
-    pricing?: Record<string, unknown> | null;
-    competitors?: Record<string, unknown> | null;
+    trends?: string | Record<string, unknown> | null;
+    pricing?: string | Record<string, unknown> | null;
+    competitors?: string | Record<string, unknown> | null;
   },
-  snsData: Array<{
-    platform: string;
-    hashtags?: unknown[];
-    influencers?: unknown[];
-    popularContent?: unknown[];
-    engagement?: Record<string, unknown>;
-  }>,
+  snsData: Array<string | Record<string, unknown>>,
   location: string,
 ): Promise<string> {
   try {
@@ -503,74 +497,84 @@ export async function analyzeMarketPosition(
       カテゴリ: p.category || "未分類",
     }));
     
-    // 市場データを詳細に構造化（CONSENSUS_JSONを優先的に使用）
+    // 市場データを処理（文字列の場合はそのまま使用、オブジェクトの場合は構造化）
     const marketDataFormatted: Record<string, unknown> = {};
     
     if (marketData.trends) {
-      const trends = marketData.trends as Record<string, unknown>;
-      marketDataFormatted.トレンド = {
-        AI分析エージェント: trends.aiAgent || "unknown",
-        分析日時: trends.createdAt || "unknown",
-        構造化データ: trends.consensusJSON || null,
-        レポート: trends.reportMarkdown ? "あり" : "なし",
-        主要施術: trends.treatments || null,
-        顧客ニーズ: trends.customerNeeds || null,
-        情報源: trends.sources || null,
-        生データ: trends.rawText ? "あり（構造化データを優先）" : "なし",
-      };
+      // 文字列の場合はそのまま使用（トークン量削減）
+      if (typeof marketData.trends === "string") {
+        marketDataFormatted.トレンド = marketData.trends;
+      } else {
+        // オブジェクトの場合は構造化データを優先的に使用
+        const trends = marketData.trends as Record<string, unknown>;
+        if (trends.consensusJSON) {
+          marketDataFormatted.トレンド = trends.consensusJSON;
+        } else if (trends.text) {
+          marketDataFormatted.トレンド = trends.text;
+        } else {
+          marketDataFormatted.トレンド = trends;
+        }
+      }
     }
     
     if (marketData.pricing) {
-      const pricing = marketData.pricing as Record<string, unknown>;
-      marketDataFormatted.価格情報 = {
-        AI分析エージェント: pricing.aiAgent || "unknown",
-        分析日時: pricing.createdAt || "unknown",
-        構造化データ: pricing.consensusJSON || null,
-        レポート: pricing.reportMarkdown ? "あり" : "なし",
-        価格テーブル: pricing.priceTable || null,
-        エリアサマリー: pricing.areaSummary || null,
-        情報源: pricing.sources || null,
-        生データ: pricing.rawText ? "あり（構造化データを優先）" : "なし",
-      };
+      // 文字列の場合はそのまま使用（トークン量削減）
+      if (typeof marketData.pricing === "string") {
+        marketDataFormatted.価格情報 = marketData.pricing;
+      } else {
+        // オブジェクトの場合は構造化データを優先的に使用
+        const pricing = marketData.pricing as Record<string, unknown>;
+        if (pricing.consensusJSON) {
+          marketDataFormatted.価格情報 = pricing.consensusJSON;
+        } else if (pricing.text) {
+          marketDataFormatted.価格情報 = pricing.text;
+        } else {
+          marketDataFormatted.価格情報 = pricing;
+        }
+      }
     }
     
     if (marketData.competitors) {
-      const competitors = marketData.competitors as Record<string, unknown>;
-      marketDataFormatted.競合情報 = {
-        AI分析エージェント: competitors.aiAgent || "unknown",
-        分析日時: competitors.createdAt || "unknown",
-        構造化データ: competitors.consensusJSON || null,
-        レポート: competitors.reportMarkdown ? "あり" : "なし",
-        競合クリニック一覧: competitors.competitors || null,
-        エリアサマリー: competitors.areaSummary || null,
-        情報源: competitors.sources || null,
-        生データ: competitors.rawText ? "あり（構造化データを優先）" : "なし",
-      };
+      // 文字列の場合はそのまま使用（トークン量削減）
+      if (typeof marketData.competitors === "string") {
+        marketDataFormatted.競合情報 = marketData.competitors;
+      } else {
+        // オブジェクトの場合は構造化データを優先的に使用
+        const competitors = marketData.competitors as Record<string, unknown>;
+        if (competitors.consensusJSON) {
+          marketDataFormatted.競合情報 = competitors.consensusJSON;
+        } else if (competitors.text) {
+          marketDataFormatted.競合情報 = competitors.text;
+        } else {
+          marketDataFormatted.競合情報 = competitors;
+        }
+      }
     }
     
-    // SNSデータを詳細に構造化（CONSENSUS_JSONを優先的に使用）
+    // SNSデータを処理（文字列の場合はそのまま使用、オブジェクトの場合は構造化）
     const snsDataFormatted = snsData.map(s => {
+      // 文字列の場合はそのまま使用（トークン量削減）
+      if (typeof s === "string") {
+        return s;
+      }
+      // オブジェクトの場合は構造化データを優先的に使用
       const data = s as Record<string, unknown>;
-      return {
-        プラットフォーム: data.platform || "unknown",
-        AI分析エージェント: data.aiAgent || "unknown",
-        分析日時: data.createdAt || "unknown",
-        構造化データ: data.consensusJSON || null,
-        レポート: data.reportMarkdown ? "あり" : "なし",
-        ハッシュタグ: data.hashtags || [],
-        インフルエンサー: data.influencers || [],
-        人気投稿: data.topPosts || [],
-        エンゲージメント傾向: data.engagementTrends || null,
-        ユーザー動向: data.audienceSignals || null,
-        情報源: data.sources || null,
-        生データ: data.rawText ? "あり（構造化データを優先）" : "なし",
-      };
+      if (data.consensusJSON) {
+        return data.consensusJSON;
+      } else if (data.text) {
+        return data.text;
+      } else if (data.platform) {
+        // platformプロパティがある場合は、データをそのまま返す
+        return data;
+      }
+      return s;
     });
 
+    // JSON.stringifyのインデントを削除してトークン量を削減
     const prompt = replacePlaceholders(template, {
-      clinicProducts: JSON.stringify(clinicProductsFormatted, null, 2),
-      marketData: JSON.stringify(marketDataFormatted, null, 2),
-      snsData: JSON.stringify(snsDataFormatted, null, 2),
+      clinicProducts: JSON.stringify(clinicProductsFormatted),
+      marketData: JSON.stringify(marketDataFormatted),
+      snsData: JSON.stringify(snsDataFormatted),
       location,
     });
 
@@ -675,24 +679,28 @@ export async function generatePriceRecommendations(
       カテゴリ: p.category || "未分類",
     }));
 
-    // 市場価格データを詳細に構造化（CONSENSUS_JSONを優先的に使用）
-    const marketPricingFormatted: Record<string, unknown> = {};
+    // 市場価格データを処理（文字列の場合はそのまま使用、オブジェクトの場合は構造化）
+    let marketPricingFormatted: unknown = marketPricing;
     
     if (marketPricing && typeof marketPricing === "object") {
       const pricing = marketPricing as Record<string, unknown>;
-      marketPricingFormatted.AI分析エージェント = pricing.aiAgent || "unknown";
-      marketPricingFormatted.分析日時 = pricing.createdAt || "unknown";
-      marketPricingFormatted.構造化データ = pricing.consensusJSON || null;
-      marketPricingFormatted.レポート = pricing.reportMarkdown ? "あり" : "なし";
-      marketPricingFormatted.価格テーブル = pricing.priceTable || null;
-      marketPricingFormatted.エリアサマリー = pricing.areaSummary || null;
-      marketPricingFormatted.情報源 = pricing.sources || null;
-      marketPricingFormatted.生データ = pricing.rawText ? "あり（構造化データを優先）" : "なし";
+      // 構造化データを優先的に使用
+      if (pricing.consensusJSON) {
+        marketPricingFormatted = pricing.consensusJSON;
+      } else if (pricing.text) {
+        marketPricingFormatted = pricing.text;
+      } else if (pricing.data && Array.isArray(pricing.data)) {
+        // 配列データの場合はそのまま使用
+        marketPricingFormatted = pricing.data;
+      } else {
+        marketPricingFormatted = pricing;
+      }
     }
 
+    // JSON.stringifyのインデントを削除してトークン量を削減
     const prompt = replacePlaceholders(template, {
-      products: JSON.stringify(productsFormatted, null, 2),
-      marketPricing: JSON.stringify(marketPricingFormatted, null, 2),
+      products: JSON.stringify(productsFormatted),
+      marketPricing: JSON.stringify(marketPricingFormatted),
     });
 
     console.log(`[ChatGPT generatePriceRecommendations] Template length: ${template.length}, Prompt length: ${prompt.length} characters`);
@@ -778,43 +786,41 @@ export async function generateCampaignProposals(
       throw new Error("Failed to get prompt template for claude_generate_campaign_proposals");
     }
 
-    // データを構造化してフォーマット（CONSENSUS_JSONを優先的に使用）
+    // データを処理（文字列の場合はそのまま使用、オブジェクトの場合は構造化データを優先）
     const trendsFormatted = trends.map(t => {
+      // 文字列の場合はそのまま使用（トークン量削減）
+      if (typeof t === "string") {
+        return t;
+      }
+      // オブジェクトの場合は構造化データを優先的に使用
       const trendData = t as Record<string, unknown>;
-      return {
-        トレンド名: trendData.name || "不明",
-        AI分析エージェント: trendData.aiAgent || "unknown",
-        分析日時: trendData.createdAt || "unknown",
-        構造化データ: trendData.consensusJSON || null,
-        レポート: trendData.reportMarkdown ? "あり" : "なし",
-        主要施術: trendData.treatments || null,
-        顧客ニーズ: trendData.customerNeeds || null,
-        情報源: trendData.sources || null,
-        生データ: trendData.rawText ? "あり（構造化データを優先）" : "なし",
-      };
+      if (trendData.consensusJSON) {
+        return trendData.consensusJSON;
+      } else if (trendData.text) {
+        return trendData.text;
+      }
+      return t;
     });
     
     const snsDataFormatted = snsData.map(s => {
+      // 文字列の場合はそのまま使用（トークン量削減）
+      if (typeof s === "string") {
+        return s;
+      }
+      // オブジェクトの場合は構造化データを優先的に使用
       const snsDataItem = s as Record<string, unknown>;
-      return {
-        プラットフォーム: snsDataItem.platform || "不明",
-        AI分析エージェント: snsDataItem.aiAgent || "unknown",
-        分析日時: snsDataItem.createdAt || "unknown",
-        構造化データ: snsDataItem.consensusJSON || null,
-        レポート: snsDataItem.reportMarkdown ? "あり" : "なし",
-        ハッシュタグ: snsDataItem.hashtags || [],
-        インフルエンサー: snsDataItem.influencers || [],
-        人気投稿: snsDataItem.topPosts || [],
-        エンゲージメント傾向: snsDataItem.engagementTrends || null,
-        ユーザー動向: snsDataItem.audienceSignals || null,
-        情報源: snsDataItem.sources || null,
-        生データ: snsDataItem.rawText ? "あり（構造化データを優先）" : "なし",
-      };
+      if (snsDataItem.consensusJSON) {
+        return snsDataItem.consensusJSON;
+      } else if (snsDataItem.text) {
+        return snsDataItem.text;
+      }
+      return s;
     });
 
+    // JSON.stringifyのインデントを削除してトークン量を削減
     const prompt = replacePlaceholders(template, {
-      trends: JSON.stringify(trendsFormatted, null, 2),
-      snsData: JSON.stringify(snsDataFormatted, null, 2),
+      trends: JSON.stringify(trendsFormatted),
+      snsData: JSON.stringify(snsDataFormatted),
     });
 
     console.log(`[ChatGPT generateCampaignProposals] trends: ${trends.length}件, snsData: ${snsData.length}件`);
@@ -904,49 +910,47 @@ export async function suggestNewTreatments(
       throw new Error("Failed to get prompt template for claude_suggest_new_treatments");
     }
 
-    // データを構造化してフォーマット（CONSENSUS_JSONを優先的に使用）
+    // データを処理（文字列の場合はそのまま使用、オブジェクトの場合は構造化データを優先）
     const currentTreatmentsFormatted = currentTreatments.map(t => ({
       施術名: t.name,
       カテゴリ: t.category || "未分類",
     }));
     
     const marketTrendsFormatted = marketTrends.map(t => {
+      // 文字列の場合はそのまま使用（トークン量削減）
+      if (typeof t === "string") {
+        return t;
+      }
+      // オブジェクトの場合は構造化データを優先的に使用
       const trendData = t as Record<string, unknown>;
-      return {
-        トレンド名: trendData.name || "不明",
-        AI分析エージェント: trendData.aiAgent || "unknown",
-        分析日時: trendData.createdAt || "unknown",
-        構造化データ: trendData.consensusJSON || null,
-        レポート: trendData.reportMarkdown ? "あり" : "なし",
-        主要施術: trendData.treatments || null,
-        顧客ニーズ: trendData.customerNeeds || null,
-        情報源: trendData.sources || null,
-        生データ: trendData.rawText ? "あり（構造化データを優先）" : "なし",
-      };
+      if (trendData.consensusJSON) {
+        return trendData.consensusJSON;
+      } else if (trendData.text) {
+        return trendData.text;
+      }
+      return t;
     });
     
     const snsTrendsFormatted = snsTrends.map(s => {
+      // 文字列の場合はそのまま使用（トークン量削減）
+      if (typeof s === "string") {
+        return s;
+      }
+      // オブジェクトの場合は構造化データを優先的に使用
       const snsDataItem = s as Record<string, unknown>;
-      return {
-        プラットフォーム: snsDataItem.platform || "不明",
-        AI分析エージェント: snsDataItem.aiAgent || "unknown",
-        分析日時: snsDataItem.createdAt || "unknown",
-        構造化データ: snsDataItem.consensusJSON || null,
-        レポート: snsDataItem.reportMarkdown ? "あり" : "なし",
-        ハッシュタグ: snsDataItem.hashtags || [],
-        インフルエンサー: snsDataItem.influencers || [],
-        人気投稿: snsDataItem.topPosts || [],
-        エンゲージメント傾向: snsDataItem.engagementTrends || null,
-        ユーザー動向: snsDataItem.audienceSignals || null,
-        情報源: snsDataItem.sources || null,
-        生データ: snsDataItem.rawText ? "あり（構造化データを優先）" : "なし",
-      };
+      if (snsDataItem.consensusJSON) {
+        return snsDataItem.consensusJSON;
+      } else if (snsDataItem.text) {
+        return snsDataItem.text;
+      }
+      return s;
     });
 
+    // JSON.stringifyのインデントを削除してトークン量を削減
     const prompt = replacePlaceholders(template, {
-      currentTreatments: JSON.stringify(currentTreatmentsFormatted, null, 2),
-      marketTrends: JSON.stringify(marketTrendsFormatted, null, 2),
-      snsTrends: JSON.stringify(snsTrendsFormatted, null, 2),
+      currentTreatments: JSON.stringify(currentTreatmentsFormatted),
+      marketTrends: JSON.stringify(marketTrendsFormatted),
+      snsTrends: JSON.stringify(snsTrendsFormatted),
     });
 
     console.log(`[ChatGPT suggestNewTreatments] currentTreatments: ${currentTreatments.length}件, marketTrends: ${marketTrends.length}件, snsTrends: ${snsTrends.length}件`);

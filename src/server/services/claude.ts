@@ -175,20 +175,35 @@ export async function analyzeMarketPosition(
     category?: string | null;
   }>,
   marketData: {
-    trends?: Record<string, unknown> | null;
-    pricing?: Record<string, unknown> | null;
-    competitors?: Record<string, unknown> | null;
+    trends?: string | Record<string, unknown> | null;
+    pricing?: string | Record<string, unknown> | null;
+    competitors?: string | Record<string, unknown> | null;
   },
-  snsData: Array<{
-    platform: string;
-    hashtags?: unknown[];
-    influencers?: unknown[];
-    popularContent?: unknown[];
-    engagement?: Record<string, unknown>;
-  }>,
+  snsData: Array<string | Record<string, unknown>>,
   location: string,
 ): Promise<string> {
-  const defaultPrompt = `あなたは美容クリニックの経営戦略コンサルタントです。
+  try {
+    const { performWebSearch, formatSearchResults, generateTrendSearchQuery } = await import("./web-search");
+    
+    // 現在の日付を取得
+    const currentDate = new Date();
+    const currentYear = currentDate.getFullYear();
+    const currentMonth = currentDate.getMonth() + 1;
+    
+    // Web検索を実行して最新情報を取得
+    let webSearchResults = "";
+    try {
+      const searchQuery = generateTrendSearchQuery(location, currentYear, currentMonth);
+      console.log(`[Claude analyzeMarketPosition] Web検索実行: ${searchQuery}`);
+      const searchResults = await performWebSearch(searchQuery, 10);
+      webSearchResults = formatSearchResults(searchResults);
+      console.log(`[Claude analyzeMarketPosition] Web検索結果: ${searchResults.length}件取得`);
+    } catch (error) {
+      console.warn("[Claude analyzeMarketPosition] Web検索に失敗しましたが、続行します:", error);
+      webSearchResults = `【注意】Web検索APIが設定されていないため、最新情報の取得に制限があります。\n${error instanceof Error ? error.message : "Unknown error"}\n`;
+    }
+
+    const defaultPrompt = `あなたは美容クリニックの経営戦略コンサルタントです。
 以下のデータを総合的に分析し、戦略的な提案を行ってください。
 
 【自院の商品情報】
@@ -239,16 +254,26 @@ export async function analyzeMarketPosition(
 
 6. 分析総括`;
 
-  const template = await getPrompt("claude_analyze_market_position", defaultPrompt);
-  const prompt = replacePlaceholders(template, {
-    clinicProducts: JSON.stringify(clinicProducts, null, 2),
-    marketData: JSON.stringify(marketData, null, 2),
-    snsData: JSON.stringify(snsData, null, 2),
-    location,
-  });
+    const template = await getPrompt("claude_analyze_market_position", defaultPrompt);
+    // JSON.stringifyのインデントを削除してトークン量を削減
+    const prompt = replacePlaceholders(template, {
+      clinicProducts: JSON.stringify(clinicProducts),
+      marketData: JSON.stringify(marketData),
+      snsData: JSON.stringify(snsData),
+      location,
+    });
 
-  // 総合分析はOpus 4.1を使用
-  return callClaude(prompt, OPUS_4_1_CANDIDATES, "opus");
+    // Web検索結果をプロンプトに追加
+    const promptWithWebSearch = `${prompt}\n\n${webSearchResults}`;
+    
+    console.log(`[Claude analyzeMarketPosition] Prompt length: ${prompt.length} characters, with web search: ${promptWithWebSearch.length} characters`);
+
+    // 総合分析はOpus 4.1を使用
+    return callClaude(promptWithWebSearch, OPUS_4_1_CANDIDATES, "opus");
+  } catch (error) {
+    console.error("[Claude analyzeMarketPosition] Error:", error);
+    throw error;
+  }
 }
 
 export async function generatePriceRecommendations(
@@ -260,7 +285,60 @@ export async function generatePriceRecommendations(
   }>,
   marketPricing: Record<string, unknown>,
 ): Promise<string> {
-  const defaultPrompt = `あなたは美容クリニックの価格戦略専門家です。
+  try {
+    const { performWebSearch, formatSearchResults, generatePriceSearchQuery } = await import("./web-search");
+    
+    // 現在の日付を取得
+    const currentDate = new Date();
+    const currentYear = currentDate.getFullYear();
+    const currentMonth = currentDate.getMonth() + 1;
+    
+    // 商品名から検索クエリを生成
+    const productNames = products.map(p => p.name);
+    // 市場価格データから都市情報を抽出（可能な場合）
+    const cities: string[] = [];
+    if (marketPricing && typeof marketPricing === "object") {
+      // marketPricingが配列の場合、各要素から都市情報を抽出
+      if (Array.isArray(marketPricing)) {
+        marketPricing.forEach(item => {
+          if (item && typeof item === "object" && "city" in item && typeof item.city === "string") {
+            if (!cities.includes(item.city)) {
+              cities.push(item.city);
+            }
+          }
+        });
+      }
+      // marketPricingがオブジェクトの場合、キーから都市情報を推測
+      else {
+        Object.keys(marketPricing).forEach(key => {
+          if (key.includes("東京") || key.includes("大阪") || key.includes("名古屋") || key.includes("福岡")) {
+            const city = key.match(/(東京|大阪|名古屋|福岡|横浜|京都|神戸|札幌|仙台|広島)/)?.[0];
+            if (city && !cities.includes(city)) {
+              cities.push(city);
+            }
+          }
+        });
+      }
+    }
+    // 都市情報が取得できない場合はデフォルトの都市を使用
+    if (cities.length === 0) {
+      cities.push("東京", "大阪", "名古屋");
+    }
+    
+    // Web検索を実行して最新の価格情報を取得
+    let webSearchResults = "";
+    try {
+      const searchQuery = generatePriceSearchQuery(productNames, cities, currentYear, currentMonth);
+      console.log(`[Claude generatePriceRecommendations] Web検索実行: ${searchQuery}`);
+      const searchResults = await performWebSearch(searchQuery, 10);
+      webSearchResults = formatSearchResults(searchResults);
+      console.log(`[Claude generatePriceRecommendations] Web検索結果: ${searchResults.length}件取得`);
+    } catch (error) {
+      console.warn("[Claude generatePriceRecommendations] Web検索に失敗しましたが、続行します:", error);
+      webSearchResults = `【注意】Web検索APIが設定されていないため、最新情報の取得に制限があります。\n${error instanceof Error ? error.message : "Unknown error"}\n`;
+    }
+
+    const defaultPrompt = `あなたは美容クリニックの価格戦略専門家です。
 以下の商品情報と市場価格データを基に、価格設定の提案を行ってください。
 
 【自院商品】
@@ -282,21 +360,79 @@ export async function generatePriceRecommendations(
 
 最後に、価格戦略の総括と全体的な推奨事項を記載してください。`;
 
-  const template = await getPrompt("claude_generate_price_recommendations", defaultPrompt);
-  const prompt = replacePlaceholders(template, {
-    products: JSON.stringify(products, null, 2),
-    marketPricing: JSON.stringify(marketPricing, null, 2),
-  });
+    const template = await getPrompt("claude_generate_price_recommendations", defaultPrompt);
+    // JSON.stringifyのインデントを削除してトークン量を削減
+    const prompt = replacePlaceholders(template, {
+      products: JSON.stringify(products),
+      marketPricing: JSON.stringify(marketPricing),
+    });
 
-  // 価格設定提案はSonnet 4.5を使用
-  return callClaude(prompt, SONNET_4_5_CANDIDATES, "sonnet");
+    // Web検索結果をプロンプトに追加
+    const promptWithWebSearch = `${prompt}\n\n${webSearchResults}`;
+    
+    console.log(`[Claude generatePriceRecommendations] Prompt length: ${prompt.length} characters, with web search: ${promptWithWebSearch.length} characters`);
+
+    // 価格設定提案はSonnet 4.5を使用
+    return callClaude(promptWithWebSearch, SONNET_4_5_CANDIDATES, "sonnet");
+  } catch (error) {
+    console.error("[Claude generatePriceRecommendations] Error:", error);
+    throw error;
+  }
 }
 
 export async function generateCampaignProposals(
   trends: Array<Record<string, unknown>>,
   snsData: Array<Record<string, unknown>>,
 ): Promise<string> {
-  const defaultPrompt = `あなたは美容クリニックのマーケティングキャンペーン企画専門家です。
+  try {
+    const { performWebSearch, formatSearchResults } = await import("./web-search");
+    
+    // 現在の日付を取得
+    const currentDate = new Date();
+    const currentYear = currentDate.getFullYear();
+    const currentMonth = currentDate.getMonth() + 1;
+    
+    // トレンドからキーワードを抽出してWeb検索クエリを生成
+    const keywords: string[] = [];
+    trends.forEach(trend => {
+      const trendData = trend as Record<string, unknown>;
+      // 構造化データからキーワードを抽出
+      if (trendData.consensusJSON && typeof trendData.consensusJSON === "object") {
+        const consensus = trendData.consensusJSON as Record<string, unknown>;
+        if (consensus.treatments && Array.isArray(consensus.treatments)) {
+          const treatments = consensus.treatments as Array<{ name?: string }>;
+          treatments.forEach(t => {
+            if (t.name && typeof t.name === "string") {
+              keywords.push(t.name);
+            }
+          });
+        }
+      }
+      // フォールバック: treatmentsプロパティから直接取得
+      if (trendData.treatments && Array.isArray(trendData.treatments)) {
+        const treatments = trendData.treatments as Array<{ name?: string }>;
+        treatments.forEach(t => {
+          if (t.name && typeof t.name === "string") {
+            keywords.push(t.name);
+          }
+        });
+      }
+    });
+    
+    // Web検索を実行して最新のキャンペーントレンドを取得
+    let webSearchResults = "";
+    try {
+      const searchQuery = `美容クリニック キャンペーン ${keywords.slice(0, 3).join(" ")} ${currentYear}年${currentMonth}月 トレンド`;
+      console.log(`[Claude generateCampaignProposals] Web検索実行: ${searchQuery}`);
+      const searchResults = await performWebSearch(searchQuery, 10);
+      webSearchResults = formatSearchResults(searchResults);
+      console.log(`[Claude generateCampaignProposals] Web検索結果: ${searchResults.length}件取得`);
+    } catch (error) {
+      console.warn("[Claude generateCampaignProposals] Web検索に失敗しましたが、続行します:", error);
+      webSearchResults = `【注意】Web検索APIが設定されていないため、最新情報の取得に制限があります。\n${error instanceof Error ? error.message : "Unknown error"}\n`;
+    }
+
+    const defaultPrompt = `あなたは美容クリニックのマーケティングキャンペーン企画専門家です。
 以下のトレンドデータとSNSデータを基に、効果的な月次キャンペーン案を2つ以上提案してください。
 
 【市場トレンド】
@@ -320,14 +456,24 @@ export async function generateCampaignProposals(
 
 最後に、キャンペーン戦略の総括と推奨実施時期を記載してください。`;
 
-  const template = await getPrompt("claude_generate_campaign_proposals", defaultPrompt);
-  const prompt = replacePlaceholders(template, {
-    trends: JSON.stringify(trends, null, 2),
-    snsData: JSON.stringify(snsData, null, 2),
-  });
+    const template = await getPrompt("claude_generate_campaign_proposals", defaultPrompt);
+    // JSON.stringifyのインデントを削除してトークン量を削減
+    const prompt = replacePlaceholders(template, {
+      trends: JSON.stringify(trends),
+      snsData: JSON.stringify(snsData),
+    });
 
-  // キャンペーン案はSonnet 4.5を使用
-  return callClaude(prompt, SONNET_4_5_CANDIDATES, "sonnet");
+    // Web検索結果をプロンプトに追加
+    const promptWithWebSearch = `${prompt}\n\n${webSearchResults}`;
+    
+    console.log(`[Claude generateCampaignProposals] Prompt length: ${prompt.length} characters, with web search: ${promptWithWebSearch.length} characters`);
+
+    // キャンペーン案はSonnet 4.5を使用
+    return callClaude(promptWithWebSearch, SONNET_4_5_CANDIDATES, "sonnet");
+  } catch (error) {
+    console.error("[Claude generateCampaignProposals] Error:", error);
+    throw error;
+  }
 }
 
 export async function suggestNewTreatments(
@@ -338,7 +484,55 @@ export async function suggestNewTreatments(
   marketTrends: Array<Record<string, unknown>>,
   snsTrends: Array<Record<string, unknown>>,
 ): Promise<string> {
-  const defaultPrompt = `あなたは美容クリニックの施術開発コンサルタントです。
+  try {
+    const { performWebSearch, formatSearchResults } = await import("./web-search");
+    
+    // 現在の日付を取得
+    const currentDate = new Date();
+    const currentYear = currentDate.getFullYear();
+    const currentMonth = currentDate.getMonth() + 1;
+    
+    // 市場トレンドとSNSトレンドからキーワードを抽出してWeb検索クエリを生成
+    const keywords: string[] = [];
+    marketTrends.forEach(trend => {
+      const trendData = trend as Record<string, unknown>;
+      // 構造化データからキーワードを抽出
+      if (trendData.consensusJSON && typeof trendData.consensusJSON === "object") {
+        const consensus = trendData.consensusJSON as Record<string, unknown>;
+        if (consensus.treatments && Array.isArray(consensus.treatments)) {
+          const treatments = consensus.treatments as Array<{ name?: string }>;
+          treatments.forEach(t => {
+            if (t.name && typeof t.name === "string") {
+              keywords.push(t.name);
+            }
+          });
+        }
+      }
+      // フォールバック: treatmentsプロパティから直接取得
+      if (trendData.treatments && Array.isArray(trendData.treatments)) {
+        const treatments = trendData.treatments as Array<{ name?: string }>;
+        treatments.forEach(t => {
+          if (t.name && typeof t.name === "string") {
+            keywords.push(t.name);
+          }
+        });
+      }
+    });
+    
+    // Web検索を実行して最新の施術トレンドを取得
+    let webSearchResults = "";
+    try {
+      const searchQuery = `美容クリニック 新施術 ${keywords.slice(0, 3).join(" ")} ${currentYear}年${currentMonth}月 トレンド`;
+      console.log(`[Claude suggestNewTreatments] Web検索実行: ${searchQuery}`);
+      const searchResults = await performWebSearch(searchQuery, 10);
+      webSearchResults = formatSearchResults(searchResults);
+      console.log(`[Claude suggestNewTreatments] Web検索結果: ${searchResults.length}件取得`);
+    } catch (error) {
+      console.warn("[Claude suggestNewTreatments] Web検索に失敗しましたが、続行します:", error);
+      webSearchResults = `【注意】Web検索APIが設定されていないため、最新情報の取得に制限があります。\n${error instanceof Error ? error.message : "Unknown error"}\n`;
+    }
+
+    const defaultPrompt = `あなたは美容クリニックの施術開発コンサルタントです。
 以下の情報を基に、未導入の有望な施術・治療の導入提案を行ってください。
 
 【現在導入済み施術】
@@ -369,15 +563,25 @@ export async function suggestNewTreatments(
 
 最後に、新施術導入戦略の総括と推奨導入タイムラインを記載してください。`;
 
-  const template = await getPrompt("claude_suggest_new_treatments", defaultPrompt);
-  const prompt = replacePlaceholders(template, {
-    currentTreatments: JSON.stringify(currentTreatments, null, 2),
-    marketTrends: JSON.stringify(marketTrends, null, 2),
-    snsTrends: JSON.stringify(snsTrends, null, 2),
-  });
+    const template = await getPrompt("claude_suggest_new_treatments", defaultPrompt);
+    // JSON.stringifyのインデントを削除してトークン量を削減
+    const prompt = replacePlaceholders(template, {
+      currentTreatments: JSON.stringify(currentTreatments),
+      marketTrends: JSON.stringify(marketTrends),
+      snsTrends: JSON.stringify(snsTrends),
+    });
 
-  // 新規導入提案はOpus 4.1を使用
-  return callClaude(prompt, OPUS_4_1_CANDIDATES, "opus");
+    // Web検索結果をプロンプトに追加
+    const promptWithWebSearch = `${prompt}\n\n${webSearchResults}`;
+    
+    console.log(`[Claude suggestNewTreatments] Prompt length: ${prompt.length} characters, with web search: ${promptWithWebSearch.length} characters`);
+
+    // 新規導入提案はOpus 4.1を使用
+    return callClaude(promptWithWebSearch, OPUS_4_1_CANDIDATES, "opus");
+  } catch (error) {
+    console.error("[Claude suggestNewTreatments] Error:", error);
+    throw error;
+  }
 }
 
 /**

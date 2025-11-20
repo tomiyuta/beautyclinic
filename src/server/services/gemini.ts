@@ -212,13 +212,6 @@ export async function callGemini(prompt: string): Promise<string> {
 }
 
 /**
- * 現在使用中のGeminiモデル名を取得（デバッグ用）
- */
-export function getCurrentGeminiModel(): string | null {
-  return cachedModelName || process.env.GEMINI_MODEL || null;
-}
-
-/**
  * JSON文字列内の不正な文字を修正
  */
 function fixJSONString(str: string): string {
@@ -995,5 +988,531 @@ ${webSearchResults}
   });
   
   return callGemini(prompt);
+}
+
+/**
+ * 戦略分析: 市場ポジション分析
+ */
+export async function analyzeMarketPosition(
+  clinicProducts: Array<{
+    name: string;
+    costPrice: number;
+    sellingPrice: number;
+    category?: string | null;
+  }>,
+  marketData: {
+    trends?: string | Record<string, unknown> | null;
+    pricing?: string | Record<string, unknown> | null;
+    competitors?: string | Record<string, unknown> | null;
+  },
+  snsData: Array<string | Record<string, unknown>>,
+  location: string,
+): Promise<string> {
+  try {
+    const { getPrompt, replacePlaceholders } = await import("./prompt-helper");
+    const { performWebSearch, formatSearchResults, generateTrendSearchQuery } = await import("./web-search");
+    
+    // 現在の日付を取得
+    const currentDate = new Date();
+    const currentYear = currentDate.getFullYear();
+    const currentMonth = currentDate.getMonth() + 1;
+    
+    // Web検索を実行して最新情報を取得
+    let webSearchResults = "";
+    try {
+      const searchQuery = generateTrendSearchQuery(location, currentYear, currentMonth);
+      console.log(`[Gemini analyzeMarketPosition] Web検索実行: ${searchQuery}`);
+      const searchResults = await performWebSearch(searchQuery, 10);
+      webSearchResults = formatSearchResults(searchResults);
+      console.log(`[Gemini analyzeMarketPosition] Web検索結果: ${searchResults.length}件取得`);
+    } catch (error) {
+      console.warn("[Gemini analyzeMarketPosition] Web検索に失敗しましたが、続行します:", error);
+      webSearchResults = `【注意】Web検索APIが設定されていないため、最新情報の取得に制限があります。\n${error instanceof Error ? error.message : "Unknown error"}\n`;
+    }
+    
+    // Claude用プロンプト（正式版）を取得
+    const template = await getPrompt("claude_analyze_market_position", "");
+    
+    if (!template || template.trim().length === 0) {
+      throw new Error("Failed to get prompt template for claude_analyze_market_position");
+    }
+
+    // データを処理（文字列の場合はそのまま使用、オブジェクトの場合は構造化データを優先）
+    const clinicProductsFormatted = clinicProducts.map(p => ({
+      商品名: p.name,
+      原価: p.costPrice,
+      販売価格: p.sellingPrice,
+      カテゴリ: p.category || "未分類",
+    }));
+    
+    // 市場データを処理（文字列の場合はそのまま使用、オブジェクトの場合は構造化）
+    const marketDataFormatted: Record<string, unknown> = {};
+    
+    if (marketData.trends) {
+      // 文字列の場合はそのまま使用（トークン量削減）
+      if (typeof marketData.trends === "string") {
+        marketDataFormatted.トレンド = marketData.trends;
+      } else {
+        // オブジェクトの場合は構造化データを優先的に使用
+        const trends = marketData.trends as Record<string, unknown>;
+        if (trends.consensusJSON) {
+          marketDataFormatted.トレンド = trends.consensusJSON;
+        } else if (trends.text) {
+          marketDataFormatted.トレンド = trends.text;
+        } else {
+          marketDataFormatted.トレンド = trends;
+        }
+      }
+    }
+    
+    if (marketData.pricing) {
+      // 文字列の場合はそのまま使用（トークン量削減）
+      if (typeof marketData.pricing === "string") {
+        marketDataFormatted.価格情報 = marketData.pricing;
+      } else {
+        // オブジェクトの場合は構造化データを優先的に使用
+        const pricing = marketData.pricing as Record<string, unknown>;
+        if (pricing.consensusJSON) {
+          marketDataFormatted.価格情報 = pricing.consensusJSON;
+        } else if (pricing.text) {
+          marketDataFormatted.価格情報 = pricing.text;
+        } else {
+          marketDataFormatted.価格情報 = pricing;
+        }
+      }
+    }
+    
+    if (marketData.competitors) {
+      // 文字列の場合はそのまま使用（トークン量削減）
+      if (typeof marketData.competitors === "string") {
+        marketDataFormatted.競合情報 = marketData.competitors;
+      } else {
+        // オブジェクトの場合は構造化データを優先的に使用
+        const competitors = marketData.competitors as Record<string, unknown>;
+        if (competitors.consensusJSON) {
+          marketDataFormatted.競合情報 = competitors.consensusJSON;
+        } else if (competitors.text) {
+          marketDataFormatted.競合情報 = competitors.text;
+        } else {
+          marketDataFormatted.競合情報 = competitors;
+        }
+      }
+    }
+    
+    // SNSデータを処理（文字列の場合はそのまま使用、オブジェクトの場合は構造化）
+    const snsDataFormatted = snsData.map(s => {
+      // 文字列の場合はそのまま使用（トークン量削減）
+      if (typeof s === "string") {
+        return s;
+      }
+      // オブジェクトの場合は構造化データを優先的に使用
+      const data = s as Record<string, unknown>;
+      if (data.consensusJSON) {
+        return data.consensusJSON;
+      } else if (data.text) {
+        return data.text;
+      } else if (data.platform) {
+        // platformプロパティがある場合は、データをそのまま返す
+        return data;
+      }
+      return s;
+    });
+
+    // JSON.stringifyのインデントを削除してトークン量を削減
+    const prompt = replacePlaceholders(template, {
+      clinicProducts: JSON.stringify(clinicProductsFormatted),
+      marketData: JSON.stringify(marketDataFormatted),
+      snsData: JSON.stringify(snsDataFormatted),
+      location,
+    });
+
+    console.log(`[Gemini analyzeMarketPosition] Template length: ${template.length}, Prompt length: ${prompt.length} characters`);
+    console.log(`[Gemini analyzeMarketPosition] 商品数: ${clinicProducts.length}, 市場データ: ${JSON.stringify(marketDataFormatted).length}文字, SNSデータ: ${snsData.length}件`);
+
+    // Web検索結果をプロンプトに追加
+    const promptWithWebSearch = `${prompt}\n\n${webSearchResults}`;
+    
+    console.log(`[Gemini analyzeMarketPosition] Prompt length with web search: ${promptWithWebSearch.length} characters`);
+    
+    const result = await callGemini(promptWithWebSearch);
+    console.log(`[Gemini analyzeMarketPosition] Result length: ${result.length} characters`);
+    return result;
+  } catch (error) {
+    console.error("[Gemini analyzeMarketPosition] Error:", error);
+    throw error;
+  }
+}
+
+/**
+ * 戦略分析: 価格設定提案
+ */
+export async function generatePriceRecommendations(
+  products: Array<{
+    name: string;
+    costPrice: number;
+    sellingPrice: number;
+    category?: string | null;
+  }>,
+  marketPricing: Record<string, unknown>,
+): Promise<string> {
+  try {
+    const { getPrompt, replacePlaceholders } = await import("./prompt-helper");
+    const { performWebSearch, formatSearchResults, generatePriceSearchQuery } = await import("./web-search");
+    
+    // 現在の日付を取得
+    const currentDate = new Date();
+    const currentYear = currentDate.getFullYear();
+    const currentMonth = currentDate.getMonth() + 1;
+    
+    // 商品名から検索クエリを生成
+    const productNames = products.map(p => p.name);
+    // 市場価格データから都市情報を抽出（可能な場合）
+    const cities: string[] = [];
+    if (marketPricing && typeof marketPricing === "object") {
+      // marketPricingが配列の場合、各要素から都市情報を抽出
+      if (Array.isArray(marketPricing)) {
+        marketPricing.forEach(item => {
+          if (item && typeof item === "object" && "city" in item && typeof item.city === "string") {
+            if (!cities.includes(item.city)) {
+              cities.push(item.city);
+            }
+          }
+        });
+      }
+      // marketPricingがオブジェクトの場合、キーから都市情報を推測
+      else {
+        Object.keys(marketPricing).forEach(key => {
+          if (key.includes("東京") || key.includes("大阪") || key.includes("名古屋") || key.includes("福岡")) {
+            const city = key.match(/(東京|大阪|名古屋|福岡|横浜|京都|神戸|札幌|仙台|広島)/)?.[0];
+            if (city && !cities.includes(city)) {
+              cities.push(city);
+            }
+          }
+        });
+      }
+    }
+    // 都市情報が取得できない場合はデフォルトの都市を使用
+    if (cities.length === 0) {
+      cities.push("東京", "大阪", "名古屋");
+    }
+    
+    // Web検索を実行して最新の価格情報を取得
+    let webSearchResults = "";
+    try {
+      const searchQuery = generatePriceSearchQuery(productNames, cities, currentYear, currentMonth);
+      console.log(`[Gemini generatePriceRecommendations] Web検索実行: ${searchQuery}`);
+      const searchResults = await performWebSearch(searchQuery, 10);
+      webSearchResults = formatSearchResults(searchResults);
+      console.log(`[Gemini generatePriceRecommendations] Web検索結果: ${searchResults.length}件取得`);
+    } catch (error) {
+      console.warn("[Gemini generatePriceRecommendations] Web検索に失敗しましたが、続行します:", error);
+      webSearchResults = `【注意】Web検索APIが設定されていないため、最新情報の取得に制限があります。\n${error instanceof Error ? error.message : "Unknown error"}\n`;
+    }
+    
+    // Claude用プロンプト（正式版）を取得
+    const template = await getPrompt("claude_generate_price_recommendations", "");
+    
+    if (!template || template.trim().length === 0) {
+      throw new Error("Failed to get prompt template for claude_generate_price_recommendations");
+    }
+
+    // データを処理（文字列の場合はそのまま使用、オブジェクトの場合は構造化データを優先）
+    const productsFormatted = products.map(p => ({
+      商品名: p.name,
+      現在価格: p.sellingPrice,
+      原価: p.costPrice,
+      カテゴリ: p.category || "未分類",
+    }));
+
+    // 市場価格データを処理（文字列の場合はそのまま使用、オブジェクトの場合は構造化）
+    let marketPricingFormatted: unknown = marketPricing;
+    
+    if (marketPricing && typeof marketPricing === "object") {
+      const pricing = marketPricing as Record<string, unknown>;
+      // 構造化データを優先的に使用
+      if (pricing.consensusJSON) {
+        marketPricingFormatted = pricing.consensusJSON;
+      } else if (pricing.text) {
+        marketPricingFormatted = pricing.text;
+      } else if (pricing.data && Array.isArray(pricing.data)) {
+        // 配列データの場合はそのまま使用
+        marketPricingFormatted = pricing.data;
+      } else {
+        marketPricingFormatted = pricing;
+      }
+    }
+
+    // JSON.stringifyのインデントを削除してトークン量を削減
+    const prompt = replacePlaceholders(template, {
+      products: JSON.stringify(productsFormatted),
+      marketPricing: JSON.stringify(marketPricingFormatted),
+    });
+
+    console.log(`[Gemini generatePriceRecommendations] Template length: ${template.length}, Prompt length: ${prompt.length} characters`);
+    console.log(`[Gemini generatePriceRecommendations] 商品数: ${products.length}, 市場価格データ: ${JSON.stringify(marketPricing).length}文字`);
+
+    // Web検索結果をプロンプトに追加
+    const promptWithWebSearch = `${prompt}\n\n${webSearchResults}`;
+    
+    console.log(`[Gemini generatePriceRecommendations] Prompt length with web search: ${promptWithWebSearch.length} characters`);
+    
+    const result = await callGemini(promptWithWebSearch);
+    console.log(`[Gemini generatePriceRecommendations] Result length: ${result.length} characters`);
+    return result;
+  } catch (error) {
+    console.error("[Gemini generatePriceRecommendations] Error:", error);
+    throw error;
+  }
+}
+
+/**
+ * 戦略分析: キャンペーン案生成
+ */
+export async function generateCampaignProposals(
+  trends: Array<Record<string, unknown>>,
+  snsData: Array<Record<string, unknown>>,
+): Promise<string> {
+  try {
+    const { getPrompt, replacePlaceholders } = await import("./prompt-helper");
+    const { performWebSearch, formatSearchResults } = await import("./web-search");
+    
+    // 現在の日付を取得
+    const currentDate = new Date();
+    const currentYear = currentDate.getFullYear();
+    const currentMonth = currentDate.getMonth() + 1;
+    
+    // トレンドからキーワードを抽出してWeb検索クエリを生成
+    const keywords: string[] = [];
+    trends.forEach(trend => {
+      const trendData = trend as Record<string, unknown>;
+      // 構造化データからキーワードを抽出
+      if (trendData.consensusJSON && typeof trendData.consensusJSON === "object") {
+        const consensus = trendData.consensusJSON as Record<string, unknown>;
+        if (consensus.treatments && Array.isArray(consensus.treatments)) {
+          const treatments = consensus.treatments as Array<{ name?: string }>;
+          treatments.forEach(t => {
+            if (t.name && typeof t.name === "string") {
+              keywords.push(t.name);
+            }
+          });
+        }
+      }
+      // フォールバック: treatmentsプロパティから直接取得
+      if (trendData.treatments && Array.isArray(trendData.treatments)) {
+        const treatments = trendData.treatments as Array<{ name?: string }>;
+        treatments.forEach(t => {
+          if (t.name && typeof t.name === "string") {
+            keywords.push(t.name);
+          }
+        });
+      }
+    });
+    
+    // Web検索を実行して最新のキャンペーントレンドを取得
+    let webSearchResults = "";
+    try {
+      const searchQuery = `美容クリニック キャンペーン ${keywords.slice(0, 3).join(" ")} ${currentYear}年${currentMonth}月 トレンド`;
+      console.log(`[Gemini generateCampaignProposals] Web検索実行: ${searchQuery}`);
+      const searchResults = await performWebSearch(searchQuery, 10);
+      webSearchResults = formatSearchResults(searchResults);
+      console.log(`[Gemini generateCampaignProposals] Web検索結果: ${searchResults.length}件取得`);
+    } catch (error) {
+      console.warn("[Gemini generateCampaignProposals] Web検索に失敗しましたが、続行します:", error);
+      webSearchResults = `【注意】Web検索APIが設定されていないため、最新情報の取得に制限があります。\n${error instanceof Error ? error.message : "Unknown error"}\n`;
+    }
+    
+    // Claude用プロンプト（正式版）を取得
+    const template = await getPrompt("claude_generate_campaign_proposals", "");
+    
+    if (!template || template.trim().length === 0) {
+      throw new Error("Failed to get prompt template for claude_generate_campaign_proposals");
+    }
+
+    // データを処理（文字列の場合はそのまま使用、オブジェクトの場合は構造化データを優先）
+    const trendsFormatted = trends.map(t => {
+      // 文字列の場合はそのまま使用（トークン量削減）
+      if (typeof t === "string") {
+        return t;
+      }
+      // オブジェクトの場合は構造化データを優先的に使用
+      const trendData = t as Record<string, unknown>;
+      if (trendData.consensusJSON) {
+        return trendData.consensusJSON;
+      } else if (trendData.text) {
+        return trendData.text;
+      }
+      return t;
+    });
+    
+    const snsDataFormatted = snsData.map(s => {
+      // 文字列の場合はそのまま使用（トークン量削減）
+      if (typeof s === "string") {
+        return s;
+      }
+      // オブジェクトの場合は構造化データを優先的に使用
+      const snsDataItem = s as Record<string, unknown>;
+      if (snsDataItem.consensusJSON) {
+        return snsDataItem.consensusJSON;
+      } else if (snsDataItem.text) {
+        return snsDataItem.text;
+      }
+      return s;
+    });
+
+    // JSON.stringifyのインデントを削除してトークン量を削減
+    const prompt = replacePlaceholders(template, {
+      trends: JSON.stringify(trendsFormatted),
+      snsData: JSON.stringify(snsDataFormatted),
+    });
+
+    console.log(`[Gemini generateCampaignProposals] trends: ${trends.length}件, snsData: ${snsData.length}件`);
+    console.log(`[Gemini generateCampaignProposals] Template length: ${template.length}, Prompt length: ${prompt.length} characters`);
+
+    // Web検索結果をプロンプトに追加
+    const promptWithWebSearch = `${prompt}\n\n${webSearchResults}`;
+    
+    console.log(`[Gemini generateCampaignProposals] Prompt length with web search: ${promptWithWebSearch.length} characters`);
+    
+    const result = await callGemini(promptWithWebSearch);
+    console.log(`[Gemini generateCampaignProposals] Result length: ${result.length} characters`);
+    return result;
+  } catch (error) {
+    console.error("[Gemini generateCampaignProposals] Error:", error);
+    throw error;
+  }
+}
+
+/**
+ * 戦略分析: 新施術提案
+ */
+export async function suggestNewTreatments(
+  currentTreatments: Array<{
+    name: string;
+    category?: string | null;
+  }>,
+  marketTrends: Array<Record<string, unknown>>,
+  snsTrends: Array<Record<string, unknown>>,
+): Promise<string> {
+  try {
+    const { getPrompt, replacePlaceholders } = await import("./prompt-helper");
+    const { performWebSearch, formatSearchResults } = await import("./web-search");
+    
+    // 現在の日付を取得
+    const currentDate = new Date();
+    const currentYear = currentDate.getFullYear();
+    const currentMonth = currentDate.getMonth() + 1;
+    
+    // 市場トレンドとSNSトレンドからキーワードを抽出してWeb検索クエリを生成
+    const keywords: string[] = [];
+    marketTrends.forEach(trend => {
+      const trendData = trend as Record<string, unknown>;
+      // 構造化データからキーワードを抽出
+      if (trendData.consensusJSON && typeof trendData.consensusJSON === "object") {
+        const consensus = trendData.consensusJSON as Record<string, unknown>;
+        if (consensus.treatments && Array.isArray(consensus.treatments)) {
+          const treatments = consensus.treatments as Array<{ name?: string }>;
+          treatments.forEach(t => {
+            if (t.name && typeof t.name === "string") {
+              keywords.push(t.name);
+            }
+          });
+        }
+      }
+      // フォールバック: treatmentsプロパティから直接取得
+      if (trendData.treatments && Array.isArray(trendData.treatments)) {
+        const treatments = trendData.treatments as Array<{ name?: string }>;
+        treatments.forEach(t => {
+          if (t.name && typeof t.name === "string") {
+            keywords.push(t.name);
+          }
+        });
+      }
+    });
+    
+    // Web検索を実行して最新の施術トレンドを取得
+    let webSearchResults = "";
+    try {
+      const searchQuery = `美容クリニック 新施術 ${keywords.slice(0, 3).join(" ")} ${currentYear}年${currentMonth}月 トレンド`;
+      console.log(`[Gemini suggestNewTreatments] Web検索実行: ${searchQuery}`);
+      const searchResults = await performWebSearch(searchQuery, 10);
+      webSearchResults = formatSearchResults(searchResults);
+      console.log(`[Gemini suggestNewTreatments] Web検索結果: ${searchResults.length}件取得`);
+    } catch (error) {
+      console.warn("[Gemini suggestNewTreatments] Web検索に失敗しましたが、続行します:", error);
+      webSearchResults = `【注意】Web検索APIが設定されていないため、最新情報の取得に制限があります。\n${error instanceof Error ? error.message : "Unknown error"}\n`;
+    }
+    
+    // Claude用プロンプト（正式版）を取得
+    const template = await getPrompt("claude_suggest_new_treatments", "");
+    
+    if (!template || template.trim().length === 0) {
+      throw new Error("Failed to get prompt template for claude_suggest_new_treatments");
+    }
+
+    // データを処理（文字列の場合はそのまま使用、オブジェクトの場合は構造化データを優先）
+    const currentTreatmentsFormatted = currentTreatments.map(t => ({
+      施術名: t.name,
+      カテゴリ: t.category || "未分類",
+    }));
+    
+    const marketTrendsFormatted = marketTrends.map(t => {
+      // 文字列の場合はそのまま使用（トークン量削減）
+      if (typeof t === "string") {
+        return t;
+      }
+      // オブジェクトの場合は構造化データを優先的に使用
+      const trendData = t as Record<string, unknown>;
+      if (trendData.consensusJSON) {
+        return trendData.consensusJSON;
+      } else if (trendData.text) {
+        return trendData.text;
+      }
+      return t;
+    });
+    
+    const snsTrendsFormatted = snsTrends.map(s => {
+      // 文字列の場合はそのまま使用（トークン量削減）
+      if (typeof s === "string") {
+        return s;
+      }
+      // オブジェクトの場合は構造化データを優先的に使用
+      const snsDataItem = s as Record<string, unknown>;
+      if (snsDataItem.consensusJSON) {
+        return snsDataItem.consensusJSON;
+      } else if (snsDataItem.text) {
+        return snsDataItem.text;
+      }
+      return s;
+    });
+
+    // JSON.stringifyのインデントを削除してトークン量を削減
+    const prompt = replacePlaceholders(template, {
+      currentTreatments: JSON.stringify(currentTreatmentsFormatted),
+      marketTrends: JSON.stringify(marketTrendsFormatted),
+      snsTrends: JSON.stringify(snsTrendsFormatted),
+    });
+
+    console.log(`[Gemini suggestNewTreatments] currentTreatments: ${currentTreatments.length}件, marketTrends: ${marketTrends.length}件, snsTrends: ${snsTrends.length}件`);
+    console.log(`[Gemini suggestNewTreatments] Template length: ${template.length}, Prompt length: ${prompt.length} characters`);
+
+    // Web検索結果をプロンプトに追加
+    const promptWithWebSearch = `${prompt}\n\n${webSearchResults}`;
+    
+    console.log(`[Gemini suggestNewTreatments] Prompt length with web search: ${promptWithWebSearch.length} characters`);
+    
+    const result = await callGemini(promptWithWebSearch);
+    console.log(`[Gemini suggestNewTreatments] Result length: ${result.length} characters`);
+    return result;
+  } catch (error) {
+    console.error("[Gemini suggestNewTreatments] Error:", error);
+    throw error;
+  }
+}
+
+/**
+ * 現在使用中のGeminiモデル名を取得（デバッグ用）
+ */
+export function getCurrentGeminiModel(): string | null {
+  return cachedModelName || process.env.GEMINI_MODEL || null;
 }
 

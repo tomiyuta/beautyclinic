@@ -175,7 +175,7 @@ export function StrategyAnalysis() {
     if (selectedOption) {
       updateUserSettingsMutation.mutate({
         userId: USER_ID_PLACEHOLDER,
-        strategyAIProvider: selectedOption.value as "claude" | "chatgpt",
+        strategyAIProvider: selectedOption.value as "claude" | "chatgpt" | "gemini",
       });
     }
   };
@@ -302,12 +302,17 @@ export function StrategyAnalysis() {
                 options={[
                   { value: "chatgpt", label: "ChatGPT" },
                   { value: "claude", label: "Claude" },
+                  { value: "gemini", label: "Gemini" },
                 ]}
                 value={
                   userSettingsQuery.data
                     ? {
                         value: userSettingsQuery.data.strategyAIProvider,
-                        label: userSettingsQuery.data.strategyAIProvider === "claude" ? "Claude" : "ChatGPT",
+                        label: userSettingsQuery.data.strategyAIProvider === "claude" 
+                          ? "Claude" 
+                          : userSettingsQuery.data.strategyAIProvider === "gemini"
+                          ? "Gemini"
+                          : "ChatGPT",
                       }
                     : { value: "chatgpt", label: "ChatGPT" }
                 }

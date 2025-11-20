@@ -18,6 +18,14 @@ import {
   getCurrentChatGPTModel,
 } from "@/server/services/chatgpt";
 
+import {
+  analyzeMarketPosition as geminiAnalyzeMarketPosition,
+  generateCampaignProposals as geminiGenerateCampaignProposals,
+  generatePriceRecommendations as geminiGeneratePriceRecommendations,
+  suggestNewTreatments as geminiSuggestNewTreatments,
+  getCurrentGeminiModel,
+} from "@/server/services/gemini";
+
 import { publicProcedure, router } from "../trpc";
 
 /**
@@ -25,7 +33,7 @@ import { publicProcedure, router } from "../trpc";
  * ユーザー設定がない場合は環境変数STRATEGY_AI_PROVIDERを確認
  * どちらもない場合はChatGPT APIを使用（デフォルト）
  */
-async function getStrategyAIProvider(userId: number): Promise<"claude" | "chatgpt"> {
+async function getStrategyAIProvider(userId: number): Promise<"claude" | "chatgpt" | "gemini"> {
   try {
     // ユーザー設定を取得
     // PrismaクライアントにuserSettingsプロパティが存在するか確認
@@ -41,8 +49,8 @@ async function getStrategyAIProvider(userId: number): Promise<"claude" | "chatgp
 
     if (userSettings && userSettings.strategyAIProvider) {
       const provider = userSettings.strategyAIProvider.toLowerCase();
-      if (provider === "chatgpt" || provider === "claude") {
-        return provider as "claude" | "chatgpt";
+      if (provider === "chatgpt" || provider === "claude" || provider === "gemini") {
+        return provider as "claude" | "chatgpt" | "gemini";
       }
     }
   } catch (error) {
@@ -59,7 +67,9 @@ async function getStrategyAIProvider(userId: number): Promise<"claude" | "chatgp
   // ユーザー設定がない場合は環境変数を確認
   const provider = process.env.STRATEGY_AI_PROVIDER?.toLowerCase();
   // デフォルトはChatGPT API
-  return provider === "claude" ? "claude" : "chatgpt";
+  if (provider === "claude") return "claude";
+  if (provider === "gemini") return "gemini";
+  return "chatgpt";
 }
 
 export const strategyRouter = router({
@@ -100,9 +110,9 @@ export const strategyRouter = router({
 
         // 市場調査データを取得
         const marketData: {
-          trends: Record<string, unknown> | null;
-          pricing: Record<string, unknown> | null;
-          competitors: Record<string, unknown> | null;
+          trends: string | Record<string, unknown> | null;
+          pricing: string | Record<string, unknown> | null;
+          competitors: string | Record<string, unknown> | null;
         } = { trends: null, pricing: null, competitors: null };
         if (input.includeMarketData) {
           const marketResults = await db.marketResearchResult.findMany({
@@ -113,20 +123,33 @@ export const strategyRouter = router({
 
           marketResults.forEach((result) => {
             if (result.processedData) {
-              // テキスト形式として扱う
-              if (result.researchType === "trend_analysis") {
-                marketData.trends = { text: result.processedData } as Record<string, unknown>;
-              } else if (result.researchType === "price_research") {
-                marketData.pricing = { text: result.processedData } as Record<string, unknown>;
-              } else if (result.researchType === "competitor_analysis") {
-                marketData.competitors = { text: result.processedData } as Record<string, unknown>;
+              // データを直接渡す（ラッパーを削除してトークン量を削減）
+              // JSON形式の場合はパース、テキスト形式の場合はそのまま
+              try {
+                const parsed = JSON.parse(result.processedData);
+                if (result.researchType === "trend_analysis") {
+                  marketData.trends = parsed;
+                } else if (result.researchType === "price_research") {
+                  marketData.pricing = parsed;
+                } else if (result.researchType === "competitor_analysis") {
+                  marketData.competitors = parsed;
+                }
+              } catch {
+                // JSONでない場合はテキスト形式としてそのまま使用
+                if (result.researchType === "trend_analysis") {
+                  marketData.trends = result.processedData;
+                } else if (result.researchType === "price_research") {
+                  marketData.pricing = result.processedData;
+                } else if (result.researchType === "competitor_analysis") {
+                  marketData.competitors = result.processedData;
+                }
               }
             }
           });
         }
 
         // SNS調査データを取得
-        let snsData: Array<Record<string, unknown>> = [];
+        let snsData: Array<string | Record<string, unknown>> = [];
         if (input.includeSNSData) {
           const snsResults = await db.sNSResearchResult.findMany({
             where: { userId: input.userId },
@@ -135,58 +158,56 @@ export const strategyRouter = router({
           });
 
           snsData = snsResults
-            .map((result: { platform: string; trendData: string | null }) => {
+            .map((result: { platform: string; aiAgent: string; trendData: string | null }) => {
               if (!result.trendData) {
                 return null;
               }
-              // テキスト形式として扱う
-              return {
-                platform: result.platform,
-                text: result.trendData,
-              } as Record<string, unknown>;
+              // データを直接渡す（ラッパーを削除してトークン量を削減）
+              // JSON形式の場合はパース、テキスト形式の場合はそのまま
+              // プラットフォーム情報とAIエージェント情報を明示的に含める（Grokデータの識別のため）
+              try {
+                const parsed = JSON.parse(result.trendData);
+                // 既にオブジェクトの場合は、プラットフォーム情報を追加
+                if (typeof parsed === "object" && parsed !== null) {
+                  return {
+                    ...parsed,
+                    platform: result.platform,
+                    aiAgent: result.aiAgent,
+                  };
+                }
+                // 配列の場合はそのまま返す（プラットフォーム情報は含めない）
+                return parsed;
+              } catch {
+                // テキスト形式の場合は、プラットフォーム情報を含めたオブジェクトとして返す
+                return {
+                  platform: result.platform,
+                  aiAgent: result.aiAgent,
+                  data: result.trendData,
+                };
+              }
             })
-            .filter((data): data is Record<string, unknown> => data !== null) as Array<Record<string, unknown>>;
+            .filter((data): data is string | Record<string, unknown> => data !== null);
         }
 
-        // AI APIで総合分析を実行（ユーザー設定に基づいてClaude/ChatGPTを選択）
+        // AI APIで総合分析を実行（ユーザー設定に基づいてClaude/ChatGPT/Geminiを選択）
         const aiProvider = await getStrategyAIProvider(input.userId);
         console.log(`[Strategy] Using AI provider: ${aiProvider} (userId: ${input.userId})`);
 
-        const result = aiProvider === "chatgpt"
-          ? await chatgptAnalyzeMarketPosition(
-              products.map((p) => ({
-                name: p.name,
-                costPrice: p.costPrice,
-                sellingPrice: p.sellingPrice,
-                category: p.category,
-              })),
-              marketData,
-              snsData as Array<{
-                platform: string;
-                hashtags?: unknown[];
-                influencers?: unknown[];
-                popularContent?: unknown[];
-                engagement?: Record<string, unknown>;
-              }>,
-              input.location,
-            )
-          : await claudeAnalyzeMarketPosition(
-              products.map((p) => ({
-                name: p.name,
-                costPrice: p.costPrice,
-                sellingPrice: p.sellingPrice,
-                category: p.category,
-              })),
-              marketData,
-              snsData as Array<{
-                platform: string;
-                hashtags?: unknown[];
-                influencers?: unknown[];
-                popularContent?: unknown[];
-                engagement?: Record<string, unknown>;
-              }>,
-              input.location,
-            );
+        const productData = products.map((p) => ({
+          name: p.name,
+          costPrice: p.costPrice,
+          sellingPrice: p.sellingPrice,
+          category: p.category,
+        }));
+
+        let result: string;
+        if (aiProvider === "chatgpt") {
+          result = await chatgptAnalyzeMarketPosition(productData, marketData, snsData, input.location);
+        } else if (aiProvider === "gemini") {
+          result = await geminiAnalyzeMarketPosition(productData, marketData, snsData, input.location);
+        } else {
+          result = await claudeAnalyzeMarketPosition(productData, marketData, snsData, input.location);
+        }
 
         // データベースに保存（テキスト形式で保存）
         const saved = await db.strategyRecommendation.create({
@@ -250,8 +271,8 @@ export const strategyRouter = router({
         const marketPricingArray = priceResults
           .map((result) => {
             if (result.processedData) {
-              // テキスト形式として扱う
-              return { text: result.processedData } as Record<string, unknown>;
+              // データを直接渡す（ラッパーを削除してトークン量を削減）
+              return result.processedData as unknown as Record<string, unknown>;
             }
             return null;
           })
@@ -262,29 +283,25 @@ export const strategyRouter = router({
             ? { data: marketPricingArray }
             : {};
 
-        // AI APIで価格設定提案を実行（ユーザー設定に基づいてClaude/ChatGPTを選択）
+        // AI APIで価格設定提案を実行（ユーザー設定に基づいてClaude/ChatGPT/Geminiを選択）
         const aiProvider = await getStrategyAIProvider(input.userId);
         console.log(`[Strategy] Using AI provider: ${aiProvider} (userId: ${input.userId})`);
 
-        const result = aiProvider === "chatgpt"
-          ? await chatgptGeneratePriceRecommendations(
-              products.map((p) => ({
-                name: p.name,
-                costPrice: p.costPrice,
-                sellingPrice: p.sellingPrice,
-                category: p.category,
-              })),
-              marketPricing,
-            )
-          : await claudeGeneratePriceRecommendations(
-              products.map((p) => ({
-                name: p.name,
-                costPrice: p.costPrice,
-                sellingPrice: p.sellingPrice,
-                category: p.category,
-              })),
-              marketPricing,
-            );
+        const productData = products.map((p) => ({
+          name: p.name,
+          costPrice: p.costPrice,
+          sellingPrice: p.sellingPrice,
+          category: p.category,
+        }));
+
+        let result: string;
+        if (aiProvider === "chatgpt") {
+          result = await chatgptGeneratePriceRecommendations(productData, marketPricing);
+        } else if (aiProvider === "gemini") {
+          result = await geminiGeneratePriceRecommendations(productData, marketPricing);
+        } else {
+          result = await claudeGeneratePriceRecommendations(productData, marketPricing);
+        }
 
         // データベースに保存
         await db.strategyRecommendation.create({
@@ -336,8 +353,14 @@ export const strategyRouter = router({
         const trends = trendResults
           .map((result) => {
             if (result.processedData) {
-              // テキスト形式として扱う
-              return { text: result.processedData };
+              // データを直接渡す（ラッパーを削除してトークン量を削減）
+              try {
+                // JSON形式の場合はパースして返す
+                return JSON.parse(result.processedData);
+              } catch {
+                // テキスト形式の場合はそのまま返す
+                return result.processedData;
+              }
             }
             return null;
           })
@@ -355,18 +378,43 @@ export const strategyRouter = router({
             if (!result.trendData) {
               return null;
             }
-            // テキスト形式として扱う
-            return { text: result.trendData };
+            // データを直接渡す（ラッパーを削除してトークン量を削減）
+            // プラットフォーム情報とAIエージェント情報を明示的に含める（Grokデータの識別のため）
+            try {
+              const parsed = JSON.parse(result.trendData);
+              // 既にオブジェクトの場合は、プラットフォーム情報を追加
+              if (typeof parsed === "object" && parsed !== null && !Array.isArray(parsed)) {
+                return {
+                  ...parsed,
+                  platform: result.platform,
+                  aiAgent: result.aiAgent,
+                };
+              }
+              // 配列の場合はそのまま返す
+              return parsed;
+            } catch {
+              // テキスト形式の場合は、プラットフォーム情報を含めたオブジェクトとして返す
+              return {
+                platform: result.platform,
+                aiAgent: result.aiAgent,
+                data: result.trendData,
+              };
+            }
           })
           .filter((data) => data !== null);
 
-        // AI APIでキャンペーン案を生成（ユーザー設定に基づいてClaude/ChatGPTを選択）
+        // AI APIでキャンペーン案を生成（ユーザー設定に基づいてClaude/ChatGPT/Geminiを選択）
         const aiProvider = await getStrategyAIProvider(input.userId);
         console.log(`[Strategy] Using AI provider: ${aiProvider} (userId: ${input.userId})`);
 
-        const result = aiProvider === "chatgpt"
-          ? await chatgptGenerateCampaignProposals(trends, snsData)
-          : await claudeGenerateCampaignProposals(trends, snsData);
+        let result: string;
+        if (aiProvider === "chatgpt") {
+          result = await chatgptGenerateCampaignProposals(trends, snsData);
+        } else if (aiProvider === "gemini") {
+          result = await geminiGenerateCampaignProposals(trends, snsData);
+        } else {
+          result = await claudeGenerateCampaignProposals(trends, snsData);
+        }
 
         // データベースに保存
         await db.strategyRecommendation.create({
@@ -444,37 +492,47 @@ export const strategyRouter = router({
             if (!result.trendData) {
               return null;
             }
+            // プラットフォーム情報とAIエージェント情報を明示的に含める（Grokデータの識別のため）
             try {
-              // 既存データがJSON形式の場合とテキスト形式の場合の両方に対応
-              return JSON.parse(result.trendData);
+              const parsed = JSON.parse(result.trendData);
+              // 既にオブジェクトの場合は、プラットフォーム情報を追加
+              if (typeof parsed === "object" && parsed !== null && !Array.isArray(parsed)) {
+                return {
+                  ...parsed,
+                  platform: result.platform,
+                  aiAgent: result.aiAgent,
+                };
+              }
+              // 配列の場合はそのまま返す
+              return parsed;
             } catch {
-              // JSONでない場合はテキスト形式として扱う
-              return { text: result.trendData };
+              // テキスト形式の場合は、プラットフォーム情報を含めたオブジェクトとして返す
+              return {
+                platform: result.platform,
+                aiAgent: result.aiAgent,
+                data: result.trendData,
+              };
             }
           })
           .filter((data) => data !== null);
 
-        // AI APIで新施術提案を実行（ユーザー設定に基づいてClaude/ChatGPTを選択）
+        // AI APIで新施術提案を実行（ユーザー設定に基づいてClaude/ChatGPT/Geminiを選択）
         const aiProvider = await getStrategyAIProvider(input.userId);
         console.log(`[Strategy] Using AI provider: ${aiProvider} (userId: ${input.userId})`);
 
-        const result = aiProvider === "chatgpt"
-          ? await chatgptSuggestNewTreatments(
-              products.map((p) => ({
-                name: p.name,
-                category: p.category,
-              })),
-              marketTrends,
-              snsTrends,
-            )
-          : await claudeSuggestNewTreatments(
-              products.map((p) => ({
-                name: p.name,
-                category: p.category,
-              })),
-              marketTrends,
-              snsTrends,
-            );
+        const treatmentData = products.map((p) => ({
+          name: p.name,
+          category: p.category,
+        }));
+
+        let result: string;
+        if (aiProvider === "chatgpt") {
+          result = await chatgptSuggestNewTreatments(treatmentData, marketTrends, snsTrends);
+        } else if (aiProvider === "gemini") {
+          result = await geminiSuggestNewTreatments(treatmentData, marketTrends, snsTrends);
+        } else {
+          result = await claudeSuggestNewTreatments(treatmentData, marketTrends, snsTrends);
+        }
 
         // データベースに保存
         await db.strategyRecommendation.create({
@@ -603,6 +661,13 @@ export const strategyRouter = router({
         };
       }
 
+      if (aiProvider === "gemini") {
+        return {
+          aiAgent: "gemini" as const,
+          model: getCurrentGeminiModel() || "gemini-2.5-pro",
+        };
+      }
+
       // Claudeの場合
       // 総合分析・新規導入提案はOpus 4.1
       if (input.functionType === "analyzeMarketPosition" || input.functionType === "suggestNewTreatments") {
@@ -682,7 +747,7 @@ export const strategyRouter = router({
     .input(
       z.object({
         userId: z.number().int().positive(),
-        strategyAIProvider: z.enum(["claude", "chatgpt"]),
+        strategyAIProvider: z.enum(["claude", "chatgpt", "gemini"]),
       }),
     )
     .mutation(async ({ input }) => {
