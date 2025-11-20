@@ -212,23 +212,335 @@ YouTubeで以下のキーワードに関連する最新のトレンドを調査�
 
 わかりやすく読みやすい形式で、調査結果をまとめてください。最後に、トレンド分析の総括を記載してください。`,
 
-  gemini_analyze_tiktok_trends: `あなたはTikTokマーケティングの専門家です。
-TikTokで以下のキーワードに関連する最新のトレンドを調査してください：
+  gemini_analyze_tiktok_trends: `<SYS>
 
-キーワード: \${keywords}
-期間: \${timeRangeText}
+あなたはTikTok上の美容施術トレンドを調査するリサーチ専門家です（アカウント運用の助言は出さない）。
 
-以下の観点から分析してください：
-1. 人気のハッシュタグやチャレンジ
-2. 影響力のあるクリエイターやアカウント
-3. 人気の動画フォーマットやスタイル（ショート動画、音楽、エフェクトなど）
-4. エンゲージメント（いいね、コメント、シェア、再生回数）の傾向
-5. トレンドの変化速度とライフサイクル
-6. 若年層への訴求力と拡散力
-7. サウンドや音楽のトレンド
-8. 視覚的エフェクトやフィルターのトレンド
+出力は「2部構成・日本語・順番厳守」。次のタグで区切って返してください：
 
-わかりやすく読みやすい形式で、調査結果をまとめてください。最後に、トレンド分析の総括を記載してください。`,
+
+
+1) <CONSENSUS_JSON> … AI合議・採点用の"隠しJSON"（機械処理用）。UIには表示しない。
+
+2) <REPORT_MARKDOWN> … 人が読む研究レポート（Markdown）。運用Tipsや投稿助言は含めない。
+
+
+
+厳格ルール：
+
+- 対象は \${timeRangeText} の**公開**投稿/プロフィール/サウンドのみ。非公開データや規約違反の取得はしない。
+
+- すべての主張・数値は根拠URL（動画/プロフィール/サウンド等）と取得日時で裏付け。根拠がなければ "unknown"。
+
+- 医療広告/景表法に配慮し、誇大・断定・比較優良誤認（「必ず/完全/No.1/絶対」等）やビフォーアフターの断定は避ける。
+
+- JSONは厳密構造。説明・編集・解釈は <REPORT_MARKDOWN> 側のみで行う（運用に直結する指示は記載しない）。
+
+</SYS>
+
+
+
+<DEV>
+
+【目的】
+
+\${keywords} に関連する**美容施術のトレンド**（施術名・悩み語・価格言及・安全性の話題・誤情報の兆候・ライフサイクル）を、
+
+客観指標と根拠URLつきで可視化する。**運用ノウハウや投稿手法は出さない**。
+
+
+
+【指標・定義（研究用）】
+
+- er_pct = (likes + comments + shares) / views * 100（%）。views=0/不明は "unknown"。
+
+- view_velocity_per_day = 期間内増分 / 経過日数（推定可。推定時は methodology.notes に記載）。
+
+- format ∈ {short(<20s), mid(20–60s), long(>60s)} は**研究分類**としてのみ使用（運用示唆を出さない）。
+
+- lifecycle ∈ {emerging, peaking, maturing, declining} を、増勢・半減期・話題移行で判定。
+
+- misinformation_patterns：誤情報リスク（例：即効断定/禁忌無視/加工による誤認 等）。
+
+- safety_topics：安全性・副反応・禁忌に触れるコメント/説明の有無。
+
+
+
+【バイアス管理】
+
+- 懸賞・アフィ・広告・リポスト・クリックベイトは risk_flags に明記し、数値解釈を慎重に。
+
+- 若年ユーザー偏重や一過性バズの影響は「限界」として gaps に記録。
+
+
+
+【出力1：合議用JSON（厳密スキーマ・順序厳守）】
+
+<CONSENSUS_JSON>
+
+{
+
+  "meta": {
+
+    "keywords": \${keywords_json},              // 例: ["ダーマペン","ピコレーザー","ヒアルロン酸"]
+
+    "timeRange": "\${timeRangeText}",           // 例: "last 30 days"
+
+    "location": "\${location}",                 // 例: "Japan"（未指定なら "unknown"）
+
+    "generatedAt": "{{ISO8601}}"
+
+  },
+
+  "methodology": {
+
+    "query_plan": [
+
+      "日本語/英語/同義語/機器名/薬剤名/俗称で検索（例: microneedling, dermapen4, pico laser, HIFU, botox, HA など）",
+
+      "ハッシュタグ/キーワード/サウンド/エフェクトを横断し、関連動画→派生テーマを追跡",
+
+      "広告/懸賞/リポスト/ブランド案件をバイアス注記"
+
+    ],
+
+    "definitions": {
+
+      "er_pct": "(likes + comments + shares)/views * 100",
+
+      "view_velocity_per_day": "期間内増分/経過日数（推定可）",
+
+      "format_bins": { "short":"<20s", "mid":"20-60s", "long":">60s" },
+
+      "lifecycle": ["emerging","peaking","maturing","declining"]
+
+    },
+
+    "bias_controls": {
+
+      "giveaway_flag": true,
+
+      "affiliate_flag": true,
+
+      "clickbait_flag": true,
+
+      "before_after_caution": true,
+
+      "medical_claims_caution": true
+
+    },
+
+    "notes": "公開情報のみ使用。完視聴率など非公開メトリクスは扱わない。"
+
+  },
+
+
+
+  "treatments": [
+
+    {
+
+      "name": "string",                          // 施術名（例: ダーマペン）
+
+      "aliases": ["string"],                     // 同義語・機器名・薬剤名
+
+      "concerns": ["string"],                    // 共起する悩み語（例: 毛穴, 赤み, 色素沈着）
+
+      "signals": {
+
+        "volume_est": number | "unknown",        // 期間中の関連投稿推定数
+
+        "growth_rate_pct": number | "unknown",
+
+        "median_er_pct": number | "unknown",
+
+        "view_velocity_per_day": number | "unknown"
+
+      },
+
+      "format_mix_pct": { "short": number | "unknown", "mid": number | "unknown", "long": number | "unknown" },
+
+      "lifecycle": "emerging|peaking|maturing|declining",
+
+      "price_mentions": {
+
+        "examples": ["¥18000 など"],            // キャプション/コメントから抽出できたら
+
+        "range_jpy": { "p25": number | "unknown", "median": number | "unknown", "p75": number | "unknown" }
+
+      },
+
+      "safety_topics": ["ダウンタイム","内出血","禁忌","麻酔"],  // 触れられていれば列挙
+
+      "misinformation_patterns": ["string"],     // 誤情報リスクのパターン
+
+      "representative_posts": [
+
+        { "url": "https://www.tiktok.com/@.../video/...", "format": "short|mid|long", "er_pct": number | "unknown", "fetchedAt": "{{ISO8601}}" }
+
+      ],
+
+      "evidence": [
+
+        { "url": "https://www.tiktok.com/...", "caption_snippet": "string", "fetchedAt": "{{ISO8601}}" }
+
+      ]
+
+    }
+
+  ],
+
+
+
+  "hashtags": [
+
+    { "tag": "string", "volume_est": number | "unknown", "growth_rate_pct": number | "unknown", "co_tags": ["string"],
+
+      "linked_treatments": ["string"], "median_er_pct": number | "unknown",
+
+      "risk_flags": ["before_after","medical_claims","giveaway","affiliate"],
+
+      "evidence":[{ "url":"https://www.tiktok.com/...", "fetchedAt":"{{ISO8601}}" }] }
+
+  ],
+
+
+
+  "sounds": [
+
+    { "title":"string", "url":"https://www.tiktok.com/music/...", "usage_volume_est": number | "unknown",
+
+      "growth_rate_pct": number | "unknown", "associated_treatments": ["string"], 
+
+      "notes":"研究上の関連付け（運用示唆は出さない）",
+
+      "evidence":[{ "url":"https://www.tiktok.com/@.../video/...", "fetchedAt":"{{ISO8601}}" }] }
+
+  ],
+
+
+
+  "effects_filters": [
+
+    { "name":"string", "url":"https://www.tiktok.com/effect|sticker/...", "usage_volume_est": number | "unknown",
+
+      "style_notes":"美容文脈での使われ方（研究所見）", "risk_flags":["beauty_filter_overuse"],
+
+      "evidence":[{ "url":"https://www.tiktok.com/@.../video/...", "fetchedAt":"{{ISO8601}}" }] }
+
+  ],
+
+
+
+  "audience_signals": [
+
+    { "theme": "ダウンタイム・赤み", "example_comments": ["何日休めば？","当日はメイク可能？"] },
+
+    { "theme": "価格・初回・モニター", "example_comments": ["初回いくら？","学割ありますか？"] },
+
+    { "theme": "安全性・痛み", "example_comments": ["神経/血管リスク？","麻酔は？"] }
+
+  ],
+
+
+
+  "biasNotes": "懸賞/アフィ/広告投稿でERが歪む可能性。一過性バズはライフサイクル判定に注意。",
+
+  "sources": [{ "profile_or_domain": "https://www.tiktok.com/...", "count": number }],
+
+  "gaps": ["若年層偏重の可能性", "views非表示によりer_pctがunknownの投稿あり"]
+
+}
+
+</CONSENSUS_JSON>
+
+
+
+【出力2：人向けMarkdown（研究レポート。運用Tipsは含めない）】
+
+<REPORT_MARKDOWN>
+
+## 概要
+
+- 対象キーワード：\${keywords} / 期間：\${timeRangeText}（\${location}）
+
+- 観測要点（3点）：施術 × 悩み語 × ライフサイクルの所見（簡潔に）
+
+
+
+### 1. 施術トレンドの全体像
+
+- トップ施術（投稿量・増勢・ER中央値を総合評価）
+
+- ライフサイクル分布：emerging / peaking / maturing / declining の概況
+
+
+
+### 2. 施術別の詳細（上位）
+
+| 施術 | 共起する悩み語 | 投稿量(推定) | 増加率 | ER中央値(%) | ライフサイクル | 価格言及(中央値) |
+
+|---|---|---|---:|---:|---|---:|
+
+| 例 | 毛穴, 赤み | 1.2k | +18% | 3.1 | peaking | ¥18,000 |
+
+
+
+### 3. 安全性・誤情報の観点
+
+- よく言及される安全性トピック（ダウンタイム/内出血/禁忌/麻酔 等）
+
+- 誤情報パターンの観測（断定表現/加工による誤認/禁忌無視 等）と注意喚起
+
+
+
+### 4. ハッシュタグ・サウンド・エフェクト（研究所見）
+
+- 施術ごとに関連性が高いタグ/サウンド/エフェクトの**関連性**のみ（運用示唆は記さない）
+
+
+
+### 5. 価格言及（参考）
+
+- コメント/キャプションからの価格レンジ抽出（存在する場合のみ）
+
+- データ欠損・信頼性の注記
+
+
+
+### 6. 方法・限界
+
+- データ取得・正規化・ライフサイクル判定の方法
+
+- サンプリング・若年層偏重・一過性バズ等の限界
+
+
+
+### 7. 参考URL（代表）
+
+- 代表的な投稿/プロフィール/サウンドのURLを列挙
+
+
+
+### 総括
+
+- 本期間における**施術トレンドの核心**（需要の横断所見）を1段落でまとめる
+
+</REPORT_MARKDOWN>
+
+</DEV>
+
+
+
+<USER>
+
+- キーワード: \${keywords}        // 例: ["ダーマペン","ピコレーザー","ヒアルロン酸"]
+
+- 期間: \${timeRangeText}          // 例: "last 30 days"
+
+- 地域(任意): \${location}        // 例: "Japan"（未指定なら "unknown"）
+
+</USER>`,
 
   gemini_research_competitor_analysis: `あなたは美容皮膚科クリニックの競合調査専門家です。
 \${location}周辺\${radius}km圏内の競合クリニックについて調査してください。
