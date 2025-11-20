@@ -10,7 +10,8 @@
     "lint": "eslint .",
     "startup": "./start.sh",
     "quick-start": "./start.sh",
-    "postinstall": "prisma generate --schema=./prisma/schema.prisma"
+    "postinstall": "prisma generate --schema=./prisma/schema.prisma",
+    "vercel-build": "prisma generate --schema=./prisma/schema.prisma && next build"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"
