@@ -403,8 +403,8 @@ export const strategyRouter = router({
               return null;
             }
             
-            // TikTokの場合は<CONSENSUS_JSON>セクションを抽出してJSON形式で送信
-            if (result.platform === "tiktok") {
+            // TikTok、YouTube、Instagramの場合は<CONSENSUS_JSON>セクションを抽出してJSON形式で送信
+            if (result.platform === "tiktok" || result.platform === "youtube" || result.platform === "instagram") {
               const consensusMatch = result.trendData.match(/<CONSENSUS_JSON>([\s\S]*?)<\/CONSENSUS_JSON>/);
               if (consensusMatch) {
                 try {
@@ -426,7 +426,7 @@ export const strategyRouter = router({
               // <CONSENSUS_JSON>セクションがない場合は、全体をJSONとしてパースを試みる
             }
             
-            // その他のプラットフォームまたはTikTokで<CONSENSUS_JSON>がない場合
+            // その他のプラットフォームまたはTikTok/YouTube/Instagramで<CONSENSUS_JSON>がない場合
             // データを直接渡す（ラッパーを削除してトークン量を削減）
             // プラットフォーム情報とAIエージェント情報を明示的に含める（Grokデータの識別のため）
             try {
@@ -541,6 +541,31 @@ export const strategyRouter = router({
             if (!result.trendData) {
               return null;
             }
+            
+            // TikTok、YouTube、Instagramの場合は<CONSENSUS_JSON>セクションを抽出してJSON形式で送信
+            if (result.platform === "tiktok" || result.platform === "youtube" || result.platform === "instagram") {
+              const consensusMatch = result.trendData.match(/<CONSENSUS_JSON>([\s\S]*?)<\/CONSENSUS_JSON>/);
+              if (consensusMatch) {
+                try {
+                  const parsed = JSON.parse(consensusMatch[1]!.trim());
+                  return {
+                    ...parsed,
+                    platform: result.platform,
+                    aiAgent: result.aiAgent,
+                  };
+                } catch {
+                  // JSONパースに失敗した場合は、テキスト形式として扱う
+                  return {
+                    platform: result.platform,
+                    aiAgent: result.aiAgent,
+                    data: consensusMatch[1]!.trim(),
+                  };
+                }
+              }
+              // <CONSENSUS_JSON>セクションがない場合は、全体をJSONとしてパースを試みる
+            }
+            
+            // その他のプラットフォームまたはTikTok/YouTube/Instagramで<CONSENSUS_JSON>がない場合
             // プラットフォーム情報とAIエージェント情報を明示的に含める（Grokデータの識別のため）
             try {
               const parsed = JSON.parse(result.trendData);
