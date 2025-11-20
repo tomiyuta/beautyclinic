@@ -744,14 +744,59 @@ export async function researchPriceComparison(
   const currentDateStr = `${currentYear}年${currentMonth}月`;
 
   // Web検索を実行して最新情報を取得
+  // 複数の商品がある場合は、各商品ごとに検索を実行して結果を統合
   let webSearchResults = "";
   try {
     const { performWebSearch, formatSearchResults, generatePriceSearchQuery } = await import("./web-search");
-    const searchQuery = generatePriceSearchQuery(treatments, cities, currentYear, currentMonth);
-    console.log(`[Price Comparison] Web検索実行: ${searchQuery}`);
-    const searchResults = await performWebSearch(searchQuery, 10);
-    webSearchResults = formatSearchResults(searchResults);
-    console.log(`[Price Comparison] Web検索結果: ${searchResults.length}件取得`);
+    
+    console.log(`[Price Comparison] 入力パラメータ - 施術数: ${treatments.length}, 都市数: ${cities.length}`);
+    console.log(`[Price Comparison] 施術: ${treatments.join(", ")}`);
+    console.log(`[Price Comparison] 都市: ${cities.join(", ")}`);
+    
+    // 複数の商品がある場合は、各商品ごとに検索を実行
+    const allSearchResults: Array<{ title: string; link: string; snippet: string; date?: string }> = [];
+    
+    if (treatments.length > 1) {
+      // 複数の商品がある場合、各商品ごとに検索を実行
+      console.log(`[Price Comparison] 複数商品検出（${treatments.length}件）。各商品ごとに検索を実行します。`);
+      
+      for (const treatment of treatments) {
+        try {
+          const searchQuery = generatePriceSearchQuery([treatment], cities, currentYear, currentMonth);
+          console.log(`[Price Comparison] 商品「${treatment}」のWeb検索実行: ${searchQuery}`);
+          const searchResults = await performWebSearch(searchQuery, 10);
+          console.log(`[Price Comparison] 商品「${treatment}」のWeb検索結果: ${searchResults.length}件取得`);
+          
+          // 検索結果に商品名を追加して識別しやすくする
+          const enrichedResults = searchResults.map(result => ({
+            ...result,
+            snippet: `[商品: ${treatment}] ${result.snippet}`,
+          }));
+          
+          allSearchResults.push(...enrichedResults);
+          
+          // 検索間隔を設ける（APIレート制限対策）
+          await new Promise(resolve => setTimeout(resolve, 500));
+        } catch (error) {
+          console.warn(`[Price Comparison] 商品「${treatment}」のWeb検索に失敗しましたが、続行します:`, error);
+        }
+      }
+      
+      // 重複を除去（URLベース）
+      const uniqueResults = Array.from(
+        new Map(allSearchResults.map(result => [result.link, result])).values()
+      );
+      
+      webSearchResults = formatSearchResults(uniqueResults);
+      console.log(`[Price Comparison] 統合されたWeb検索結果: ${uniqueResults.length}件（重複除去後）`);
+    } else {
+      // 単一商品の場合は従来通り1回の検索
+      const searchQuery = generatePriceSearchQuery(treatments, cities, currentYear, currentMonth);
+      console.log(`[Price Comparison] Web検索実行: ${searchQuery}`);
+      const searchResults = await performWebSearch(searchQuery, 10);
+      webSearchResults = formatSearchResults(searchResults);
+      console.log(`[Price Comparison] Web検索結果: ${searchResults.length}件取得`);
+    }
   } catch (error) {
     console.warn("[Price Comparison] Web検索に失敗しましたが、続行します:", error);
     webSearchResults = `【注意】Web検索APIが設定されていないため、最新情報の取得に制限があります。\n${error instanceof Error ? error.message : "Unknown error"}\n`;
@@ -783,6 +828,8 @@ ${webSearchResults}
 - 2024年以前の古い情報は使用しないでください
 - 情報の出典（URL）を可能な限り明記してください
 - 調査結果のタイトルや冒頭には「${currentDateStr}時点のWeb情報に基づき実施」と記載してください
+- 複数の施術が指定されている場合、各施術について個別に価格情報を調査・記載してください
+- Web検索結果に「[商品: 施術名]」というタグが含まれている場合は、そのタグを参考にして各施術の価格情報を抽出してください
 
 最後に、価格比較の総括を記載してください。`;
 
