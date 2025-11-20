@@ -4,24 +4,27 @@ const globalForPrisma = globalThis as unknown as {
   prisma: PrismaClient | undefined;
 };
 
+// Vercel環境でのPrisma Client初期化を確実にする
+const prismaClientOptions = {
+  log:
+    process.env.NODE_ENV === "development"
+      ? ["query", "error", "warn"]
+      : ["error"],
+  // Vercel環境でのバイナリ検出を確実にする
+  ...(process.env.VERCEL && {
+    __internal: {
+      engine: {
+        binaryTarget: "rhel-openssl-3.0.x",
+      },
+    },
+  }),
+};
+
 export const db =
   globalForPrisma.prisma ??
-  new PrismaClient({
-    log:
-      process.env.NODE_ENV === "development"
-        ? ["query", "error", "warn"]
-        : ["error"],
-  });
+  new PrismaClient(prismaClientOptions);
 
 if (process.env.NODE_ENV !== "production") {
   globalForPrisma.prisma = db;
-}
-
-// Vercel環境でのPrisma Client初期化を確実にする
-if (process.env.NODE_ENV === "production") {
-  // 本番環境では、Prisma Clientが正しく初期化されていることを確認
-  void db.$connect().catch((error) => {
-    console.error("Failed to connect to database:", error);
-  });
 }
 

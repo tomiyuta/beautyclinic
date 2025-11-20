@@ -17,16 +17,13 @@ const nextConfig = {
     return config;
   },
   
-  // Prismaのバイナリファイルをビルドに含める
+  // Prismaのバイナリファイルをビルドに含める（Next.js 13 App Router用）
   experimental: {
     outputFileTracingIncludes: {
       '/api/trpc/**': [
-        './src/generated/prisma/**/*.node',
-        './node_modules/.prisma/client/**/*.node',
-        './node_modules/@prisma/client/**/*.node',
-        './node_modules/.prisma/client/libquery_engine-rhel-openssl-3.0.x.so.node',
-        './node_modules/.prisma/client/libquery_engine-debian-openssl-3.0.x.so.node',
-        './node_modules/.prisma/client/libquery_engine-linux-musl-openssl-3.0.x.so.node',
+        './src/generated/prisma/**/*',
+        './node_modules/.prisma/client/**/*',
+        './node_modules/@prisma/client/**/*',
       ],
     },
   },
