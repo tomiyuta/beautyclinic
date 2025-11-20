@@ -31,22 +31,28 @@ export function Navigation() {
         margin: "0 auto", 
         display: "flex", 
         alignItems: "center", 
-        justifyContent: "space-between",
+        justifyContent: "center",
         flexWrap: "wrap",
-        gap: "16px"
+        gap: "16px",
+        position: "relative"
       }}>
+        <div style={{ flex: 1 }}></div>
         <h1 style={{ 
           fontSize: "18px", 
           fontWeight: 600, 
           color: "#172B4D",
-          margin: 0
+          margin: 0,
+          textAlign: "center",
+          flex: "0 0 auto"
         }}>
-          クリマケ
+          クリマケ(クリニック向けAI統合リサーチ)
         </h1>
         <div style={{ 
           display: "flex", 
           gap: "8px",
-          flexWrap: "wrap"
+          flexWrap: "wrap",
+          flex: 1,
+          justifyContent: "flex-end"
         }}>
           {navigationItems.map((item) => {
             const isActive = pathname === item.href;
