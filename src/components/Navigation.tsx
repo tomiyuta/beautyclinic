@@ -41,7 +41,7 @@ export function Navigation() {
           color: "#172B4D",
           margin: 0
         }}>
-          美容クリニックAI協調プラットフォーム
+          クリマケ
         </h1>
         <div style={{ 
           display: "flex", 

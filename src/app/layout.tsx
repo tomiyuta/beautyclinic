@@ -18,7 +18,7 @@ const jetbrainsMono = JetBrains_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "美容クリニックAI協調プラットフォーム",
+  title: "クリマケ",
   description:
     "美容クリニック向けの戦略立案・素材生成を支援するAI協調システム",
 };
