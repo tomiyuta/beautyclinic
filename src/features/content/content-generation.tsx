@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useEffect, useMemo } from "react";
+import { useRef, useEffect, useMemo } from "react";
 import html2canvas from "html2canvas";
 import Button from "@atlaskit/button";
 import TextField from "@atlaskit/textfield";
@@ -16,6 +16,33 @@ import Checkbox from "@atlaskit/checkbox";
 // ModalDialogは後で実装（シンプルなconfirmダイアログで代替）
 import { api } from "@/trpc/react";
 import { TRPCClientError } from "@trpc/client";
+import { useContentGenerationFormState } from "./hooks/useContentGenerationFormState";
+import { useContentMutations } from "./hooks/useContentMutations";
+import { useContentFormHandlers } from "./hooks/useContentFormHandlers";
+import { useContentSubmit } from "./hooks/useContentSubmit";
+import {
+  textContentTypeOptions,
+  imageContentTypeOptions,
+  videoContentTypeOptions,
+  contentTypeOptions,
+  getDefaultMaxLength,
+  toneOptions,
+  ctaTypeOptions,
+  imageStyleOptions,
+  videoDurationOptions,
+  videoAspectRatioOptions,
+  videoStyleOptions,
+  videoLanguageOptions,
+  videoBackgroundOptions,
+  designApproachOptions,
+} from "./constants/content-type-options";
+import { TextContentForm } from "./components/TextContentForm";
+import { ImageContentForm } from "./components/ImageContentForm";
+import { VideoContentForm } from "./components/VideoContentForm";
+import { ContentCategorySelector } from "./components/ContentCategorySelector";
+import { ContentTypeSelector } from "./components/ContentTypeSelector";
+import { CampaignInfoFields } from "./components/CampaignInfoFields";
+import { TemplateSelector } from "./components/TemplateSelector";
 
 const USER_ID_PLACEHOLDER = 1;
 
@@ -203,265 +230,135 @@ function InstagramLPPreview({ content, onExportImage }: { content: unknown; onEx
   );
 }
 
-// テキストコンテンツタイプ（要件定義書3.1に基づく）
-const textContentTypeOptions: Array<{ label: string; value: string; category: string }> = [
-  { label: "Instagram用LP案", value: "instagram_lp", category: "text" },
-  { label: "Instagram投稿文", value: "instagram_post_text", category: "text" },
-  { label: "HP記事", value: "website_article", category: "text" },
-  { label: "ブログ記事", value: "website_article", category: "text" }, // 暫定的にwebsite_articleを使用
-  { label: "キャンペーンコピー", value: "campaign_copy", category: "text" },
-  { label: "広告文（リスティング）", value: "ad_banner", category: "text" },
-];
-
-// 画像コンテンツタイプ（要件定義書3.2に基づく）
-const imageContentTypeOptions: Array<{ label: string; value: string; category: string; size?: string }> = [
-  { label: "Instagram投稿（正方形）", value: "instagram_square", category: "image", size: "1080x1080" },
-  { label: "Instagram投稿（縦型）", value: "instagram_vertical", category: "image", size: "1080x1350" },
-  { label: "Instagramストーリー", value: "instagram_story", category: "image", size: "1080x1920" },
-  { label: "広告バナー（横型）", value: "ad_banner_horizontal", category: "image", size: "1200x628" },
-  { label: "広告バナー（正方形）", value: "ad_banner_square", category: "image", size: "1080x1080" },
-  { label: "LP用ビジュアル", value: "lp_visual", category: "image", size: "1920x1080" },
-];
-
-// 動画コンテンツタイプ（要件定義書3.3, 3.4に基づく - フェーズ2）
-const videoContentTypeOptions: Array<{ label: string; value: string; category: string; type: "short" | "explanation" }> = [
-  { label: "Instagram Reels", value: "reels", category: "video", type: "short" },
-  { label: "TikTok動画", value: "tiktok", category: "video", type: "short" },
-  { label: "YouTube Shorts", value: "youtube_shorts", category: "video", type: "short" },
-  { label: "施術説明動画", value: "treatment_explanation", category: "video", type: "explanation" },
-  { label: "事前ケア動画", value: "pre_care", category: "video", type: "explanation" },
-  { label: "アフターケア動画", value: "post_care", category: "video", type: "explanation" },
-  { label: "FAQ動画", value: "faq", category: "video", type: "explanation" },
-];
-
-const contentTypeOptions = [...textContentTypeOptions, ...imageContentTypeOptions, ...videoContentTypeOptions];
-
-const designApproachOptions = [
-  { label: "トレンディ", value: "trendy" },
-  { label: "ミニマル", value: "minimal" },
-  { label: "大胆", value: "bold" },
-  { label: "エレガント", value: "elegant" },
-];
-
-const toneOptions = [
-  { label: "フォーマル", value: "formal" },
-  { label: "カジュアル", value: "casual" },
-  { label: "親しみやすい", value: "friendly" },
-  { label: "プロフェッショナル", value: "professional" },
-];
-
-const ctaTypeOptions = [
-  { label: "予約する", value: "reserve" },
-  { label: "詳細を見る", value: "details" },
-  { label: "問い合わせる", value: "inquiry" },
-  { label: "今すぐチェック", value: "check_now" },
-];
-
-const imageStyleOptions = [
-  { label: "ミニマル", value: "minimal" },
-  { label: "ゴージャス", value: "gorgeous" },
-  { label: "ナチュラル", value: "natural" },
-  { label: "モダン", value: "modern" },
-  { label: "エレガント", value: "elegant" },
-];
-
-const videoDurationOptions = [
-  { label: "5秒", value: 5 },
-  { label: "10秒", value: 10 },
-  { label: "15秒", value: 15 },
-];
-
-const videoAspectRatioOptions = [
-  { label: "9:16 (縦型)", value: "9:16" },
-  { label: "16:9 (横型)", value: "16:9" },
-  { label: "1:1 (正方形)", value: "1:1" },
-];
-
-const videoStyleOptions = [
-  { label: "リアル", value: "realistic" },
-  { label: "アニメーション", value: "animation" },
-  { label: "スライドショー", value: "slideshow" },
-];
-
-const videoLanguageOptions = [
-  { label: "日本語", value: "ja" },
-  { label: "英語", value: "en" },
-  { label: "中国語", value: "zh" },
-  { label: "韓国語", value: "ko" },
-];
-
-const videoBackgroundOptions = [
-  { label: "クリニック", value: "clinic" },
-  { label: "シンプル", value: "simple" },
-];
+// designApproachOptionsはconstantsからimport
 
 export function ContentGeneration() {
-  const [contentCategory, setContentCategory] = useState<"text" | "image" | "video" | "">("");
-  const [contentType, setContentType] = useState<string>("");
-  const [campaignTitle, setCampaignTitle] = useState("");
-  const [campaignDescription, setCampaignDescription] = useState("");
-  const [targetAudience, setTargetAudience] = useState("");
-  const [promotion, setPromotion] = useState("");
-  const [designApproach, setDesignApproach] = useState<
-    "minimal" | "bold" | "elegant" | "trendy"
-  >("trendy");
-  const [lpCount, setLpCount] = useState(3);
-  const [tone, setTone] = useState<"formal" | "casual" | "friendly" | "professional">("friendly");
-  const [seoKeywords, setSeoKeywords] = useState<string[]>([]);
-  const [keywordInput, setKeywordInput] = useState("");
-  
-  // 新規追加（要件定義書3.1に基づく）
-  const [maxLength, setMaxLength] = useState<number | undefined>(undefined);
-  const [includeKeywords, setIncludeKeywords] = useState<string[]>([]);
-  const [includeKeywordInput, setIncludeKeywordInput] = useState("");
-  const [ctaType, setCtaType] = useState<"reserve" | "details" | "inquiry" | "check_now">("reserve");
-  
-  // 画像生成用（要件定義書3.2に基づく）
-  const [imageStyle, setImageStyle] = useState<"minimal" | "gorgeous" | "natural" | "modern" | "elegant">("modern");
-  const [colorScheme, setColorScheme] = useState("");
-  const [includeElements, setIncludeElements] = useState({
-    logo: false,
-    price: false,
-    textOverlay: false,
-    beforeAfter: false,
-  });
-  const [imageCount, setImageCount] = useState(4);
-  
-  // 動画生成用（要件定義書3.3, 3.4に基づく - フェーズ2）
-  const [videoDuration, setVideoDuration] = useState<5 | 10 | 15>(10);
-  const [videoAspectRatio, setVideoAspectRatio] = useState<"9:16" | "16:9" | "1:1">("9:16");
-  const [bgmEnabled, setBgmEnabled] = useState(false);
-  const [textOverlay, setTextOverlay] = useState<string[]>([]);
-  const [textOverlayInput, setTextOverlayInput] = useState("");
-  const [videoStyle, setVideoStyle] = useState<"realistic" | "animation" | "slideshow">("realistic");
-  const [videoCount, setVideoCount] = useState(2);
-  const [treatmentName, setTreatmentName] = useState("");
-  const [videoScript, setVideoScript] = useState("");
-  const [avatarId, setAvatarId] = useState("");
-  const [videoLanguage, setVideoLanguage] = useState<"ja" | "en" | "zh" | "ko">("ja");
-  const [videoBackground, setVideoBackground] = useState<"clinic" | "simple">("simple");
-  
-  const [feedback, setFeedback] = useState<{
-    type: "success" | "error" | null;
-    message: string;
-  }>({ type: null, message: "" });
-  const [previewContent, setPreviewContent] = useState<{
-    type: string;
-    data: unknown;
-  } | null>(null);
-  const [selectedVariationIndex, setSelectedVariationIndex] = useState(0);
-  const [editableContent, setEditableContent] = useState<Record<number, string>>({});
+  const formState = useContentGenerationFormState();
+  const contentMutations = useContentMutations(formState);
+  const handlers = useContentFormHandlers(formState);
+  const { handleSubmit } = useContentSubmit(formState, contentMutations);
+  const {
+    selection: { contentCategory, setContentCategory, contentType, setContentType },
+    campaign: {
+      campaignTitle,
+      setCampaignTitle,
+      campaignDescription,
+      setCampaignDescription,
+      targetAudience,
+      setTargetAudience,
+      promotion,
+      setPromotion,
+      designApproach,
+      setDesignApproach,
+      lpCount,
+      setLpCount,
+    },
+    text: {
+      tone,
+      setTone,
+      seoKeywords,
+      setSeoKeywords,
+      keywordInput,
+      setKeywordInput,
+      maxLength,
+      setMaxLength,
+      includeKeywords,
+      setIncludeKeywords,
+      includeKeywordInput,
+      setIncludeKeywordInput,
+      ctaType,
+      setCtaType,
+    },
+    image: {
+      imageStyle,
+      setImageStyle,
+      colorScheme,
+      setColorScheme,
+      includeElements,
+      setIncludeElements,
+      imageCount,
+      setImageCount,
+    },
+    video: {
+      videoDuration,
+      setVideoDuration,
+      videoAspectRatio,
+      setVideoAspectRatio,
+      bgmEnabled,
+      setBgmEnabled,
+      textOverlay,
+      setTextOverlay,
+      textOverlayInput,
+      setTextOverlayInput,
+      videoStyle,
+      setVideoStyle,
+      videoCount,
+      setVideoCount,
+      treatmentName,
+      setTreatmentName,
+      videoScript,
+      setVideoScript,
+      avatarId,
+      setAvatarId,
+      videoLanguage,
+      setVideoLanguage,
+      videoBackground,
+      setVideoBackground,
+    },
+    feedback: { feedback, setFeedback },
+    preview: {
+      previewContent,
+      setPreviewContent,
+      selectedVariationIndex,
+      setSelectedVariationIndex,
+      editableContent,
+      setEditableContent,
+    },
+    compliance: {
+      showComplianceLogs,
+      setShowComplianceLogs,
+      realtimeCompliance,
+      setRealtimeCompliance,
+      isCheckingCompliance,
+      setIsCheckingCompliance,
+      highlightedText,
+      setHighlightedText,
+    },
+    batch: {
+      showBatchDialog,
+      setShowBatchDialog,
+      csvFile,
+      setCsvFile,
+      batchProgress,
+      setBatchProgress,
+    },
+    template: {
+      selectedTemplateId,
+      setSelectedTemplateId,
+      showTemplateDialog,
+      setShowTemplateDialog,
+      templateName,
+      setTemplateName,
+    },
+  } = formState;
 
   const utils = api.useUtils();
 
-  const instagramLPMutation = api.content.generateInstagramLP.useMutation({
-    onSuccess: () => {
-      setFeedback({
-        type: "success",
-        message: "Instagram LP案が生成されました",
-      });
-      setTimeout(() => setFeedback({ type: null, message: "" }), 5000);
-      void utils.content.list.invalidate({ userId: USER_ID_PLACEHOLDER });
-      resetForm();
-    },
-    onError: (error: unknown) => {
-      const message = error instanceof Error ? error.message : "エラーが発生しました";
-      setFeedback({ type: "error", message });
-      setTimeout(() => setFeedback({ type: null, message: "" }), 5000);
-    },
-  });
-
-  const articleMutation = api.content.generateWebsiteArticle.useMutation({
-    onSuccess: () => {
-      setFeedback({
-        type: "success",
-        message: "HP記事が生成されました",
-      });
-      setTimeout(() => setFeedback({ type: null, message: "" }), 5000);
-      void utils.content.list.invalidate({ userId: USER_ID_PLACEHOLDER });
-      resetForm();
-    },
-    onError: (error: unknown) => {
-      const message = error instanceof Error ? error.message : "エラーが発生しました";
-      setFeedback({ type: "error", message });
-      setTimeout(() => setFeedback({ type: null, message: "" }), 5000);
-    },
-  });
-
-  const copyMutation = api.content.generateCampaignCopy.useMutation({
-    onSuccess: () => {
-      setFeedback({
-        type: "success",
-        message: "キャンペーンコピーが生成されました",
-      });
-      setTimeout(() => setFeedback({ type: null, message: "" }), 5000);
-      void utils.content.list.invalidate({ userId: USER_ID_PLACEHOLDER });
-      resetForm();
-    },
-    onError: (error: unknown) => {
-      const message = error instanceof Error ? error.message : "エラーが発生しました";
-      setFeedback({ type: "error", message });
-      setTimeout(() => setFeedback({ type: null, message: "" }), 5000);
-    },
-  });
-
-  // 新規追加：拡張されたテキスト生成（要件定義書3.1に基づく）
-  const generateTextMutation = api.content.generateText.useMutation({
-    onSuccess: (data) => {
-      setFeedback({
-        type: "success",
-        message: data.message,
-      });
-      setTimeout(() => setFeedback({ type: null, message: "" }), 5000);
-      void utils.content.list.invalidate({ userId: USER_ID_PLACEHOLDER });
-      setPreviewContent({
-        type: contentType,
-        data: data.results,
-      });
-      setSelectedVariationIndex(0);
-      // 初期編集可能コンテンツを設定
-      const initialEditableContent: Record<number, string> = {};
-      data.results.forEach((result: Record<string, unknown>, index: number) => {
-        const id = typeof result.id === "number" ? result.id : index;
-        const content = typeof result.content === "string" ? result.content : String(result.content || "");
-        initialEditableContent[id] = content;
-      });
-      setEditableContent(initialEditableContent);
-    },
-    onError: (error: unknown) => {
-      const message = error instanceof Error ? error.message : "エラーが発生しました";
-      setFeedback({ type: "error", message });
-      setTimeout(() => setFeedback({ type: null, message: "" }), 5000);
-    },
-  });
-
-  // 新規追加：画像生成（要件定義書3.2に基づく）
-  const generateImageMutation = api.content.generateImage.useMutation({
-    onSuccess: (data) => {
-      setFeedback({
-        type: "success",
-        message: data.message,
-      });
-      setTimeout(() => setFeedback({ type: null, message: "" }), 5000);
-      void utils.content.list.invalidate({ userId: USER_ID_PLACEHOLDER });
-      setPreviewContent({
-        type: "image",
-        data: data.results,
-      });
-      setSelectedVariationIndex(0);
-    },
-    onError: (error: unknown) => {
-      const message = error instanceof Error ? error.message : "エラーが発生しました";
-      setFeedback({ type: "error", message });
-      setTimeout(() => setFeedback({ type: null, message: "" }), 5000);
-    },
-  });
+  // mutationsを共通フックから取得
+  const {
+    instagramLPMutation,
+    articleMutation,
+    copyMutation,
+    generateTextMutation,
+    generateImageMutation,
+    generateShortVideoMutation,
+    generateExplanationVideoMutation,
+    isPending,
+  } = contentMutations;
 
   // コンプライアンスチェック
   const checkComplianceMutation = api.content.checkCompliance.useMutation();
 
-  // コンプライアンスログ（要件定義書3.5.3に基づく - フェーズ3）
-  const [showComplianceLogs, setShowComplianceLogs] = useState(false);
   const complianceLogsQuery = api.content.listComplianceLogs.useQuery({
     userId: USER_ID_PLACEHOLDER,
     limit: 50,
@@ -469,131 +366,14 @@ export function ContentGeneration() {
     enabled: showComplianceLogs,
   });
 
-  // バッチ生成機能（要件定義書3.5.2に基づく - フェーズ3）
-  const [showBatchDialog, setShowBatchDialog] = useState(false);
-  const [csvFile, setCsvFile] = useState<File | null>(null);
-  const [batchProgress, setBatchProgress] = useState<{ total: number; success: number; failed: number } | null>(null);
+  // ハンドラーはuseContentFormHandlersから取得
+  const {
+    handleCampaignDescriptionChange,
+    handleApplySuggestion,
+    handleContentTypeChange,
+  } = handlers;
   
-  // リアルタイムコンプライアンスチェック（要件定義書3.5.3に基づく）
-  const [realtimeCompliance, setRealtimeCompliance] = useState<{
-    status: "compliant" | "warning" | "violation" | null;
-    foundPhrases: string[];
-    warnings: string[];
-    cleanedText?: string;
-    suggestions?: Array<{ original: string; suggestion: string }>;
-  } | null>(null);
-  const [isCheckingCompliance, setIsCheckingCompliance] = useState(false);
-  const [highlightedText, setHighlightedText] = useState<string>("");
-  
-  // デバウンス用のタイマー
-  const complianceCheckTimerRef = useRef<NodeJS.Timeout | null>(null);
-  
-  // リアルタイムコンプライアンスチェック
-  const performRealtimeComplianceCheck = async (text: string) => {
-    if (!text.trim() || text.length < 10) {
-      setRealtimeCompliance(null);
-      setHighlightedText("");
-      return;
-    }
-    
-    setIsCheckingCompliance(true);
-    try {
-      const result = await checkComplianceMutation.mutateAsync({
-        content: text,
-        contentType: "text",
-      });
-      
-      // 問題箇所をハイライト
-      let highlighted = text;
-      const suggestions: Array<{ original: string; suggestion: string }> = [];
-      
-      if (result.foundPhrases && result.foundPhrases.length > 0) {
-        result.foundPhrases.forEach((phrase: string) => {
-          // ハイライト用のマーカーを追加
-          highlighted = highlighted.replace(
-            new RegExp(phrase.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g'),
-            `<mark style="background: #FFEBEE; color: #C62828; padding: 2px 4px; border-radius: 2px;">${phrase}</mark>`
-          );
-          
-          // 代替案を生成
-          const suggestion = getSuggestionForPhrase(phrase);
-          if (suggestion) {
-            suggestions.push({ original: phrase, suggestion });
-          }
-        });
-      }
-      
-      setHighlightedText(highlighted);
-      setRealtimeCompliance({
-        status: result.status,
-        foundPhrases: result.foundPhrases || [],
-        warnings: result.warnings || [],
-        cleanedText: result.cleanedText,
-        suggestions,
-      });
-    } catch (error) {
-      console.error("Realtime compliance check error:", error);
-    } finally {
-      setIsCheckingCompliance(false);
-    }
-  };
-  
-  // 禁止フレーズに対する代替案を取得
-  const getSuggestionForPhrase = (phrase: string): string | null => {
-    const suggestions: Record<string, string> = {
-      "完全に治る": "改善が期待できます",
-      "必ず治る": "効果が期待できます",
-      "絶対に治る": "改善が期待できます",
-      "100%治る": "効果が期待できます",
-      "確実に治る": "効果が期待できます",
-      "必ず効果がある": "効果が期待できます",
-      "絶対に効果がある": "効果が期待できます",
-      "完全に効果がある": "効果が期待できます",
-      "No.1": "実績豊富な",
-      "一番": "実績豊富な",
-      "最高": "高品質な",
-      "最強": "効果的な",
-      "唯一": "独自の",
-      "他にない": "特徴的な",
-      "革命的な": "先進的な",
-      "驚異的な": "優れた",
-      "奇跡的な": "効果的な",
-      "即効性": "効果が期待できる",
-      "即座に": "早期に",
-      "すぐに治る": "改善が期待できます",
-      "たった1回で": "効果的な",
-      "1回で完璧": "効果的な",
-      "副作用なし": "安全性を重視した",
-      "リスクなし": "安全性を重視した",
-      "痛みなし": "痛みを最小限に抑えた",
-      "ダウンタイムなし": "ダウンタイムを最小限に抑えた",
-    };
-    
-    return suggestions[phrase] || null;
-  };
-  
-  // 代替案を適用
-  const handleApplySuggestion = (original: string, suggestion: string) => {
-    const newText = campaignDescription.replace(new RegExp(original.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g'), suggestion);
-    setCampaignDescription(newText);
-    handleCampaignDescriptionChange(newText);
-  };
-  
-  // キャンペーン説明の変更時にリアルタイムチェック
-  const handleCampaignDescriptionChange = (value: string) => {
-    setCampaignDescription(value);
-    
-    // デバウンス（500ms後にチェック）
-    if (complianceCheckTimerRef.current) {
-      clearTimeout(complianceCheckTimerRef.current);
-    }
-    
-    complianceCheckTimerRef.current = setTimeout(() => {
-      if (contentCategory === "text" || contentCategory === "image") {
-        performRealtimeComplianceCheck(value);
-      }
-    }, 500);
-  };
+  // 重複定義を削除 - useContentFormHandlersから取得済み
   
   const batchGenerateMutation = api.content.batchGenerate.useMutation({
     onSuccess: (data) => {
@@ -699,76 +479,27 @@ export function ContentGeneration() {
       return;
     }
     
+    // CSVデータを文字列として送信
+    const csvData = [
+      "title,description,targetAudience,promotion",
+      ...campaigns.map(c => 
+        `"${c.title}","${c.description}","${c.targetAudience || ''}","${c.promotion || ''}"`
+      )
+    ].join('\n');
+    
     batchGenerateMutation.mutate({
       userId: USER_ID_PLACEHOLDER,
       strategyId: undefined,
       templateId: selectedTemplateId || undefined,
       contentType: contentType as any,
-      campaigns,
-      options: {
-        tone,
-        maxLength,
-        includeKeywords,
-        ctaType,
-        seoKeywords,
-        imageStyle,
-        colorScheme,
-        includeElements,
-        count: 1,
-      },
+      csvData,
     });
   };
 
-  // 動画生成用mutation（要件定義書3.3, 3.4に基づく - フェーズ2）
-  const generateShortVideoMutation = api.content.generateShortVideo.useMutation({
-    onSuccess: (data) => {
-      setFeedback({
-        type: "success",
-        message: data.message,
-      });
-      setPreviewContent({
-        type: "video",
-        data: data.results,
-      });
-      setSelectedVariationIndex(0);
-      setTimeout(() => setFeedback({ type: null, message: "" }), 5000);
-      void utils.content.list.invalidate({ userId: USER_ID_PLACEHOLDER });
-    },
-    onError: (error: unknown) => {
-      const message = error instanceof Error ? error.message : "動画生成に失敗しました";
-      setFeedback({ type: "error", message });
-      setTimeout(() => setFeedback({ type: null, message: "" }), 5000);
-    },
-  });
-
-  const generateExplanationVideoMutation = api.content.generateExplanationVideo.useMutation({
-    onSuccess: (data) => {
-      setFeedback({
-        type: "success",
-        message: data.message,
-      });
-      setPreviewContent({
-        type: "video",
-        data: { id: data.id, url: data.url, duration: data.duration },
-      });
-      setTimeout(() => setFeedback({ type: null, message: "" }), 5000);
-      void utils.content.list.invalidate({ userId: USER_ID_PLACEHOLDER });
-    },
-    onError: (error: unknown) => {
-      const message = error instanceof Error ? error.message : "説明動画生成に失敗しました";
-      setFeedback({ type: "error", message });
-      setTimeout(() => setFeedback({ type: null, message: "" }), 5000);
-    },
-  });
 
   const contentsQuery = api.content.list.useQuery({
     userId: USER_ID_PLACEHOLDER,
   });
-
-  // テンプレート機能（要件定義書3.5.2に基づく - フェーズ3）
-  const [selectedTemplateId, setSelectedTemplateId] = useState<number | null>(null);
-  const [showTemplateDialog, setShowTemplateDialog] = useState(false);
-  const [templateName, setTemplateName] = useState("");
 
   const templatesQuery = api.content.listTemplates.useQuery({
     userId: USER_ID_PLACEHOLDER,
@@ -813,28 +544,31 @@ export function ContentGeneration() {
 
   // テンプレートを適用
   const handleApplyTemplate = (templateId: number) => {
-    const template = templatesQuery.data?.find(t => t.id === templateId);
+    const template = templatesQuery.data?.find((t: { id: number }) => t.id === templateId);
     if (!template) return;
 
-    const settings = template.settings as Record<string, unknown>;
+    const settings = (typeof template.settings === 'string' 
+      ? JSON.parse(template.settings) 
+      : template.settings) as Record<string, unknown>;
     setSelectedTemplateId(templateId);
 
     // テンプレートの設定をフォームに適用
-    if (settings.tone) setTone(settings.tone as typeof tone);
-    if (settings.maxLength) setMaxLength(settings.maxLength as number);
-    if (settings.ctaType) setCtaType(settings.ctaType as typeof ctaType);
-    if (settings.imageStyle) setImageStyle(settings.imageStyle as typeof imageStyle);
-    if (settings.colorScheme) setColorScheme(settings.colorScheme as string);
-    if (settings.includeElements) setIncludeElements(settings.includeElements as typeof includeElements);
-    if (settings.imageCount) setImageCount(settings.imageCount as number);
-    if (settings.videoDuration) setVideoDuration(settings.videoDuration as typeof videoDuration);
-    if (settings.videoAspectRatio) setVideoAspectRatio(settings.videoAspectRatio as typeof videoAspectRatio);
-    if (settings.videoStyle) setVideoStyle(settings.videoStyle as typeof videoStyle);
+    const { text, image, video } = formState;
+    if (settings.tone) text.setTone(settings.tone as typeof text.tone);
+    if (settings.maxLength) text.setMaxLength(settings.maxLength as number);
+    if (settings.ctaType) text.setCtaType(settings.ctaType as typeof text.ctaType);
+    if (settings.imageStyle) image.setImageStyle(settings.imageStyle as typeof image.imageStyle);
+    if (settings.colorScheme) image.setColorScheme(settings.colorScheme as string);
+    if (settings.includeElements) image.setIncludeElements(settings.includeElements as typeof image.includeElements);
+    if (settings.imageCount) image.setImageCount(settings.imageCount as number);
+    if (settings.videoDuration) video.setVideoDuration(settings.videoDuration as typeof video.videoDuration);
+    if (settings.videoAspectRatio) video.setVideoAspectRatio(settings.videoAspectRatio as typeof video.videoAspectRatio);
+    if (settings.videoStyle) video.setVideoStyle(settings.videoStyle as typeof video.videoStyle);
     if (settings.includeKeywords && Array.isArray(settings.includeKeywords)) {
-      setIncludeKeywords(settings.includeKeywords as string[]);
+      text.setIncludeKeywords(settings.includeKeywords as string[]);
     }
     if (settings.seoKeywords && Array.isArray(settings.seoKeywords)) {
-      setSeoKeywords(settings.seoKeywords as string[]);
+      text.setSeoKeywords(settings.seoKeywords as string[]);
     }
 
     setFeedback({
@@ -965,21 +699,8 @@ export function ContentGeneration() {
     setRealtimeCompliance(null);
     setHighlightedText("");
     
-    // タイマーをクリア
-    if (complianceCheckTimerRef.current) {
-      clearTimeout(complianceCheckTimerRef.current);
-      complianceCheckTimerRef.current = null;
-    }
+    // タイマーはuseContentFormHandlersで管理
   };
-  
-  // コンポーネントのアンマウント時にタイマーをクリア
-  useEffect(() => {
-    return () => {
-      if (complianceCheckTimerRef.current) {
-        clearTimeout(complianceCheckTimerRef.current);
-      }
-    };
-  }, []);
 
   const handleExportImage = async (element: HTMLElement) => {
     try {
@@ -1052,174 +773,8 @@ export function ContentGeneration() {
   };
 
   // コンテンツタイプに応じたデフォルト文字数制限を取得
-  const getDefaultMaxLength = (type: string): number | undefined => {
-    const defaults: Record<string, number> = {
-      instagram_post_text: 2200,
-      ad_banner: 100,
-      website_article: 3000,
-      campaign_copy: 300,
-    };
-    return defaults[type];
-  };
 
-  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    setFeedback({ type: null, message: "" });
-    setPreviewContent(null);
-    setSelectedVariationIndex(0);
-    setEditableContent({});
-
-    if (!contentType) {
-      setFeedback({
-        type: "error",
-        message: "コンテンツタイプを選択してください",
-      });
-      setTimeout(() => setFeedback({ type: null, message: "" }), 5000);
-      return;
-    }
-
-    if (!campaignTitle.trim() || !campaignDescription.trim()) {
-      setFeedback({
-        type: "error",
-        message: "キャンペーン名と説明を入力してください",
-      });
-      setTimeout(() => setFeedback({ type: null, message: "" }), 5000);
-      return;
-    }
-
-    try {
-      // 動画生成の場合（要件定義書3.3, 3.4に基づく - フェーズ2）
-      if (contentCategory === "video") {
-        const videoOption = videoContentTypeOptions.find(opt => opt.value === contentType);
-        
-        if (videoOption?.type === "short") {
-          // 短尺動画生成
-          await generateShortVideoMutation.mutateAsync({
-            userId: USER_ID_PLACEHOLDER,
-            videoType: contentType as "reels" | "tiktok" | "youtube_shorts",
-            templateId: selectedTemplateId || undefined,
-            campaignInfo: {
-              title: campaignTitle.trim(),
-              description: campaignDescription.trim(),
-            },
-            duration: videoDuration,
-            aspectRatio: videoAspectRatio,
-            bgmEnabled: bgmEnabled,
-            textOverlay: textOverlay,
-            videoStyle: videoStyle,
-            count: videoCount,
-          });
-        } else if (videoOption?.type === "explanation") {
-          // 施術説明動画生成
-          if (!treatmentName.trim() || !videoScript.trim()) {
-            setFeedback({
-              type: "error",
-              message: "施術名とスクリプトを入力してください",
-            });
-            setTimeout(() => setFeedback({ type: null, message: "" }), 5000);
-            return;
-          }
-          
-          await generateExplanationVideoMutation.mutateAsync({
-            userId: USER_ID_PLACEHOLDER,
-            videoType: contentType as "treatment_explanation" | "pre_care" | "post_care" | "faq",
-            treatmentName: treatmentName.trim(),
-            script: videoScript.trim(),
-            duration: 120, // デフォルト120秒
-            avatarId: avatarId || undefined,
-            language: videoLanguage,
-            background: videoBackground,
-          });
-        }
-      }
-      // 画像生成の場合
-      else if (contentCategory === "image" && [
-        "instagram_square", "instagram_vertical", "instagram_story",
-        "ad_banner_horizontal", "ad_banner_square", "lp_visual"
-      ].includes(contentType)) {
-        await generateImageMutation.mutateAsync({
-          userId: USER_ID_PLACEHOLDER,
-          imageType: contentType as any,
-          templateId: selectedTemplateId || undefined,
-          campaignInfo: {
-            title: campaignTitle.trim(),
-            description: campaignDescription.trim(),
-          },
-          colorScheme: colorScheme || undefined,
-          includeElements: includeElements,
-          imageStyle: imageStyle,
-          count: imageCount,
-        });
-      }
-      // 拡張されたテキスト生成の場合
-      else if (["instagram_post_text", "ad_banner"].includes(contentType)) {
-        const effectiveMaxLength = maxLength || getDefaultMaxLength(contentType);
-        await generateTextMutation.mutateAsync({
-          userId: USER_ID_PLACEHOLDER,
-          contentType: contentType as any,
-          templateId: selectedTemplateId || undefined,
-          campaignInfo: {
-            title: campaignTitle.trim(),
-            description: campaignDescription.trim(),
-            targetAudience: targetAudience.trim() || undefined,
-            promotion: promotion.trim() || undefined,
-          },
-          tone: tone,
-          maxLength: effectiveMaxLength,
-          includeKeywords: includeKeywords.length > 0 ? includeKeywords : undefined,
-          ctaType: ctaType,
-          seoKeywords: seoKeywords.length > 0 ? seoKeywords : undefined,
-          count: lpCount,
-        });
-      }
-      // 既存のコンテンツタイプ
-      else if (contentType === "instagram_lp") {
-        const result = await instagramLPMutation.mutateAsync({
-          userId: USER_ID_PLACEHOLDER,
-          campaignTitle: campaignTitle.trim(),
-          campaignDescription: campaignDescription.trim(),
-          targetAudience: targetAudience.trim() || undefined,
-          promotion: promotion.trim() || undefined,
-          designApproach,
-          count: lpCount,
-        });
-        setPreviewContent({
-          type: "instagram_lp",
-          data: result,
-        });
-      } else if (contentType === "website_article") {
-        const result = await articleMutation.mutateAsync({
-          userId: USER_ID_PLACEHOLDER,
-          campaignTitle: campaignTitle.trim(),
-          campaignDescription: campaignDescription.trim(),
-          targetAudience: targetAudience.trim() || undefined,
-          seoKeywords: seoKeywords.length > 0 ? seoKeywords : undefined,
-        });
-        setPreviewContent({
-          type: "website_article",
-          data: result,
-        });
-      } else if (contentType === "campaign_copy") {
-        const result = await copyMutation.mutateAsync({
-          userId: USER_ID_PLACEHOLDER,
-          campaignTitle: campaignTitle.trim(),
-          campaignDescription: campaignDescription.trim(),
-          targetAudience: targetAudience.trim() || undefined,
-          promotion: promotion.trim() || undefined,
-          tone: tone === "formal" || tone === "casual" ? "friendly" : tone === "professional" ? "professional" : "friendly",
-        });
-        setPreviewContent({
-          type: "campaign_copy",
-          data: result,
-        });
-      }
-    } catch (error) {
-      if (error instanceof TRPCClientError) {
-        setFeedback({ type: "error", message: error.message });
-        setTimeout(() => setFeedback({ type: null, message: "" }), 5000);
-      }
-    }
-  };
+  // handleSubmitはuseContentSubmitから取得済み
 
   const getContentTypeLabel = (type: string) => {
     const option = contentTypeOptions.find(opt => opt.value === type);
@@ -1240,22 +795,9 @@ export function ContentGeneration() {
     }
   };
 
-  const isPending = instagramLPMutation.isPending || articleMutation.isPending || copyMutation.isPending || 
-                    generateTextMutation.isPending || generateImageMutation.isPending || 
-                    generateShortVideoMutation.isPending || generateExplanationVideoMutation.isPending;
+  // isPendingはuseContentMutationsから取得
 
-  // コンテンツタイプが変更されたときにデフォルト値を設定
-  const handleContentTypeChange = (newType: string) => {
-    setContentType(newType);
-    const option = contentTypeOptions.find(opt => opt.value === newType);
-    if (option) {
-      setContentCategory(option.category as "text" | "image" | "video");
-      const defaultLength = getDefaultMaxLength(newType);
-      if (defaultLength) {
-        setMaxLength(defaultLength);
-      }
-    }
-  };
+  // handleContentTypeChangeはhandlersから取得済み
 
   return (
     <div style={{ maxWidth: "1000px", margin: "0 auto", padding: "48px 16px" }}>
@@ -1277,7 +819,7 @@ export function ContentGeneration() {
                 display: "inline-block",
               }}
             >
-              使用AI: {currentAIInfo.aiAgent.toUpperCase()} ({currentAIInfo.model})
+              使用AI: {(currentAIInfo as any).aiAgent?.toUpperCase() || 'CHATGPT'} ({(currentAIInfo as any).model || 'gpt-5.1'})
             </div>
           )}
         </div>
@@ -1297,238 +839,37 @@ export function ContentGeneration() {
       <section style={{ marginBottom: "32px", padding: "32px", background: "#FFFFFF", borderRadius: "8px", border: "1px solid #DFE1E6" }}>
         <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: "24px" }}>
           {/* カテゴリー選択 */}
-          <div>
-            <label style={{ display: "block", marginBottom: "8px", fontSize: "14px", fontWeight: 500, color: "#42526E" }}>
-              コンテンツカテゴリー *
-            </label>
-            <Select
-              options={[
-                { label: "テキストコンテンツ", value: "text" },
-                { label: "画像コンテンツ", value: "image" },
-                { label: "動画コンテンツ", value: "video" },
-              ]}
-              value={contentCategory ? { 
-                label: contentCategory === "text" ? "テキストコンテンツ" : 
-                       contentCategory === "image" ? "画像コンテンツ" : 
-                       "動画コンテンツ", 
-                value: contentCategory 
-              } : null}
-              onChange={(option) => {
-                const cat = (option?.value as "text" | "image" | "video" | undefined) || "";
-                setContentCategory(cat);
-                setContentType("");
-              }}
-              placeholder="カテゴリーを選択してください"
-              isRequired
-            />
-          </div>
+          <ContentCategorySelector
+            contentCategory={contentCategory}
+            onCategoryChange={setContentCategory}
+            onContentTypeReset={() => setContentType("")}
+          />
 
           {/* コンテンツタイプ選択 */}
-          <div>
-            <label style={{ display: "block", marginBottom: "8px", fontSize: "14px", fontWeight: 500, color: "#42526E" }}>
-              コンテンツタイプ *
-            </label>
-            <Select
-              options={
-                contentCategory === "text" ? textContentTypeOptions : 
-                contentCategory === "image" ? imageContentTypeOptions : 
-                contentCategory === "video" ? videoContentTypeOptions : 
-                contentTypeOptions
-              }
-              value={contentType ? (
-                contentCategory === "text" ? textContentTypeOptions : 
-                contentCategory === "image" ? imageContentTypeOptions : 
-                contentCategory === "video" ? videoContentTypeOptions : 
-                contentTypeOptions
-              ).find(opt => opt.value === contentType) || null : null}
-              onChange={(option) => handleContentTypeChange((option?.value as string | undefined) || "")}
-              placeholder="タイプを選択してください"
-              isRequired
-              isDisabled={!contentCategory}
-            />
-          </div>
+          <ContentTypeSelector
+            contentCategory={contentCategory}
+            contentType={contentType}
+            onContentTypeChange={handleContentTypeChange}
+          />
 
-          {/* テンプレート選択（要件定義書3.5.2に基づく - フェーズ3） */}
-          {contentType && templatesQuery.data && templatesQuery.data.length > 0 && (
-            <div>
-              <label style={{ display: "block", marginBottom: "8px", fontSize: "14px", fontWeight: 500, color: "#42526E" }}>
-                テンプレート
-              </label>
-              <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
-                <Select
-                  options={templatesQuery.data.map(t => ({ label: t.name, value: t.id }))}
-                  value={selectedTemplateId ? templatesQuery.data.find(t => t.id === selectedTemplateId) ? { label: templatesQuery.data.find(t => t.id === selectedTemplateId)!.name, value: selectedTemplateId } : null : null}
-                  onChange={(option) => {
-                    const templateId = option?.value as number | undefined;
-                    if (templateId) handleApplyTemplate(templateId);
-                  }}
-                  placeholder="テンプレートを選択..."
-                  isClearable
-                />
-                {selectedTemplateId && (
-                  <Button
-                    appearance="subtle"
-                    onClick={() => {
-                      if (confirm("このテンプレートを削除しますか？")) {
-                        deleteTemplateMutation.mutate({
-                          userId: USER_ID_PLACEHOLDER,
-                          id: selectedTemplateId,
-                        });
-                        setSelectedTemplateId(null);
-                      }
-                    }}
-                    isDisabled={deleteTemplateMutation.isPending}
-                  >
-                    削除
-                  </Button>
-                )}
-              </div>
-            </div>
-          )}
+          {/* テンプレート選択 */}
+          <TemplateSelector
+            formState={formState}
+            templates={templatesQuery.data}
+            onApplyTemplate={handleApplyTemplate}
+            onDeleteTemplate={(id) => {
+              deleteTemplateMutation.mutate({ userId: USER_ID_PLACEHOLDER, id });
+            }}
+            isDeleting={deleteTemplateMutation.isPending}
+          />
 
-          <div>
-            <label style={{ display: "block", marginBottom: "8px", fontSize: "14px", fontWeight: 500, color: "#42526E" }}>
-              キャンペーン名 *
-            </label>
-            <TextField
-              isRequired
-              type="text"
-              value={campaignTitle}
-              onChange={(e) => setCampaignTitle((e.target as HTMLInputElement).value)}
-              placeholder="例：11月限定 ダーマペンキャンペーン"
-              style={{ width: "100%" }}
-            />
-          </div>
-
-          <div>
-            <label style={{ display: "block", marginBottom: "8px", fontSize: "14px", fontWeight: 500, color: "#42526E" }}>
-              キャンペーン説明 *
-            </label>
-            <div>
-              <Textarea
-                isRequired
-                value={campaignDescription}
-                onChange={(e) => handleCampaignDescriptionChange((e.target as HTMLTextAreaElement).value)}
-                placeholder="キャンペーンの詳細な説明を入力してください"
-                minimumRows={4}
-                style={{ width: "100%" }}
-              />
-              {/* リアルタイムコンプライアンスチェック表示（要件定義書3.5.3に基づく） */}
-              {realtimeCompliance && (contentCategory === "text" || contentCategory === "image") && (
-                <div style={{ marginTop: "8px" }}>
-                  {realtimeCompliance.status === "violation" && (
-                    <div style={{ marginBottom: "8px" }}>
-                      <Banner appearance="error">
-                        <div style={{ fontSize: "14px" }}>
-                          <strong>禁止フレーズが検出されました:</strong>
-                          <ul style={{ margin: "4px 0 0 20px", padding: 0 }}>
-                            {realtimeCompliance.foundPhrases.map((phrase, i) => (
-                              <li key={i}>{phrase}</li>
-                            ))}
-                          </ul>
-                        </div>
-                      </Banner>
-                      
-                      {/* 問題箇所のハイライト表示 */}
-                      {highlightedText && (
-                        <div style={{ marginTop: "8px", padding: "12px", background: "#F4F5F7", borderRadius: "4px", border: "1px solid #DFE1E6" }}>
-                          <div style={{ fontSize: "12px", fontWeight: 600, color: "#172B4D", marginBottom: "4px" }}>
-                            問題箇所（赤色でハイライト）:
-                          </div>
-                          <div 
-                            style={{ fontSize: "14px", lineHeight: "1.6", color: "#172B4D" }}
-                            dangerouslySetInnerHTML={{ __html: highlightedText }}
-                          />
-                        </div>
-                      )}
-                      
-                      {/* 代替案の自動提示 */}
-                      {realtimeCompliance.suggestions && realtimeCompliance.suggestions.length > 0 && (
-                        <div style={{ marginTop: "8px", padding: "12px", background: "#E3FCEF", borderRadius: "4px", border: "1px solid #36B37E" }}>
-                          <div style={{ fontSize: "12px", fontWeight: 600, color: "#172B4D", marginBottom: "8px" }}>
-                            推奨される代替表現:
-                          </div>
-                          <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-                            {realtimeCompliance.suggestions.map((suggestion: { original: string; suggestion: string }, i: number) => (
-                              <div key={i} style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "14px" }}>
-                                <span style={{ color: "#C62828" }}>「{suggestion.original}」</span>
-                                <span>→</span>
-                                <span style={{ color: "#36B37E", fontWeight: 600 }}>「{suggestion.suggestion}」</span>
-                                <Button
-                                  appearance="subtle"
-                                  onClick={() => handleApplySuggestion(suggestion.original, suggestion.suggestion)}
-                                >
-                                  適用
-                                </Button>
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-                      
-                      {/* 自動修正されたテキストを表示 */}
-                      {realtimeCompliance.cleanedText && realtimeCompliance.cleanedText !== campaignDescription && (
-                        <div style={{ marginTop: "8px", padding: "12px", background: "#FFF4E5", borderRadius: "4px", border: "1px solid #FFC400" }}>
-                          <div style={{ fontSize: "12px", fontWeight: 600, color: "#172B4D", marginBottom: "4px" }}>
-                            自動修正案:
-                          </div>
-                          <div style={{ fontSize: "14px", lineHeight: "1.6", color: "#172B4D", marginBottom: "8px", whiteSpace: "pre-wrap" }}>
-                            {realtimeCompliance.cleanedText}
-                          </div>
-                          <Button
-                            appearance="default"
-                            onClick={() => {
-                              setCampaignDescription(realtimeCompliance.cleanedText || "");
-                              handleCampaignDescriptionChange(realtimeCompliance.cleanedText || "");
-                            }}
-                          >
-                            自動修正を適用
-                          </Button>
-                        </div>
-                      )}
-                    </div>
-                  )}
-                  {realtimeCompliance.status === "warning" && realtimeCompliance.warnings.length > 0 && (
-                    <Banner appearance="warning">
-                      <div style={{ fontSize: "14px" }}>
-                        <strong>警告:</strong>
-                        <ul style={{ margin: "4px 0 0 20px", padding: 0 }}>
-                          {realtimeCompliance.warnings.map((warning, i) => (
-                            <li key={i}>{warning}</li>
-                          ))}
-                        </ul>
-                      </div>
-                    </Banner>
-                  )}
-                  {realtimeCompliance.status === "compliant" && !isCheckingCompliance && (
-                    <div style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "12px", color: "#36B37E" }}>
-                      <span>✓</span>
-                      <span>医療広告ガイドラインに準拠しています</span>
-                    </div>
-                  )}
-                  {isCheckingCompliance && (
-                    <div style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "12px", color: "#6B778C" }}>
-                      <Spinner size="small" />
-                      <span>コンプライアンスチェック中...</span>
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
-          </div>
-
-          <div>
-            <label style={{ display: "block", marginBottom: "8px", fontSize: "14px", fontWeight: 500, color: "#42526E" }}>
-              ターゲット層
-            </label>
-            <TextField
-              type="text"
-              value={targetAudience}
-              onChange={(e) => setTargetAudience((e.target as HTMLInputElement).value)}
-              placeholder="例：20-50代の美容に興味のある女性"
-              style={{ width: "100%" }}
-            />
-          </div>
+          {/* キャンペーン情報フィールド */}
+          <CampaignInfoFields
+            formState={formState}
+            contentCategory={contentCategory}
+            onCampaignDescriptionChange={handleCampaignDescriptionChange}
+            onApplySuggestion={handleApplySuggestion}
+          />
 
           {contentType === "instagram_lp" && (
             <>
@@ -1724,249 +1065,38 @@ export function ContentGeneration() {
             </>
           )}
 
-          {/* 画像生成用の入力項目（要件定義書3.2に基づく） */}
+          {/* カテゴリー別フォームコンポーネント */}
+          {contentCategory === "text" && (
+            <TextContentForm
+              formState={formState}
+              contentType={contentType}
+              onContentTypeChange={handleContentTypeChange}
+              onSubmit={handleSubmit}
+              isPending={isPending}
+            />
+          )}
+
           {contentCategory === "image" && [
             "instagram_square", "instagram_vertical", "instagram_story",
             "ad_banner_horizontal", "ad_banner_square", "lp_visual"
           ].includes(contentType) && (
-            <>
-              <div>
-                <label style={{ display: "block", marginBottom: "8px", fontSize: "14px", fontWeight: 500, color: "#42526E" }}>
-                  画像スタイル
-                </label>
-                <Select
-                  options={imageStyleOptions}
-                  value={imageStyleOptions.find(opt => opt.value === imageStyle)}
-                  onChange={(option) => setImageStyle((option?.value as typeof imageStyle) || "modern")}
-                />
-              </div>
-              <div>
-                <label style={{ display: "block", marginBottom: "8px", fontSize: "14px", fontWeight: 500, color: "#42526E" }}>
-                  カラースキーム
-                </label>
-                <TextField
-                  type="text"
-                  value={colorScheme}
-                  onChange={(e) => setColorScheme((e.target as HTMLInputElement).value)}
-                  placeholder="例：パステル、ビビッド、モノトーン"
-                  style={{ width: "100%" }}
-                />
-              </div>
-              <div>
-                <label style={{ display: "block", marginBottom: "8px", fontSize: "14px", fontWeight: 500, color: "#42526E" }}>
-                  含める要素
-                </label>
-                <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-                  <label style={{ display: "flex", alignItems: "center", gap: "8px", cursor: "pointer" }}>
-                    <input
-                      type="checkbox"
-                      checked={includeElements.logo}
-                      onChange={(e) => setIncludeElements({ ...includeElements, logo: e.target.checked })}
-                    />
-                    <span>クリニックロゴ</span>
-                  </label>
-                  <label style={{ display: "flex", alignItems: "center", gap: "8px", cursor: "pointer" }}>
-                    <input
-                      type="checkbox"
-                      checked={includeElements.price}
-                      onChange={(e) => setIncludeElements({ ...includeElements, price: e.target.checked })}
-                    />
-                    <span>価格表示</span>
-                  </label>
-                  <label style={{ display: "flex", alignItems: "center", gap: "8px", cursor: "pointer" }}>
-                    <input
-                      type="checkbox"
-                      checked={includeElements.textOverlay}
-                      onChange={(e) => setIncludeElements({ ...includeElements, textOverlay: e.target.checked })}
-                    />
-                    <span>テキストオーバーレイ</span>
-                  </label>
-                  <label style={{ display: "flex", alignItems: "center", gap: "8px", cursor: "pointer" }}>
-                    <input
-                      type="checkbox"
-                      checked={includeElements.beforeAfter}
-                      onChange={(e) => setIncludeElements({ ...includeElements, beforeAfter: e.target.checked })}
-                    />
-                    <span>ビフォーアフター（ガイドライン準拠チェック付き）</span>
-                  </label>
-                </div>
-              </div>
-              <div>
-                <label style={{ display: "block", marginBottom: "8px", fontSize: "14px", fontWeight: 500, color: "#42526E" }}>
-                  生成件数
-                </label>
-                <TextField
-                  type="number"
-                  min="1"
-                  max="4"
-                  value={imageCount.toString()}
-                  onChange={(e) => setImageCount(Number.parseInt((e.target as HTMLInputElement).value, 10) || 4)}
-                  style={{ width: "100%" }}
-                />
-              </div>
-            </>
+            <ImageContentForm
+              formState={formState}
+              contentType={contentType}
+              onContentTypeChange={handleContentTypeChange}
+              onSubmit={handleSubmit}
+              isPending={isPending}
+            />
           )}
 
-          {/* 動画生成用の入力項目（要件定義書3.3, 3.4に基づく - フェーズ2） */}
           {contentCategory === "video" && (
-            <>
-              {["reels", "tiktok", "youtube_shorts"].includes(contentType) && (
-                <>
-                  <div>
-                    <label style={{ display: "block", marginBottom: "8px", fontSize: "14px",                     fontWeight: 500, color: "#42526E" }}>
-                      動画の長さ
-                    </label>
-                    <Select
-                      options={videoDurationOptions}
-                      value={videoDurationOptions.find(opt => opt.value === videoDuration)}
-                      onChange={(option) => setVideoDuration((option?.value as 5 | 10 | 15) || 10)}
-                    />
-                  </div>
-                  <div>
-                    <label style={{ display: "block", marginBottom: "8px", fontSize: "14px", fontWeight: 500, color: "#42526E" }}>
-                      アスペクト比
-                    </label>
-                    <Select
-                      options={videoAspectRatioOptions}
-                      value={videoAspectRatioOptions.find(opt => opt.value === videoAspectRatio)}
-                      onChange={(option) => setVideoAspectRatio((option?.value as "9:16" | "16:9" | "1:1") || "9:16")}
-                    />
-                  </div>
-                  <div>
-                    <label style={{ display: "flex", alignItems: "center", gap: "8px", cursor: "pointer" }}>
-                      <input
-                        type="checkbox"
-                        checked={bgmEnabled}
-                        onChange={(e) => setBgmEnabled(e.target.checked)}
-                      />
-                      <span>BGMを有効にする</span>
-                    </label>
-                  </div>
-                  <div>
-                    <label style={{ display: "block", marginBottom: "8px", fontSize: "14px", fontWeight: 500, color: "#42526E" }}>
-                      テキストオーバーレイ
-                    </label>
-                    <div style={{ display: "flex", gap: "8px", marginBottom: "8px" }}>
-                      <TextField
-                        type="text"
-                        value={textOverlayInput}
-                        onChange={(e) => setTextOverlayInput((e.target as HTMLInputElement).value)}
-                        placeholder="テキストを入力"
-                        style={{ flex: 1 }}
-                        onKeyPress={(e) => {
-                          if (e.key === "Enter") {
-                            e.preventDefault();
-                            handleAddTextOverlay();
-                          }
-                        }}
-                      />
-                      <Button onClick={handleAddTextOverlay}>追加</Button>
-                    </div>
-                    {textOverlay.length > 0 && (
-                      <div style={{ display: "flex", flexWrap: "wrap", gap: "8px" }}>
-                        {textOverlay.map((overlay, index) => (
-                          <div key={index} style={{ display: "flex", alignItems: "center", gap: "4px", padding: "4px 8px", background: "#F4F5F7", borderRadius: "4px" }}>
-                            <span style={{ fontSize: "12px" }}>{overlay}</span>
-                            <button
-                              type="button"
-                              onClick={() => handleRemoveTextOverlay(overlay)}
-                              style={{ background: "none", border: "none", cursor: "pointer", fontSize: "14px", color: "#6B778C" }}
-                            >
-                              ×
-                            </button>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                  <div>
-                    <label style={{ display: "block", marginBottom: "8px", fontSize: "14px", fontWeight: 500, color: "#42526E" }}>
-                      動画スタイル
-                    </label>
-                    <Select
-                      options={videoStyleOptions}
-                      value={videoStyleOptions.find(opt => opt.value === videoStyle)}
-                      onChange={(option) => setVideoStyle((option?.value as "realistic" | "animation" | "slideshow") || "realistic")}
-                    />
-                  </div>
-                  <div>
-                    <label style={{ display: "block", marginBottom: "8px", fontSize: "14px", fontWeight: 500, color: "#42526E" }}>
-                      生成件数
-                    </label>
-                    <TextField
-                      type="number"
-                      min="1"
-                      max="2"
-                      value={videoCount.toString()}
-                      onChange={(e) => setVideoCount(Number.parseInt((e.target as HTMLInputElement).value, 10) || 2)}
-                      style={{ width: "100%" }}
-                    />
-                  </div>
-                </>
-              )}
-              {["treatment_explanation", "pre_care", "post_care", "faq"].includes(contentType) && (
-                <>
-                  <div>
-                    <label style={{ display: "block", marginBottom: "8px", fontSize: "14px", fontWeight: 500, color: "#42526E" }}>
-                      施術名 *
-                    </label>
-                    <TextField
-                      isRequired
-                      type="text"
-                      value={treatmentName}
-                      onChange={(e) => setTreatmentName((e.target as HTMLInputElement).value)}
-                      placeholder="例：ダーマペン"
-                      style={{ width: "100%" }}
-                    />
-                  </div>
-                  <div>
-                    <label style={{ display: "block", marginBottom: "8px", fontSize: "14px", fontWeight: 500, color: "#42526E" }}>
-                      スクリプト *
-                    </label>
-                    <Textarea
-                      isRequired
-                      value={videoScript}
-                      onChange={(e) => setVideoScript((e.target as HTMLTextAreaElement).value)}
-                      placeholder="動画の台本を入力してください"
-                      minimumRows={6}
-                      style={{ width: "100%" }}
-                    />
-                  </div>
-                  <div>
-                    <label style={{ display: "block", marginBottom: "8px", fontSize: "14px", fontWeight: 500, color: "#42526E" }}>
-                      言語
-                    </label>
-                    <Select
-                      options={videoLanguageOptions}
-                      value={videoLanguageOptions.find(opt => opt.value === videoLanguage)}
-                      onChange={(option) => setVideoLanguage((option?.value as "ja" | "en" | "zh" | "ko") || "ja")}
-                    />
-                  </div>
-                  <div>
-                    <label style={{ display: "block", marginBottom: "8px", fontSize: "14px", fontWeight: 500, color: "#42526E" }}>
-                      背景
-                    </label>
-                    <Select
-                      options={videoBackgroundOptions}
-                      value={videoBackgroundOptions.find(opt => opt.value === videoBackground)}
-                      onChange={(option) => setVideoBackground((option?.value as "clinic" | "simple") || "simple")}
-                    />
-                  </div>
-                  <div>
-                    <label style={{ display: "block", marginBottom: "8px", fontSize: "14px", fontWeight: 500, color: "#42526E" }}>
-                      アバターID（オプション）
-                    </label>
-                    <TextField
-                      type="text"
-                      value={avatarId}
-                      onChange={(e) => setAvatarId((e.target as HTMLInputElement).value)}
-                      placeholder="デフォルトアバターを使用する場合は空欄"
-                      style={{ width: "100%" }}
-                    />
-                  </div>
-                </>
-              )}
-            </>
+            <VideoContentForm
+              formState={formState}
+              contentType={contentType}
+              onContentTypeChange={handleContentTypeChange}
+              onSubmit={handleSubmit}
+              isPending={isPending}
+            />
           )}
 
           <div style={{ display: "flex", gap: "8px", justifyContent: "space-between", alignItems: "center" }}>
@@ -2164,9 +1294,8 @@ export function ContentGeneration() {
             {previewContent.type === "instagram_lp" && (
               <div style={{ display: "flex", flexDirection: "column", gap: "24px" }}>
                 {Array.isArray(previewContent.data) &&
-                  "results" in previewContent.data &&
-                  Array.isArray(previewContent.data.results) &&
-                  previewContent.data.results.map((item: unknown, index: number) => {
+                  previewContent.data.length > 0 &&
+                  previewContent.data.map((item: unknown, index: number) => {
                     const result =
                       typeof item === "object" &&
                       item !== null &&
@@ -2716,7 +1845,7 @@ export function ContentGeneration() {
         )}
         {contentsQuery.data && contentsQuery.data.length > 0 && (
           <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
-            {contentsQuery.data.map((content) => (
+            {contentsQuery.data.map((content: any) => (
               <div
                 key={content.id}
                 style={{ padding: "16px", borderRadius: "8px", border: "1px solid #DFE1E6" }}
@@ -2759,94 +1888,144 @@ export function ContentGeneration() {
                         content={content.content} 
                         onExportImage={handleExportImage}
                       />
-                    ) : content.fileUrl && typeof content.fileUrl === "string" ? (
-                      // ファイルURLがある場合（画像または動画）
-                      (() => {
-                        const mimeType = content.mimeType && typeof content.mimeType === "string" ? content.mimeType : "";
-                        const isVideo = mimeType.startsWith("video/");
-                        const videoContentTypes = ["instagram_reels", "tiktok_video", "youtube_shorts", "treatment_explanation_video", "pre_care_video", "post_care_video", "faq_video"];
-                        const isVideoContent = videoContentTypes.includes(content.contentType);
-                        const shouldShowVideo = isVideo || isVideoContent;
-                        
-                        // 動画コンテンツの場合
-                        if (shouldShowVideo) {
-                          const extension = mimeType.includes("mp4") ? "mp4" : mimeType.split("/")[1]?.split(";")[0] || "mp4";
-                          return (
-                            <div>
-                              <video 
-                                src={content.fileUrl} 
-                                controls
-                                style={{ maxWidth: "100%", maxHeight: "400px", borderRadius: "4px", border: "1px solid #DFE1E6" }}
-                              >
-                                お使いのブラウザは動画タグをサポートしていません。
-                              </video>
-                              <div style={{ marginTop: "8px", display: "flex", gap: "8px" }}>
-                                <Button
-                                  appearance="subtle"
-                                  onClick={() => {
-                                    if (content.fileUrl && typeof content.fileUrl === "string") {
-                                      const link = document.createElement("a");
-                                      link.download = `${content.contentType}-${content.id}-${Date.now()}.${extension}`;
-                                      link.href = content.fileUrl;
-                                      document.body.appendChild(link);
-                                      link.click();
-                                      document.body.removeChild(link);
-                                    }
-                                  }}
-                                >
-                                  動画をダウンロード
-                                </Button>
-                              </div>
-                            </div>
-                          );
+                    ) : (() => {
+                      // ファイルURLを取得（fileUrlフィールドまたはcontentからJSONをパース）
+                      let fileUrl: string | null = null;
+                      if (content.fileUrl && typeof content.fileUrl === "string") {
+                        fileUrl = content.fileUrl;
+                      } else if (content.content && typeof content.content === "string") {
+                        try {
+                          const parsed = JSON.parse(content.content);
+                          if (parsed.imageUrl) {
+                            fileUrl = parsed.imageUrl;
+                          } else if (parsed.videoUrl) {
+                            fileUrl = parsed.videoUrl;
+                          } else if (parsed.url) {
+                            fileUrl = parsed.url;
+                          }
+                        } catch {
+                          // JSONパースに失敗した場合は無視
                         }
-                        
-                        // 画像コンテンツの場合
-                        const extension = mimeType ? (mimeType.split("/")[1]?.split(";")[0] || "png") : "png";
+                      }
+                      
+                      if (!fileUrl) {
+                        // ファイルURLがない場合はテキストコンテンツを表示
+                        return (
+                          <pre style={{ maxHeight: "240px", overflow: "auto", borderRadius: "4px", background: "#F4F5F7", padding: "12px", fontSize: "12px", color: "#172B4D", whiteSpace: "pre-wrap", margin: 0 }}>
+                            {typeof content.content === "string" ? content.content : String(content.content || "(コンテンツがありません)")}
+                          </pre>
+                        );
+                      }
+                      
+                      // ファイルURLがある場合（画像または動画）
+                      const mimeType = content.mimeType && typeof content.mimeType === "string" ? content.mimeType : "";
+                      const isVideo = mimeType.startsWith("video/");
+                      const videoContentTypes = ["instagram_reels", "tiktok_video", "youtube_shorts", "treatment_explanation_video", "pre_care_video", "post_care_video", "faq_video"];
+                      const isVideoContent = videoContentTypes.includes(content.contentType);
+                      const shouldShowVideo = isVideo || isVideoContent;
+                      
+                      // 動画コンテンツの場合
+                      if (shouldShowVideo) {
+                        const extension = mimeType.includes("mp4") ? "mp4" : mimeType.split("/")[1]?.split(";")[0] || "mp4";
                         return (
                           <div>
-                            <img 
-                              src={content.fileUrl} 
-                              alt={content.title || "Generated content"}
+                            <video 
+                              src={fileUrl} 
+                              controls
                               style={{ maxWidth: "100%", maxHeight: "400px", borderRadius: "4px", border: "1px solid #DFE1E6" }}
                               onError={(e) => {
-                                console.error("画像の読み込みに失敗しました:", content.fileUrl);
-                                const target = e.target as HTMLImageElement;
+                                console.error("動画の読み込みに失敗しました:", fileUrl);
+                                const target = e.target as HTMLVideoElement;
                                 if (target.parentElement) {
-                                  const fallback = document.createElement("pre");
-                                  fallback.style.cssText = "maxHeight: 240px; overflow: auto; borderRadius: 4px; background: #F4F5F7; padding: 12px; fontSize: 12px; color: #172B4D; whiteSpace: pre-wrap;";
-                                  fallback.textContent = typeof content.content === "string" ? content.content : String(content.content);
+                                  const fallback = document.createElement("div");
+                                  fallback.style.cssText = "padding: 16px; borderRadius: 4px; background: #F4F5F7; color: #172B4D;";
+                                  fallback.innerHTML = `<p style="margin: 0 0 8px 0; fontWeight: 600;">動画の読み込みに失敗しました</p><a href="${fileUrl}" target="_blank" rel="noopener noreferrer" style="color: #0052CC; textDecoration: underline;">直接リンクを開く</a>`;
                                   target.parentElement.replaceChild(fallback, target);
                                 }
                               }}
-                            />
+                            >
+                              お使いのブラウザは動画タグをサポートしていません。
+                            </video>
                             <div style={{ marginTop: "8px", display: "flex", gap: "8px" }}>
                               <Button
                                 appearance="subtle"
                                 onClick={() => {
-                                  if (content.fileUrl && typeof content.fileUrl === "string") {
-                                    const link = document.createElement("a");
-                                    link.download = `${content.contentType}-${content.id}-${Date.now()}.${extension}`;
-                                    link.href = content.fileUrl;
-                                    document.body.appendChild(link);
-                                    link.click();
-                                    document.body.removeChild(link);
-                                  }
+                                  const link = document.createElement("a");
+                                  link.download = `${content.contentType}-${content.id}-${Date.now()}.${extension}`;
+                                  link.href = fileUrl;
+                                  link.target = "_blank";
+                                  document.body.appendChild(link);
+                                  link.click();
+                                  document.body.removeChild(link);
                                 }}
                               >
-                                画像をダウンロード
+                                動画をダウンロード
+                              </Button>
+                              <Button
+                                appearance="subtle"
+                                onClick={() => {
+                                  window.open(fileUrl || "", "_blank", "noopener,noreferrer");
+                                }}
+                              >
+                                新しいタブで開く
                               </Button>
                             </div>
                           </div>
                         );
-                      })()
-                    ) : (
-                      <pre style={{ maxHeight: "240px", overflow: "auto", borderRadius: "4px", background: "#F4F5F7", padding: "12px", fontSize: "12px", color: "#172B4D", whiteSpace: "pre-wrap" }}>
-                        {typeof content.content === "string"
-                          ? content.content
-                          : String(content.content)}
-                      </pre>
-                    )}
+                      }
+                      
+                      // 画像コンテンツの場合
+                      const extension = mimeType ? (mimeType.split("/")[1]?.split(";")[0] || "png") : "png";
+                      return (
+                        <div>
+                          <img 
+                            src={fileUrl} 
+                            alt={content.title || "Generated content"}
+                            style={{ maxWidth: "100%", maxHeight: "400px", borderRadius: "4px", border: "1px solid #DFE1E6", objectFit: "contain" }}
+                            onError={(e) => {
+                              console.error("画像の読み込みに失敗しました:", fileUrl);
+                              const target = e.target as HTMLImageElement;
+                              if (target.parentElement) {
+                                const fallback = document.createElement("div");
+                                fallback.style.cssText = "padding: 16px; borderRadius: 4px; background: #F4F5F7; color: #172B4D;";
+                                fallback.innerHTML = `
+                                  <p style="margin: 0 0 8px 0; fontWeight: 600;">画像の読み込みに失敗しました</p>
+                                  <p style="margin: 0 0 8px 0; fontSize: 12px; color: #6B778C; wordBreak: break-all;">URL: ${fileUrl}</p>
+                                  <div style="display: flex; gap: 8px;">
+                                    <a href="${fileUrl}" target="_blank" rel="noopener noreferrer" style="color: #0052CC; textDecoration: underline; fontSize: 12px;">直接リンクを開く</a>
+                                  </div>
+                                `;
+                                target.parentElement.replaceChild(fallback, target);
+                              }
+                            }}
+                          />
+                          <div style={{ marginTop: "8px", display: "flex", gap: "8px" }}>
+                            <Button
+                              appearance="subtle"
+                              onClick={() => {
+                                const link = document.createElement("a");
+                                link.download = `${content.contentType}-${content.id}-${Date.now()}.${extension}`;
+                                link.href = fileUrl || "";
+                                link.target = "_blank";
+                                document.body.appendChild(link);
+                                link.click();
+                                document.body.removeChild(link);
+                              }}
+                            >
+                              画像をダウンロード
+                            </Button>
+                            <Button
+                              appearance="subtle"
+                              onClick={() => {
+                                window.open(fileUrl || "", "_blank", "noopener,noreferrer");
+                              }}
+                            >
+                              新しいタブで開く
+                            </Button>
+                          </div>
+                        </div>
+                      );
+                    })()}
                     {content.complianceReport && typeof content.complianceReport === "string" && (() => {
                       try {
                         const report = JSON.parse(content.complianceReport);
@@ -2901,7 +2080,7 @@ export function ContentGeneration() {
           )}
           {complianceLogsQuery.data && complianceLogsQuery.data.length > 0 && (
             <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
-              {complianceLogsQuery.data.map((log, index) => {
+              {complianceLogsQuery.data.map((log: any, index: number) => {
                 const complianceInfo = getComplianceStatusLabel(log.status);
                 const violations = log.violations && typeof log.violations === "object" && "foundPhrases" in log.violations
                   ? (log.violations as { foundPhrases?: string[] }).foundPhrases || []
@@ -2936,7 +2115,7 @@ export function ContentGeneration() {
                           検出された禁止フレーズ:
                         </div>
                         <ul style={{ margin: 0, paddingLeft: "20px", fontSize: "14px", color: "#42526E" }}>
-                          {violations.map((phrase, i) => (
+                          {violations.map((phrase: string, i: number) => (
                             <li key={i}>{phrase}</li>
                           ))}
                         </ul>

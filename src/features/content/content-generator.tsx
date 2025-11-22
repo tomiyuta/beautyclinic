@@ -959,7 +959,7 @@ export function ContentGenerator() {
         )}
         {contentsQuery.data && contentsQuery.data.length > 0 && (
           <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
-            {contentsQuery.data.map((content) => (
+            {contentsQuery.data.map((content: any) => (
               <div
                 key={content.id}
                 style={{ padding: "16px", borderRadius: "8px", border: "1px solid #DFE1E6" }}

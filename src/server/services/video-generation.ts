@@ -5,6 +5,7 @@
  */
 
 import { fal } from "@fal-ai/client";
+import { retryWithBackoff, formatVideoGenerationError, type RetryOptions } from "./utils/video-retry";
 
 // 短尺動画生成オプション
 export interface ShortVideoGenerationOptions {
@@ -96,107 +97,102 @@ export async function generateShortVideoWithPika(
   // 解像度
   const resolution = options.resolution || "720p";
 
-  const maxRetries = 3;
-  let lastError: Error | null = null;
+  // リトライオプション
+  const retryOptions: RetryOptions = {
+    maxRetries: 3,
+    retryDelay: 1000,
+    exponentialBackoff: true,
+  };
 
-  for (let attempt = 1; attempt <= maxRetries; attempt++) {
-    try {
-      console.log(`[Video Generation] Pika Labs (fal-ai) API call (attempt ${attempt}/${maxRetries}):`, {
-        model: "fal-ai/pika/v2.2/text-to-video",
-        videoType: options.videoType,
+  // リトライロジックを使用して動画生成を実行
+  const retryResult = await retryWithBackoff(async () => {
+    console.log(`[Video Generation] Pika Labs (fal-ai) API call:`, {
+      model: "fal-ai/pika/v2.2/text-to-video",
+      videoType: options.videoType,
+      duration: pikaDuration,
+      aspectRatio: pikaAspectRatio,
+      resolution,
+    });
+
+    // fal-ai経由でPika 2.2を呼び出し
+    const result = await fal.subscribe("fal-ai/pika/v2.2/text-to-video", {
+      input: {
+        prompt: sanitizedPrompt,
+        aspect_ratio: pikaAspectRatio,
+        resolution: resolution as "720p" | "1080p",
         duration: pikaDuration,
-        aspectRatio: pikaAspectRatio,
-        resolution,
-      });
+        negative_prompt: options.negativePrompt || "ugly, bad, terrible",
+        ...(options.seed && { seed: options.seed }),
+      },
+      logs: true,
+      onQueueUpdate: (update) => {
+        if (update.status === "IN_PROGRESS" && update.logs) {
+          update.logs.map((log) => log.message).forEach((message) => {
+            console.log(`[Video Generation] Pika Labs log: ${message}`);
+          });
+        }
+      },
+    });
 
-      // fal-ai経由でPika 2.2を呼び出し
-      const result = await fal.subscribe("fal-ai/pika/v2.2/text-to-video", {
-        input: {
-          prompt: sanitizedPrompt,
-          aspect_ratio: pikaAspectRatio,
-          resolution: resolution as "720p" | "1080p",
-          duration: pikaDuration,
-          negative_prompt: options.negativePrompt || "ugly, bad, terrible",
-          ...(options.seed && { seed: options.seed }),
-        },
-        logs: true,
-        onQueueUpdate: (update) => {
-          if (update.status === "IN_PROGRESS" && update.logs) {
-            update.logs.map((log) => log.message).forEach((message) => {
-              console.log(`[Video Generation] Pika Labs log: ${message}`);
-            });
-          }
-        },
-      });
+    // レスポンス形式: { video: { url, file_name, content_type, file_size } }
+    const videoUrl = result.data?.video?.url;
+    const videoFileName = result.data?.video?.file_name;
+    const videoFileSize = result.data?.video?.file_size;
+    const requestId = result.requestId;
 
-      // レスポンス形式: { video: { url, file_name, content_type, file_size } }
-      const videoUrl = result.data?.video?.url;
-      const videoFileName = result.data?.video?.file_name;
-      const videoFileSize = result.data?.video?.file_size;
-      const requestId = result.requestId;
-
-      if (!videoUrl) {
-        throw new Error("Pika Labs API did not return a video URL");
-      }
-
-      console.log(`[Video Generation] Pika Labs success:`, { 
-        requestId, 
-        videoUrl, 
-        fileName: videoFileName,
-        fileSize: videoFileSize 
-      });
-
-      // 解像度に基づいて幅と高さを計算
-      let width = 1080;
-      let height = 1080;
-      if (pikaAspectRatio === "9:16") {
-        width = resolution === "1080p" ? 1080 : 720;
-        height = resolution === "1080p" ? 1920 : 1280;
-      } else if (pikaAspectRatio === "16:9") {
-        width = resolution === "1080p" ? 1920 : 1280;
-        height = resolution === "1080p" ? 1080 : 720;
-      } else if (pikaAspectRatio === "1:1") {
-        width = height = resolution === "1080p" ? 1080 : 720;
-      } else if (pikaAspectRatio === "4:5") {
-        width = resolution === "1080p" ? 1080 : 720;
-        height = resolution === "1080p" ? 1350 : 900;
-      } else if (pikaAspectRatio === "5:4") {
-        width = resolution === "1080p" ? 1350 : 900;
-        height = resolution === "1080p" ? 1080 : 720;
-      } else if (pikaAspectRatio === "3:2") {
-        width = resolution === "1080p" ? 1620 : 1080;
-        height = resolution === "1080p" ? 1080 : 720;
-      } else if (pikaAspectRatio === "2:3") {
-        width = resolution === "1080p" ? 1080 : 720;
-        height = resolution === "1080p" ? 1620 : 1080;
-      }
-
-      return {
-        id: requestId ? parseInt(String(requestId).replace(/-/g, '').substring(0, 10), 16) : undefined,
-        url: videoUrl,
-        duration: pikaDuration,
-        videoType: options.videoType,
-        thumbnailUrl: undefined, // Pika 2.2はサムネイルを返さない
-        width,
-        height,
-      };
-    } catch (error) {
-      lastError = error instanceof Error ? error : new Error(String(error));
-      console.error(`[Video Generation] Pika Labs error (attempt ${attempt}/${maxRetries}):`, lastError.message);
-      
-      // 最後の試行でない場合、リトライ前に待機
-      if (attempt < maxRetries) {
-        const waitTime = Math.min(1000 * Math.pow(2, attempt - 1), 10000); // 指数バックオフ、最大10秒
-        console.log(`[Video Generation] Retrying in ${waitTime}ms...`);
-        await new Promise(resolve => setTimeout(resolve, waitTime));
-      }
+    if (!videoUrl) {
+      throw new Error("Pika Labs API did not return a video URL");
     }
+
+    console.log(`[Video Generation] Pika Labs success:`, { 
+      requestId, 
+      videoUrl, 
+      fileName: videoFileName,
+      fileSize: videoFileSize 
+    });
+
+    // 解像度に基づいて幅と高さを計算
+    let width = 1080;
+    let height = 1080;
+    if (pikaAspectRatio === "9:16") {
+      width = resolution === "1080p" ? 1080 : 720;
+      height = resolution === "1080p" ? 1920 : 1280;
+    } else if (pikaAspectRatio === "16:9") {
+      width = resolution === "1080p" ? 1920 : 1280;
+      height = resolution === "1080p" ? 1080 : 720;
+    } else if (pikaAspectRatio === "1:1") {
+      width = height = resolution === "1080p" ? 1080 : 720;
+    } else if (pikaAspectRatio === "4:5") {
+      width = resolution === "1080p" ? 1080 : 720;
+      height = resolution === "1080p" ? 1350 : 900;
+    } else if (pikaAspectRatio === "5:4") {
+      width = resolution === "1080p" ? 1350 : 900;
+      height = resolution === "1080p" ? 1080 : 720;
+    } else if (pikaAspectRatio === "3:2") {
+      width = resolution === "1080p" ? 1620 : 1080;
+      height = resolution === "1080p" ? 1080 : 720;
+    } else if (pikaAspectRatio === "2:3") {
+      width = resolution === "1080p" ? 1080 : 720;
+      height = resolution === "1080p" ? 1620 : 1080;
+    }
+
+    return {
+      id: requestId ? parseInt(String(requestId).replace(/-/g, '').substring(0, 10), 16) : undefined,
+      url: videoUrl,
+      duration: pikaDuration,
+      videoType: options.videoType,
+      thumbnailUrl: undefined, // Pika 2.2はサムネイルを返さない
+      width,
+      height,
+    };
+  }, retryOptions);
+
+  if (!retryResult.success || !retryResult.data) {
+    const errorMessage = formatVideoGenerationError(retryResult.error);
+    throw new Error(`短尺動画の生成に失敗しました（${retryResult.attempts}回試行）: ${errorMessage}`);
   }
 
-  // すべてのリトライが失敗した場合
-  throw new Error(
-    `短尺動画の生成に失敗しました（${maxRetries}回試行）: ${lastError?.message || "Unknown error"}`
-  );
+  return retryResult.data;
 }
 
 /**
@@ -228,128 +224,123 @@ export async function generateExplanationVideoWithSynthesia(
   // アバターIDのデフォルト値
   const avatarId = options.avatarId || process.env.SYNTHESIA_DEFAULT_AVATAR_ID || "anna_costume1_cameraA_presenting";
 
-  const maxRetries = 3;
-  let lastError: Error | null = null;
+  // リトライオプション
+  const retryOptions: RetryOptions = {
+    maxRetries: 3,
+    retryDelay: 2000, // Synthesiaは処理に時間がかかるため、少し長めの待機時間
+    exponentialBackoff: true,
+  };
 
-  for (let attempt = 1; attempt <= maxRetries; attempt++) {
-    try {
-      // Synthesia API v2呼び出し
-      // 参考: https://docs.synthesia.io/reference/create-video
-      const apiBaseUrl = process.env.SYNTHESIA_API_URL || "https://api.synthesia.io";
-      const endpoint = `${apiBaseUrl}/v2/videos`;
+  // リトライロジックを使用して動画生成を実行
+  const retryResult = await retryWithBackoff(async () => {
+    // Synthesia API v2呼び出し
+    // 参考: https://docs.synthesia.io/reference/create-video
+    const apiBaseUrl = process.env.SYNTHESIA_API_URL || "https://api.synthesia.io";
+    const endpoint = `${apiBaseUrl}/v2/videos`;
 
-      // Synthesia API v2のリクエスト形式
-      // スクリプトは複数のシーンで構成可能
-      const requestBody = {
-        title: `${options.treatmentName} - ${options.videoType}`,
-        description: `施術説明動画: ${options.treatmentName}`,
-        visibility: "public", // または "private", "unlisted"
-        scenes: [
-          {
-            type: "avatar",
-            avatar: avatarId,
-            voice: {
-              provider: "microsoft",
-              voiceId: synthesiaLanguage === "ja-JP" ? "ja-JP-NanamiNeural" : 
-                       synthesiaLanguage === "en-US" ? "en-US-AriaNeural" :
-                       synthesiaLanguage === "zh-CN" ? "zh-CN-XiaoxiaoNeural" :
-                       "ko-KR-SunHiNeural",
-            },
-            script: {
-              type: "text",
-              input: sanitizedScript,
-            },
-            background: options.background === "clinic" ? "clinic_interior" : "solid_color",
+    // Synthesia API v2のリクエスト形式
+    // スクリプトは複数のシーンで構成可能
+    const requestBody = {
+      title: `${options.treatmentName} - ${options.videoType}`,
+      description: `施術説明動画: ${options.treatmentName}`,
+      visibility: "public", // または "private", "unlisted"
+      scenes: [
+        {
+          type: "avatar",
+          avatar: avatarId,
+          voice: {
+            provider: "microsoft",
+            voiceId: synthesiaLanguage === "ja-JP" ? "ja-JP-NanamiNeural" : 
+                     synthesiaLanguage === "en-US" ? "en-US-AriaNeural" :
+                     synthesiaLanguage === "zh-CN" ? "zh-CN-XiaoxiaoNeural" :
+                     "ko-KR-SunHiNeural",
           },
-        ],
-        ...(options.duration && { duration: options.duration }),
-      };
-
-      console.log(`[Video Generation] Synthesia API call (attempt ${attempt}/${maxRetries}):`, {
-        endpoint,
-        videoType: options.videoType,
-        treatmentName: options.treatmentName,
-        language: synthesiaLanguage,
-      });
-
-      const response = await fetch(endpoint, {
-        method: 'POST',
-        headers: {
-          'Authorization': apiKey.startsWith('Bearer ') ? apiKey : `Bearer ${apiKey}`,
-          'Content-Type': 'application/json',
+          script: {
+            type: "text",
+            input: sanitizedScript,
+          },
+          background: options.background === "clinic" ? "clinic_interior" : "solid_color",
         },
-        body: JSON.stringify(requestBody),
-      });
+      ],
+      ...(options.duration && { duration: options.duration }),
+    };
 
-      if (!response.ok) {
-        const errorText = await response.text();
-        let errorMessage = `Synthesia API error (${response.status}): ${errorText}`;
-        
-        // よくあるエラーの詳細を追加
-        if (response.status === 401) {
-          errorMessage = "Synthesia API認証エラー: APIキーが無効です";
-        } else if (response.status === 429) {
-          errorMessage = "Synthesia APIレート制限: しばらく待ってから再試行してください";
-        } else if (response.status === 400) {
-          errorMessage = `Synthesia APIリクエストエラー: ${errorText}`;
-        }
-        
-        throw new Error(errorMessage);
-      }
+    console.log(`[Video Generation] Synthesia API call:`, {
+      endpoint,
+      videoType: options.videoType,
+      treatmentName: options.treatmentName,
+      language: synthesiaLanguage,
+    });
 
-      const data = await response.json();
+    const response = await fetch(endpoint, {
+      method: 'POST',
+      headers: {
+        'Authorization': apiKey.startsWith('Bearer ') ? apiKey : `Bearer ${apiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(requestBody),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      let errorMessage = `Synthesia API error (${response.status}): ${errorText}`;
       
-      // Synthesia API v2のレスポンス形式
-      // { id, status, download_url, thumbnail_url, etc. }
-      const videoId = data.id || data.video_id;
-      const videoUrl = data.download_url || data.video_url || data.url;
-      const thumbnailUrl = data.thumbnail_url || data.thumbnail;
-      const status = data.status || "processing";
-
-      if (!videoId) {
-        throw new Error("Synthesia API did not return a video ID");
+      // よくあるエラーの詳細を追加
+      if (response.status === 401) {
+        errorMessage = "Synthesia API認証エラー: APIキーが無効です";
+      } else if (response.status === 429) {
+        errorMessage = "Synthesia APIレート制限: しばらく待ってから再試行してください";
+      } else if (response.status === 400) {
+        errorMessage = `Synthesia APIリクエストエラー: ${errorText}`;
       }
+      
+      throw new Error(errorMessage);
+    }
 
-      console.log(`[Video Generation] Synthesia success:`, { videoId, status });
+    const data = await response.json();
+    
+    // Synthesia API v2のレスポンス形式
+    // { id, status, download_url, thumbnail_url, etc. }
+    const videoId = data.id || data.video_id;
+    const videoUrl = data.download_url || data.video_url || data.url;
+    const thumbnailUrl = data.thumbnail_url || data.thumbnail;
+    const status = data.status || "processing";
 
-      // 注意: Synthesiaは非同期で動画を生成するため、即座にURLが返らない場合がある
-      // statusが"processing"の場合は、ポーリングが必要
-      if (status === "processing" && !videoUrl) {
-        // ポーリング用のvideoIdを返す
-        // 実際の実装では、別途ポーリングエンドポイントを呼び出す必要がある
-        return {
-          id: parseInt(String(videoId)),
-          url: `https://app.synthesia.io/videos/${videoId}`, // 暫定的なURL
-          duration: options.duration || 120,
-          videoType: options.videoType,
-          thumbnailUrl,
-        };
-      }
+    if (!videoId) {
+      throw new Error("Synthesia API did not return a video ID");
+    }
 
+    console.log(`[Video Generation] Synthesia success:`, { videoId, status });
+
+    // 注意: Synthesiaは非同期で動画を生成するため、即座にURLが返らない場合がある
+    // statusが"processing"の場合は、ポーリングが必要
+    if (status === "processing" && !videoUrl) {
+      // ポーリング用のvideoIdを返す
+      // 実際の実装では、別途ポーリングエンドポイントを呼び出す必要がある
       return {
         id: parseInt(String(videoId)),
-        url: videoUrl || `https://app.synthesia.io/videos/${videoId}`,
+        url: `https://app.synthesia.io/videos/${videoId}`, // 暫定的なURL
         duration: options.duration || 120,
         videoType: options.videoType,
         thumbnailUrl,
       };
-    } catch (error) {
-      lastError = error instanceof Error ? error : new Error(String(error));
-      console.error(`[Video Generation] Synthesia error (attempt ${attempt}/${maxRetries}):`, lastError.message);
-      
-      // 最後の試行でない場合、リトライ前に待機
-      if (attempt < maxRetries) {
-        const waitTime = Math.min(1000 * Math.pow(2, attempt - 1), 10000); // 指数バックオフ、最大10秒
-        console.log(`[Video Generation] Retrying in ${waitTime}ms...`);
-        await new Promise(resolve => setTimeout(resolve, waitTime));
-      }
     }
+
+    return {
+      id: parseInt(String(videoId)),
+      url: videoUrl || `https://app.synthesia.io/videos/${videoId}`,
+      duration: options.duration || 120,
+      videoType: options.videoType,
+      thumbnailUrl,
+    };
+  }, retryOptions);
+
+  if (!retryResult.success || !retryResult.data) {
+    const errorMessage = formatVideoGenerationError(retryResult.error);
+    throw new Error(`説明動画の生成に失敗しました（${retryResult.attempts}回試行）: ${errorMessage}`);
   }
 
-  // すべてのリトライが失敗した場合
-  throw new Error(
-    `説明動画の生成に失敗しました（${maxRetries}回試行）: ${lastError?.message || "Unknown error"}`
-  );
+  return retryResult.data;
 }
 
 /**

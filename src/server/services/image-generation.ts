@@ -111,8 +111,42 @@ export async function generateImageWithDalle(
       throw new Error("Failed to generate image: No URL returned");
     }
 
+    // DALL-E 3のプライベートURLを処理
+    // プライベートURLの場合は、画像をダウンロードしてBase64エンコードして返す
+    let finalUrl = imageUrl;
+    
+    // プライベートURLかどうかを判定（blob.core.windows.net/private/を含む場合）
+    if (imageUrl.includes("blob.core.windows.net/private/")) {
+      try {
+        console.log("[Image Generation] DALL-E returned private URL, downloading image...");
+        
+        // 画像をダウンロード
+        const imageResponse = await fetch(imageUrl);
+        if (!imageResponse.ok) {
+          throw new Error(`Failed to download image: ${imageResponse.status} ${imageResponse.statusText}`);
+        }
+        
+        // 画像をBufferに変換
+        const arrayBuffer = await imageResponse.arrayBuffer();
+        const buffer = Buffer.from(arrayBuffer);
+        
+        // Base64エンコード
+        const base64 = buffer.toString("base64");
+        const mimeType = imageResponse.headers.get("content-type") || "image/png";
+        
+        // データURIとして返す
+        finalUrl = `data:${mimeType};base64,${base64}`;
+        
+        console.log("[Image Generation] Image converted to data URI successfully");
+      } catch (downloadError) {
+        console.error("[Image Generation] Failed to download and convert image:", downloadError);
+        // ダウンロードに失敗した場合は元のURLを返す（エラーハンドリングは呼び出し側で行う）
+        finalUrl = imageUrl;
+      }
+    }
+
     return {
-      url: imageUrl,
+      url: finalUrl,
       width,
       height,
       preset: options.preset,

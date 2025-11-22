@@ -582,9 +582,19 @@ export default function PromptManagement() {
                                   プロンプト内容（プレビュー）
                                 </p>
                                 <pre style={{ maxHeight: "160px", overflow: "auto", whiteSpace: "pre-wrap", wordBreak: "break-word", fontFamily: "monospace", fontSize: "12px", color: "#42526E", margin: 0 }}>
-                                  {prompt.prompt && prompt.prompt.length > 200
-                                    ? `${prompt.prompt.substring(0, 200)}...`
-                                    : prompt.prompt || "(プロンプトが設定されていません)"}
+                                  {(() => {
+                                    const promptText = prompt.prompt || "(プロンプトが設定されていません)";
+                                    // HTMLタグをエスケープ
+                                    const escapedText = promptText
+                                      .replace(/&/g, "&amp;")
+                                      .replace(/</g, "&lt;")
+                                      .replace(/>/g, "&gt;")
+                                      .replace(/"/g, "&quot;")
+                                      .replace(/'/g, "&#039;");
+                                    return promptText.length > 200
+                                      ? `${escapedText.substring(0, 200)}...`
+                                      : escapedText;
+                                  })()}
                                 </pre>
                               </div>
                             </>
