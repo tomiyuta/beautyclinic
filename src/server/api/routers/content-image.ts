@@ -34,9 +34,20 @@ export const contentImageRouter = router({
           lp_visual: "clinic_interior",
         };
 
+        // imageTypeをContentTypeにマッピング
+        const imageTypeToContentType: Record<string, "instagram_post_image" | "instagram_story" | "ad_banner" | "lp_visual"> = {
+          instagram_square: "instagram_post_image",
+          instagram_vertical: "instagram_post_image",
+          instagram_story: "instagram_story",
+          ad_banner_horizontal: "ad_banner",
+          ad_banner_square: "ad_banner",
+          lp_visual: "lp_visual",
+        };
+
         const preset = imageTypeToPreset[input.imageType] || "instagram_square";
         const theme = imageTypeToTheme[input.imageType] || "clinic_interior";
         const customSize = imageTypeToCustomSize[input.imageType];
+        const contentType = imageTypeToContentType[input.imageType] || "instagram_post_image";
 
         // imageStyleをプロンプトに含める
         const stylePrompt = input.imageStyle 
@@ -67,7 +78,7 @@ export const contentImageRouter = router({
             userId: input.userId,
             strategyId: input.strategyId,
             templateId: input.templateId,
-            contentType: input.imageType as any,
+            contentType: contentType,
             title: input.campaignInfo.title,
             content: JSON.stringify({ prompt: options.prompt }), // imageUrlはfileUrlに保存されているため不要
             aiAgent: "chatgpt", // DALL-E 3はChatGPT経由

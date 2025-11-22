@@ -118,7 +118,7 @@ model ClinicProduct {
 model MarketResearchResult {
   id            Int          @id @default(autoincrement())
   userId        Int
-  location      String       @db.VarChar(100)
+  location      String       @db.VarChar(500) // 複数の都市名を結合する場合に対応
   researchType  ResearchType
   aiAgent       AiAgent
   rawData       String       @db.Text
