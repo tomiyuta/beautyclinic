@@ -35,13 +35,25 @@ export const contentImageRouter = router({
         };
 
         const preset = imageTypeToPreset[input.imageType] || "instagram_square";
-        const theme = input.imageStyle
-          ? (input.imageStyle as ImageTheme)
-          : imageTypeToTheme[input.imageType] || "clinic_interior";
+        const theme = imageTypeToTheme[input.imageType] || "clinic_interior";
         const customSize = imageTypeToCustomSize[input.imageType];
 
+        // imageStyleをプロンプトに含める
+        const stylePrompt = input.imageStyle 
+          ? `Style: ${input.imageStyle === "gorgeous" ? "luxurious and elegant" : input.imageStyle === "minimal" ? "minimalist and clean" : input.imageStyle === "natural" ? "natural and organic" : input.imageStyle === "modern" ? "modern and contemporary" : "elegant and sophisticated"}. `
+          : "";
+
+        // カラースキームと含める要素をプロンプトに追加
+        const colorSchemePrompt = input.colorScheme ? `Color scheme: ${input.colorScheme}. ` : "";
+        const elementsPrompt = input.includeElements
+          ? `Include: ${input.includeElements.logo ? "logo, " : ""}${input.includeElements.price ? "price information, " : ""}${input.includeElements.textOverlay ? "text overlay, " : ""}${input.includeElements.beforeAfter ? "before/after comparison, " : ""}`.replace(/, $/, "").trim()
+          : "";
+
+        // プロンプトを構築
+        const enhancedPrompt = `${input.campaignInfo.description}${stylePrompt ? ` ${stylePrompt}` : ""}${colorSchemePrompt}${elementsPrompt ? ` ${elementsPrompt}` : ""}`;
+
         const options: ImageGenerationOptions = {
-          prompt: input.campaignInfo.description,
+          prompt: enhancedPrompt,
           preset,
           theme,
           customSize,

@@ -87,7 +87,11 @@ export async function generateImageWithDalle(
   const themePrompt = getThemePrompt(options.theme, contentText);
 
   // プロンプトを構築
-  const prompt = options.prompt || `Create a professional image for a beauty clinic marketing material. ${themePrompt}. The image should be appropriate for medical advertising guidelines, avoiding exaggerated claims. Style: modern, clean, professional.`;
+  // options.promptが指定されている場合は、それを使用（imageStyleやcolorSchemeが含まれている）
+  // 指定されていない場合は、デフォルトのプロンプトを使用
+  const prompt = options.prompt 
+    ? `Create a professional image for a beauty clinic marketing material. ${options.prompt}. The image should be appropriate for medical advertising guidelines, avoiding exaggerated claims. Theme: ${themePrompt}.`
+    : `Create a professional image for a beauty clinic marketing material. ${themePrompt}. The image should be appropriate for medical advertising guidelines, avoiding exaggerated claims. Style: modern, clean, professional.`;
 
   try {
     // DALL·E 3のサイズ制限に合わせる
