@@ -1103,9 +1103,15 @@ export function ContentGeneration() {
             <Button
               type="submit"
               appearance="primary"
-              isDisabled={isPending}
+              isDisabled={isPending || !contentType || !campaignTitle.trim() || !campaignDescription.trim()}
             >
-              {isPending ? "生成中..." : "コンテンツを生成"}
+              {isPending 
+                ? "生成中..." 
+                : contentCategory === "image" 
+                  ? "画像を生成" 
+                  : contentCategory === "video"
+                    ? "動画を生成"
+                    : "コンテンツを生成"}
             </Button>
             <div style={{ display: "flex", gap: "8px" }}>
               {contentType && (

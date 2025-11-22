@@ -315,13 +315,7 @@ export function TextContentForm({
         />
       </div>
 
-      <Button
-        type="submit"
-        appearance="primary"
-        isDisabled={isPending || !contentType || !campaign.campaignTitle.trim() || !campaign.campaignDescription.trim()}
-      >
-        {isPending ? "生成中..." : "コンテンツを生成"}
-      </Button>
+      {/* ボタンはメインフォームで表示されるため、ここでは削除 */}
     </>
   );
 }

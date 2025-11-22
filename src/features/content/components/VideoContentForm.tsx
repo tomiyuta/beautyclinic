@@ -389,19 +389,7 @@ export function VideoContentForm({
         </>
       )}
 
-      <Button
-        type="submit"
-        appearance="primary"
-        isDisabled={
-          isPending ||
-          !contentType ||
-          !campaign.campaignTitle.trim() ||
-          !campaign.campaignDescription.trim() ||
-          (isExplanationVideo && (!video.treatmentName.trim() || !video.videoScript.trim()))
-        }
-      >
-        {isPending ? "生成中..." : "動画を生成"}
-      </Button>
+      {/* ボタンはメインフォームで表示されるため、ここでは削除 */}
     </>
   );
 }
