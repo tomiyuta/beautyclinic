@@ -42,6 +42,7 @@ export function ProductManagement() {
   }>({ type: null, message: "" });
 
   const productsQuery = api.product.list.useQuery({ userId: USER_ID_PLACEHOLDER });
+
   const createMutation = api.product.create.useMutation({
     onSuccess: async () => {
       setFeedback({ type: "success", message: "商品を保存しました" });
