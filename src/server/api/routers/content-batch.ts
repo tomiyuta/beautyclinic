@@ -154,7 +154,7 @@ export const contentBatchRouter = router({
                 templateId,
                 contentType: contentType as any,
                 title: campaign.title,
-                content: JSON.stringify({ prompt: imageOptions.prompt, imageUrl: result.url }),
+                content: JSON.stringify({ prompt: imageOptions.prompt }), // imageUrlはfileUrlに保存されているため不要
                 aiAgent: "chatgpt",
                 file: {
                   url: result.url,
@@ -178,7 +178,7 @@ export const contentBatchRouter = router({
                   templateId,
                   contentType: contentType as any,
                   title: campaign.title,
-                  content: JSON.stringify({ script: campaign.description, videoUrl: result.url }),
+                  content: JSON.stringify({ script: campaign.description }), // videoUrlはfileUrlに保存されているため不要
                   aiAgent: "synthesia",
                   file: {
                     url: result.url,
@@ -201,7 +201,7 @@ export const contentBatchRouter = router({
                   templateId,
                   contentType: contentType as any,
                   title: campaign.title,
-                  content: JSON.stringify({ prompt: campaign.description, videoUrl: result.url }),
+                  content: JSON.stringify({ prompt: campaign.description }), // videoUrlはfileUrlに保存されているため不要
                   aiAgent: "pika",
                   file: {
                     url: result.url,

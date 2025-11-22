@@ -69,7 +69,7 @@ export const contentImageRouter = router({
             templateId: input.templateId,
             contentType: input.imageType as any,
             title: input.campaignInfo.title,
-            content: JSON.stringify({ prompt: options.prompt, imageUrl: result.url }),
+            content: JSON.stringify({ prompt: options.prompt }), // imageUrlはfileUrlに保存されているため不要
             aiAgent: "chatgpt", // DALL-E 3はChatGPT経由
             file: {
               url: result.url,

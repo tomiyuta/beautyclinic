@@ -46,7 +46,7 @@ export const contentVideoRouter = router({
             templateId: input.templateId,
             contentType: input.videoType as any,
             title: input.campaignInfo.title,
-            content: JSON.stringify({ prompt: options.prompt, videoUrl: result.url }),
+            content: JSON.stringify({ prompt: options.prompt }), // videoUrlはfileUrlに保存されているため不要
             file: {
               url: result.url,
               size: undefined, // GeneratedVideoにはfileSizeがない
@@ -115,7 +115,7 @@ export const contentVideoRouter = router({
           templateId: input.templateId,
           contentType: input.videoType as any,
           title: input.treatmentName,
-          content: JSON.stringify({ script: input.script, videoUrl: result.url }),
+          content: JSON.stringify({ script: input.script }), // videoUrlはfileUrlに保存されているため不要
           aiAgent: "synthesia",
           file: {
             url: result.url,
