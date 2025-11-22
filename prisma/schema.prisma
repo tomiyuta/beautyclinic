@@ -170,7 +170,7 @@ model GeneratedContent {
   updatedAt   DateTime      @updatedAt
 
   // 新規追加フィールド（要件定義書に基づく）
-  fileUrl          String? @db.VarChar(500) // 画像・動画の外部ストレージURL
+  fileUrl          String? @db.LongText // 画像・動画の外部ストレージURL（Base64データURI対応）
   fileSize         Int? // ファイルサイズ（bytes）
   mimeType         String? @db.VarChar(100) // MIME type
   complianceStatus String? @db.VarChar(20) // "compliant" | "warning" | "violation"
