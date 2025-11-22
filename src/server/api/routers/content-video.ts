@@ -17,13 +17,22 @@ export const contentVideoRouter = router({
   generateShortVideo: publicProcedure.input(shortVideoGenerationInputSchema)
     .mutation(async ({ input }) => {
       try {
+        // videoTypeをPika Labs API用の値にマッピング
         const videoTypeMap: Record<string, "reels" | "tiktok" | "youtube_shorts"> = {
-          instagram_reels: "reels",
-          tiktok_video: "tiktok",
+          reels: "reels",
+          tiktok: "tiktok",
+          youtube_shorts: "youtube_shorts",
+        };
+
+        // videoTypeをContentTypeにマッピング
+        const contentTypeMap: Record<string, "instagram_reels" | "tiktok_video" | "youtube_shorts"> = {
+          reels: "instagram_reels",
+          tiktok: "tiktok_video",
           youtube_shorts: "youtube_shorts",
         };
 
         const videoType = videoTypeMap[input.videoType] || "reels";
+        const contentType = contentTypeMap[input.videoType] || "instagram_reels";
 
         const options: ShortVideoGenerationOptions = {
           videoType,
@@ -44,7 +53,7 @@ export const contentVideoRouter = router({
             userId: input.userId,
             strategyId: input.strategyId,
             templateId: input.templateId,
-            contentType: input.videoType as any,
+            contentType: contentType,
             title: input.campaignInfo.title,
             content: JSON.stringify({ prompt: options.prompt }), // videoUrlはfileUrlに保存されているため不要
             file: {
@@ -88,14 +97,24 @@ export const contentVideoRouter = router({
   generateExplanationVideo: publicProcedure.input(explanationVideoGenerationInputSchema)
     .mutation(async ({ input }) => {
       try {
+        // videoTypeをSynthesia API用の値にマッピング
         const videoTypeMap: Record<string, "treatment_explanation" | "pre_care" | "post_care" | "faq"> = {
-          treatment_explanation_video: "treatment_explanation",
-          pre_care_video: "pre_care",
-          post_care_video: "post_care",
-          faq_video: "faq",
+          treatment_explanation: "treatment_explanation",
+          pre_care: "pre_care",
+          post_care: "post_care",
+          faq: "faq",
+        };
+
+        // videoTypeをContentTypeにマッピング
+        const contentTypeMap: Record<string, "treatment_explanation_video" | "pre_care_video" | "post_care_video" | "faq_video"> = {
+          treatment_explanation: "treatment_explanation_video",
+          pre_care: "pre_care_video",
+          post_care: "post_care_video",
+          faq: "faq_video",
         };
 
         const videoType = videoTypeMap[input.videoType] || "treatment_explanation";
+        const contentType = contentTypeMap[input.videoType] || "treatment_explanation_video";
 
         const options: ExplanationVideoGenerationOptions = {
           videoType,
@@ -113,7 +132,7 @@ export const contentVideoRouter = router({
           userId: input.userId,
           strategyId: input.strategyId,
           templateId: input.templateId,
-          contentType: input.videoType as any,
+          contentType: contentType,
           title: input.treatmentName,
           content: JSON.stringify({ script: input.script }), // videoUrlはfileUrlに保存されているため不要
           aiAgent: "synthesia",
