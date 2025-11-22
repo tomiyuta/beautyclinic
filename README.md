@@ -2344,6 +2344,39 @@ npm run dev
 
 ## 主な変更履歴
 
+### 2025年11月22日 - 動画生成機能とUI改善
+
+#### 動画生成機能の実装
+- **Pika Labs API統合（fal-ai経由）**: `@fal-ai/client`を使用してPika 2.2モデルにアクセス
+  - 対応コンテンツ: Instagram Reels, TikTok, YouTube Shorts
+  - パラメータ: aspect_ratio (16:9, 9:16, 1:1, 4:5, 5:4, 3:2, 2:3), resolution (720p, 1080p), duration (5, 10秒)
+  - 環境変数: `FAL_KEY` (優先) または `PIKA_LABS_API_KEY`
+- **Synthesia API統合**: 施術説明動画、事前/アフターケア動画、FAQ動画の生成
+  - 環境変数: `SYNTHESIA_API_KEY`
+  - ポーリング機能、リトライロジック実装
+
+#### コンテンツ生成UIの改善
+- **使用AI表示の動的更新**: `useMemo`を使用してコンテンツタイプ変更時に再計算
+  - 動画: PIKA (Pika Labs) または SYNTHESIA
+  - 画像: DALL-E 3
+  - テキスト: CHATGPT (gpt-5.1)
+- **コンテンツ履歴表示の改善**:
+  - 動画コンテンツは`<video>`タグで表示
+  - 画像コンテンツは`<img>`タグで表示
+  - ダウンロードボタン: 動画は「動画をダウンロード」、画像は「画像をダウンロード」
+  - mimeTypeに基づく適切な判定とフォールバック処理
+
+#### APIキー管理とAIエージェント状態表示の拡張
+- Pika Labs API Key (fal-ai) と Synthesia API Key の管理機能を追加
+- ワークフロー管理画面にPIKA、SYNTHESIAの状態表示を追加
+- ヘルスチェック機能を拡張
+
+#### データベーススキーマ拡張
+- `GeneratedContent`モデルに`fileUrl`, `fileSize`, `mimeType`, `complianceStatus`, `complianceReport`, `templateId`, `variations`フィールドを追加
+- `AiAgent` enumに`pika`, `synthesia`を追加
+
+詳細は `CHANGELOG_RECENT.md` を参照してください。
+
 ### 2025年11月 - トークン量最適化とデータ受け渡し改善
 
 #### トークン量削減の最適化

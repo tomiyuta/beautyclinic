@@ -15,6 +15,8 @@ export default function ApiKeyManagement() {
     claudeApiKey: "",
     openaiApiKey: "",
     serpApiKey: "",
+    pikaLabsApiKey: "",
+    synthesiaApiKey: "",
   });
   const [showKeys, setShowKeys] = useState({
     gemini: false,
@@ -22,6 +24,8 @@ export default function ApiKeyManagement() {
     claude: false,
     openai: false,
     serp: false,
+    pikaLabs: false,
+    synthesia: false,
   });
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -43,6 +47,8 @@ export default function ApiKeyManagement() {
         claudeApiKey: "",
         openaiApiKey: "",
         serpApiKey: "",
+        pikaLabsApiKey: "",
+        synthesiaApiKey: "",
       });
       setTimeout(() => setSuccessMessage(null), 5000);
     },
@@ -72,6 +78,12 @@ export default function ApiKeyManagement() {
     }
     if (formData.serpApiKey.trim()) {
       keysToUpdate.serpApiKey = formData.serpApiKey.trim();
+    }
+    if (formData.pikaLabsApiKey.trim()) {
+      keysToUpdate.pikaLabsApiKey = formData.pikaLabsApiKey.trim();
+    }
+    if (formData.synthesiaApiKey.trim()) {
+      keysToUpdate.synthesiaApiKey = formData.synthesiaApiKey.trim();
     }
 
     if (Object.keys(keysToUpdate).length === 0) {
@@ -311,6 +323,49 @@ export default function ApiKeyManagement() {
               最新情報取得用のWeb検索API
             </p>
           </div>
+          <div style={{ padding: "16px", borderRadius: "8px", border: "1px solid #DFE1E6" }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "8px" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+                <div
+                  style={{
+                    width: "12px",
+                    height: "12px",
+                    borderRadius: "50%",
+                    backgroundColor: status?.pikaLabs ? "#36B37E" : "#DE350B",
+                  }}
+                />
+                <span style={{ fontSize: "14px", fontWeight: 500, color: "#42526E" }}>Pika Labs API</span>
+              </div>
+              <Badge appearance={status?.pikaLabs ? "added" : "removed"}>
+                {status?.pikaLabs ? "設定済み" : "未設定"}
+              </Badge>
+            </div>
+            <p style={{ fontSize: "12px", color: "#6B778C", marginTop: "8px", margin: 0 }}>
+              短尺動画生成（Instagram Reels, TikTok, YouTube Shorts）<br />
+              <span style={{ fontSize: "11px" }}>fal-ai経由でPika 2.2モデルにアクセス</span>
+            </p>
+          </div>
+          <div style={{ padding: "16px", borderRadius: "8px", border: "1px solid #DFE1E6" }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "8px" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+                <div
+                  style={{
+                    width: "12px",
+                    height: "12px",
+                    borderRadius: "50%",
+                    backgroundColor: status?.synthesia ? "#36B37E" : "#DE350B",
+                  }}
+                />
+                <span style={{ fontSize: "14px", fontWeight: 500, color: "#42526E" }}>Synthesia API</span>
+              </div>
+              <Badge appearance={status?.synthesia ? "added" : "removed"}>
+                {status?.synthesia ? "設定済み" : "未設定"}
+              </Badge>
+            </div>
+            <p style={{ fontSize: "12px", color: "#6B778C", marginTop: "8px", margin: 0 }}>
+              施術説明動画生成（AIアバターを使用した説明動画）
+            </p>
+          </div>
         </div>
         {healthCheckQuery.error && (
           <div style={{ marginTop: "16px" }}>
@@ -492,6 +547,81 @@ export default function ApiKeyManagement() {
             </div>
             <p style={{ fontSize: "12px", color: "#6B778C", marginTop: "4px", margin: 0 }}>
               最新情報を取得するために使用されます。トレンド分析・価格調査で最新のWeb情報を取得できます。
+            </p>
+          </div>
+
+          {/* Pika Labs API Key (fal-ai経由) */}
+          <div>
+            <label style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "8px" }}>
+              <span style={{ fontSize: "14px", fontWeight: 500, color: "#42526E" }}>Pika Labs API Key (fal-ai)</span>
+              <a
+                href="https://fal.ai/"
+                target="_blank"
+                rel="noopener noreferrer"
+                style={{ fontSize: "12px", color: "#0052CC", textDecoration: "none" }}
+              >
+                (取得方法)
+              </a>
+            </label>
+            <p style={{ fontSize: "12px", color: "#6B778C", marginBottom: "8px", marginTop: "0" }}>
+              fal-ai経由でPika 2.2モデルにアクセスします。FAL_KEYとして設定されます。
+            </p>
+            <div style={{ position: "relative" }}>
+              <TextField
+                type={showKeys.pikaLabs ? "text" : "password"}
+                placeholder="pika-..."
+                value={formData.pikaLabsApiKey}
+                onChange={(e) =>
+                  setFormData((prev) => ({ ...prev, pikaLabsApiKey: (e.target as HTMLInputElement).value }))
+                }
+                style={{ width: "100%" }}
+              />
+              <Button
+                appearance="subtle"
+                onClick={() => toggleShowKey("pikaLabs")}
+                style={{ position: "absolute", right: "8px", top: "50%", transform: "translateY(-50%)" }}
+              >
+                {showKeys.pikaLabs ? "非表示" : "表示"}
+              </Button>
+            </div>
+            <p style={{ fontSize: "12px", color: "#6B778C", marginTop: "4px", margin: 0 }}>
+              fal-ai経由でPika 2.2モデルにアクセス。短尺動画生成（Instagram Reels, TikTok, YouTube Shorts）に使用されます。
+            </p>
+          </div>
+
+          {/* Synthesia API Key */}
+          <div>
+            <label style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "8px" }}>
+              <span style={{ fontSize: "14px", fontWeight: 500, color: "#42526E" }}>Synthesia API Key</span>
+              <a
+                href="https://www.synthesia.io/"
+                target="_blank"
+                rel="noopener noreferrer"
+                style={{ fontSize: "12px", color: "#0052CC", textDecoration: "none" }}
+              >
+                (取得方法)
+              </a>
+            </label>
+            <div style={{ position: "relative" }}>
+              <TextField
+                type={showKeys.synthesia ? "text" : "password"}
+                placeholder="synthesia-..."
+                value={formData.synthesiaApiKey}
+                onChange={(e) =>
+                  setFormData((prev) => ({ ...prev, synthesiaApiKey: (e.target as HTMLInputElement).value }))
+                }
+                style={{ width: "100%" }}
+              />
+              <Button
+                appearance="subtle"
+                onClick={() => toggleShowKey("synthesia")}
+                style={{ position: "absolute", right: "8px", top: "50%", transform: "translateY(-50%)" }}
+              >
+                {showKeys.synthesia ? "非表示" : "表示"}
+              </Button>
+            </div>
+            <p style={{ fontSize: "12px", color: "#6B778C", marginTop: "4px", margin: 0 }}>
+              施術説明動画生成（AIアバターを使用した説明動画）に使用されます。
             </p>
           </div>
 

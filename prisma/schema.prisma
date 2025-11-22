@@ -8,9 +8,9 @@ generator client {
   provider      = "prisma-client"
   output        = "../src/generated/prisma"
   binaryTargets = ["native", "debian-openssl-3.0.x", "rhel-openssl-3.0.x", "linux-musl-openssl-3.0.x"]
-  
+
   // Vercel環境でのバイナリ検出を確実にする
-  engineType    = "library"
+  engineType = "library"
 }
 
 datasource db {
@@ -29,6 +29,8 @@ enum AiAgent {
   grok
   claude
   chatgpt
+  pika
+  synthesia
 }
 
 enum SNSPlatform {
@@ -48,6 +50,20 @@ enum ContentType {
   instagram_lp
   website_article
   campaign_copy
+  // 新規追加（フェーズ1）
+  instagram_post_text
+  instagram_post_image
+  instagram_story
+  ad_banner
+  lp_visual
+  // フェーズ2以降
+  instagram_reels
+  tiktok_video
+  youtube_shorts
+  treatment_explanation_video
+  pre_care_video
+  post_care_video
+  faq_video
 }
 
 enum ContentStatus {
@@ -153,6 +169,15 @@ model GeneratedContent {
   createdAt   DateTime      @default(now())
   updatedAt   DateTime      @updatedAt
 
+  // 新規追加フィールド（要件定義書に基づく）
+  fileUrl          String? @db.VarChar(500) // 画像・動画の外部ストレージURL
+  fileSize         Int? // ファイルサイズ（bytes）
+  mimeType         String? @db.VarChar(100) // MIME type
+  complianceStatus String? @db.VarChar(20) // "compliant" | "warning" | "violation"
+  complianceReport String? @db.Text // コンプライアンスチェック結果（JSON）
+  templateId       Int? // 使用したテンプレートID
+  variations       String? @db.Text // バリエーション情報（JSON）
+
   @@map("generatedContents")
 }
 
@@ -171,43 +196,69 @@ model WorkflowExecution {
 }
 
 model ErrorLog {
-  id          Int           @id @default(autoincrement())
-  userId      Int
-  module      String        @db.VarChar(100)
-  errorType   String        @db.VarChar(100)
-  errorMessage String       @db.Text
-  stackTrace  String?       @db.Text
-  context     String?       @db.Text
-  aiAgent     AiAgent?
-  isNotified  Boolean       @default(false)
-  notifiedAt  DateTime?
-  resolved    Boolean       @default(false)
-  resolvedAt  DateTime?
-  createdAt   DateTime      @default(now())
+  id           Int       @id @default(autoincrement())
+  userId       Int
+  module       String    @db.VarChar(100)
+  errorType    String    @db.VarChar(100)
+  errorMessage String    @db.Text
+  stackTrace   String?   @db.Text
+  context      String?   @db.Text
+  aiAgent      AiAgent?
+  isNotified   Boolean   @default(false)
+  notifiedAt   DateTime?
+  resolved     Boolean   @default(false)
+  resolvedAt   DateTime?
+  createdAt    DateTime  @default(now())
 
   @@map("errorLogs")
 }
 
 model PromptTemplate {
-  id          Int       @id @default(autoincrement())
+  id          Int        @id @default(autoincrement())
   promptType  PromptType @unique
   aiAgent     AiAgent
-  name        String    @db.VarChar(255)
-  description String?   @db.Text
-  prompt       String    @db.Text
-  isActive    Boolean   @default(true)
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
+  name        String     @db.VarChar(255)
+  description String?    @db.Text
+  prompt      String     @db.Text
+  isActive    Boolean    @default(true)
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
 
   @@map("promptTemplates")
 }
 
 model UserSettings {
-  id                  Int      @id @default(autoincrement())
-  userId              Int      @unique
-  strategyAIProvider  String   @default("chatgpt") @db.VarChar(20) // "claude" or "chatgpt"
-  createdAt           DateTime  @default(now())
-  updatedAt           DateTime  @updatedAt
+  id                 Int      @id @default(autoincrement())
+  userId             Int      @unique
+  strategyAIProvider String   @default("chatgpt") @db.VarChar(20) // "claude" or "chatgpt"
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
 
   @@map("userSettings")
+}
+
+// 新規テーブル（要件定義書に基づく）
+model ContentTemplate {
+  id          Int         @id @default(autoincrement())
+  userId      Int
+  name        String      @db.VarChar(255)
+  contentType ContentType
+  settings    String      @db.Text // JSON形式の設定
+  isDefault   Boolean     @default(false)
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+
+  @@map("contentTemplates")
+}
+
+model ComplianceCheckLog {
+  id         Int      @id @default(autoincrement())
+  contentId  Int
+  checkType  String   @db.VarChar(20) // "text" | "image" | "video"
+  violations String?  @db.Text // JSON形式
+  warnings   String?  @db.Text // JSON形式
+  status     String   @db.VarChar(20) // "compliant" | "warning" | "violation"
+  checkedAt  DateTime @default(now())
+
+  @@map("complianceCheckLogs")
 }
