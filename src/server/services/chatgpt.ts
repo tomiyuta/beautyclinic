@@ -365,6 +365,21 @@ ${webSearchResults}
   return callChatGPT(prompt);
 }
 
+// 拡張されたテキスト生成オプション（要件定義書に基づく）
+export interface TextGenerationOptions {
+  campaignInfo: {
+    title: string;
+    description: string;
+    targetAudience?: string;
+    promotion?: string;
+  };
+  tone?: "formal" | "casual" | "friendly" | "professional";
+  maxLength?: number;
+  includeKeywords?: string[];
+  ctaType?: "reserve" | "details" | "inquiry" | "check_now";
+  seoKeywords?: string[];
+}
+
 export async function generateCampaignCopy(
   campaign: {
     title: string;
@@ -1020,5 +1035,217 @@ export async function suggestNewTreatments(
  */
 export function getCurrentChatGPTModel(): string | null {
   return cachedModelName || process.env.OPENAI_MODEL || "gpt-5.1" || null;
+}
+
+/**
+ * Instagram投稿文を生成（要件定義書3.1に基づく拡張版）
+ */
+export async function generateInstagramPostText(
+  options: TextGenerationOptions,
+): Promise<string> {
+  const { campaignInfo, tone = "friendly", maxLength = 2200, includeKeywords = [], ctaType = "reserve" } = options;
+  
+  const currentDate = new Date();
+  const currentYear = currentDate.getFullYear();
+  const currentMonth = currentDate.getMonth() + 1;
+  const currentDateStr = `${currentYear}年${currentMonth}月`;
+
+  const toneText = {
+    formal: "フォーマルで丁寧な",
+    casual: "カジュアルで親しみやすい",
+    friendly: "親しみやすく親近感のある",
+    professional: "プロフェッショナルで信頼感のある",
+  }[tone];
+
+  const ctaText = {
+    reserve: "予約する",
+    details: "詳細を見る",
+    inquiry: "問い合わせる",
+    check_now: "今すぐチェック",
+  }[ctaType];
+
+  // Web検索を実行
+  let webSearchResults = "";
+  try {
+    const { performWebSearch, formatSearchResults, generateInstagramLPSearchQuery } = await import("./web-search");
+    const searchQuery = generateInstagramLPSearchQuery(campaignInfo.title, currentYear, currentMonth);
+    const searchResults = await performWebSearch(searchQuery, 10);
+    webSearchResults = formatSearchResults(searchResults);
+  } catch (error) {
+    console.warn("[Instagram Post] Web検索に失敗しましたが、続行します:", error);
+  }
+
+  const keywordsText = includeKeywords.length > 0 ? `\n含めるキーワード: ${includeKeywords.join(", ")}` : "";
+  const lengthNote = maxLength ? `\n文字数制限: ${maxLength}文字以内` : "";
+
+  const prompt = `以下のキャンペーン情報を基に、${toneText}トーンのInstagram投稿文を作成してください。
+
+【キャンペーン情報】
+タイトル: ${campaignInfo.title}
+説明: ${campaignInfo.description}
+ターゲット層: ${campaignInfo.targetAudience || "美容に興味のある20-50代の女性"}
+プロモーション内容: ${campaignInfo.promotion || "特典あり"}${keywordsText}${lengthNote}
+
+${webSearchResults ? `【最新トレンド情報】\n${webSearchResults}\n` : ""}
+
+【作成指示】
+- 最大${maxLength}文字以内で作成してください
+- ${toneText}トーンで、読みやすく魅力的な投稿文にしてください
+- ハッシュタグを3-5個含めてください
+- 行動喚起として「${ctaText}」を含めてください
+${includeKeywords.length > 0 ? `- 以下のキーワードを自然に含めてください: ${includeKeywords.join(", ")}` : ""}
+- 医療広告ガイドラインに準拠し、誇大表現を避けてください
+- 現在の日付は${currentDateStr}です
+
+【出力形式】
+投稿文をそのまま出力してください（タイトルや説明は不要）。`;
+
+  const result = await callChatGPT(prompt);
+  
+  // コンプライアンスチェック
+  const { cleanTextForAdvertising } = await import("@/server/utils/advertising-guidelines");
+  const { cleanedText, warnings } = cleanTextForAdvertising(result);
+  
+  if (warnings.length > 0) {
+    console.warn("[Instagram Post] Compliance warnings:", warnings);
+  }
+  
+  return cleanedText;
+}
+
+/**
+ * 広告文（リスティング）を生成（要件定義書3.1に基づく）
+ */
+export async function generateAdCopy(
+  options: TextGenerationOptions,
+): Promise<string> {
+  const { campaignInfo, tone = "professional", maxLength = 100, includeKeywords = [], ctaType = "details" } = options;
+  
+  const toneText = {
+    formal: "フォーマルで丁寧な",
+    casual: "カジュアルで親しみやすい",
+    friendly: "親しみやすく親近感のある",
+    professional: "プロフェッショナルで信頼感のある",
+  }[tone];
+
+  const ctaText = {
+    reserve: "予約する",
+    details: "詳細を見る",
+    inquiry: "問い合わせる",
+    check_now: "今すぐチェック",
+  }[ctaType];
+
+  const keywordsText = includeKeywords.length > 0 ? `\n含めるキーワード: ${includeKeywords.join(", ")}` : "";
+
+  const prompt = `以下のキャンペーン情報を基に、${toneText}トーンの検索広告用の広告文を作成してください。
+
+【キャンペーン情報】
+タイトル: ${campaignInfo.title}
+説明: ${campaignInfo.description}
+ターゲット層: ${campaignInfo.targetAudience || "美容に興味のある20-50代の女性"}${keywordsText}
+
+【作成指示】
+- 最大${maxLength}文字以内で作成してください（20-100文字推奨）
+- ${toneText}トーンで、簡潔で魅力的な広告文にしてください
+- 行動喚起として「${ctaText}」を含めてください
+${includeKeywords.length > 0 ? `- 以下のキーワードを自然に含めてください: ${includeKeywords.join(", ")}` : ""}
+- 医療広告ガイドラインに準拠し、誇大表現を避けてください
+- 検索広告向けに、クリックを促す内容にしてください
+
+【出力形式】
+広告文をそのまま出力してください。`;
+
+  const result = await callChatGPT(prompt);
+  
+  // コンプライアンスチェック
+  const { cleanTextForAdvertising } = await import("@/server/utils/advertising-guidelines");
+  const { cleanedText, warnings } = cleanTextForAdvertising(result);
+  
+  if (warnings.length > 0) {
+    console.warn("[Ad Copy] Compliance warnings:", warnings);
+  }
+  
+  return cleanedText;
+}
+
+/**
+ * ブログ記事を生成（要件定義書3.1に基づく）
+ */
+export async function generateBlogArticle(
+  options: TextGenerationOptions,
+): Promise<string> {
+  const { campaignInfo, tone = "friendly", maxLength = 5000, includeKeywords = [], seoKeywords = [], ctaType = "details" } = options;
+  
+  const currentDate = new Date();
+  const currentYear = currentDate.getFullYear();
+  const currentMonth = currentDate.getMonth() + 1;
+  const currentDateStr = `${currentYear}年${currentMonth}月`;
+
+  const toneText = {
+    formal: "フォーマルで丁寧な",
+    casual: "カジュアルで親しみやすい",
+    friendly: "親しみやすく親近感のある",
+    professional: "プロフェッショナルで信頼感のある",
+  }[tone];
+
+  const ctaText = {
+    reserve: "予約する",
+    details: "詳細を見る",
+    inquiry: "問い合わせる",
+    check_now: "今すぐチェック",
+  }[ctaType];
+
+  // Web検索を実行
+  let webSearchResults = "";
+  try {
+    const { performWebSearch, formatSearchResults, generateWebsiteArticleSearchQuery } = await import("./web-search");
+    const searchQuery = generateWebsiteArticleSearchQuery(
+      campaignInfo.title, 
+      seoKeywords.length > 0 ? seoKeywords : ["美容", "美容皮膚科"], 
+      currentYear, 
+      currentMonth
+    );
+    const searchResults = await performWebSearch(searchQuery, 10);
+    webSearchResults = formatSearchResults(searchResults);
+  } catch (error) {
+    console.warn("[Blog Article] Web検索に失敗しましたが、続行します:", error);
+  }
+
+  const keywordsText = includeKeywords.length > 0 ? `\n含めるキーワード: ${includeKeywords.join(", ")}` : "";
+  const seoKeywordsText = seoKeywords.length > 0 ? `\nSEOキーワード: ${seoKeywords.join(", ")}` : "";
+
+  const prompt = `以下のキャンペーン情報を基に、${toneText}トーンのブログ記事を作成してください。
+
+【キャンペーン情報】
+タイトル: ${campaignInfo.title}
+説明: ${campaignInfo.description}
+ターゲット層: ${campaignInfo.targetAudience || "美容に興味のある20-50代の女性"}${keywordsText}${seoKeywordsText}
+
+${webSearchResults ? `【最新トレンド情報】\n${webSearchResults}\n` : ""}
+
+【作成指示】
+- ${maxLength}文字程度で、読みやすいブログ記事を作成してください
+- ${toneText}トーンで、専門的でありながら親しみやすい内容にしてください
+- 見出し（H2, H3）を適切に使用し、構造化された記事にしてください
+- SEOを意識し、${seoKeywords.length > 0 ? seoKeywords.join(", ") : "関連キーワード"}を自然に含めてください
+${includeKeywords.length > 0 ? `- 以下のキーワードを自然に含めてください: ${includeKeywords.join(", ")}` : ""}
+- 最後に行動喚起として「${ctaText}」を含めてください
+- 医療広告ガイドラインに準拠し、誇大表現を避けてください
+- 現在の日付は${currentDateStr}です
+
+【出力形式】
+タイトル、メタディスクリプション、見出し構造を含むブログ記事をMarkdown形式で出力してください。`;
+
+  const result = await callChatGPT(prompt);
+  
+  // コンプライアンスチェック
+  const { cleanTextForAdvertising } = await import("@/server/utils/advertising-guidelines");
+  const { cleanedText, warnings } = cleanTextForAdvertising(result);
+  
+  if (warnings.length > 0) {
+    console.warn("[Blog Article] Compliance warnings:", warnings);
+  }
+  
+  return cleanedText;
 }
 
