@@ -162,7 +162,7 @@ model GeneratedContent {
   strategyId  Int
   contentType ContentType
   title       String        @db.VarChar(255)
-  content     String        @db.Text
+  content     String        @db.LongText
   metadata    String?       @db.Text
   aiAgent     AiAgent
   status      ContentStatus @default(draft)
