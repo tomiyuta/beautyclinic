@@ -41,7 +41,7 @@ export function Navigation() {
           margin: 0,
           textAlign: "center"
         }}>
-          クリマケ(クリニック向けAI統合リサーチ)
+          マケクリ(Marketing for Clinic)
         </h1>
         <div style={{ 
           display: "flex", 
