@@ -11,6 +11,7 @@ import Spinner from "@atlaskit/spinner";
 import EmptyState from "@atlaskit/empty-state";
 import { api } from "@/trpc/react";
 import { TRPCClientError } from "@trpc/client";
+import { useToastContext } from "@/components/ToastProvider";
 
 type ResearchType = "trend_analysis" | "price_research" | "competitor_analysis";
 
@@ -31,20 +32,13 @@ export function MarketResearch() {
   const [selectedProductIds, setSelectedProductIds] = useState<number[]>([]);
   const [cities, setCities] = useState<string[]>([]);
   const [cityInput, setCityInput] = useState("");
-  const [feedback, setFeedback] = useState<{
-    type: "success" | "error" | null;
-    message: string;
-  }>({ type: null, message: "" });
 
   const utils = api.useUtils();
+  const toast = useToastContext();
 
   const trendMutation = api.marketResearch.executeTrendAnalysis.useMutation({
     onSuccess: () => {
-      setFeedback({
-        type: "success",
-        message: "トレンド分析が完了しました",
-      });
-      setTimeout(() => setFeedback({ type: null, message: "" }), 5000);
+      toast.showSuccess("トレンド分析が完了しました");
       void utils.marketResearch.list.invalidate({
         userId: USER_ID_PLACEHOLDER,
       });
@@ -52,21 +46,13 @@ export function MarketResearch() {
     },
     onError: (error: unknown) => {
       const message = error instanceof Error ? error.message : "エラーが発生しました。もう一度お試しください。";
-      setFeedback({ 
-        type: "error", 
-        message
-      });
-      setTimeout(() => setFeedback({ type: null, message: "" }), 5000);
+      toast.showError(message);
     },
   });
 
   const priceMutation = api.marketResearch.executePriceResearch.useMutation({
     onSuccess: () => {
-      setFeedback({
-        type: "success",
-        message: "価格調査が完了しました",
-      });
-      setTimeout(() => setFeedback({ type: null, message: "" }), 5000);
+      toast.showSuccess("価格調査が完了しました");
       void utils.marketResearch.list.invalidate({
         userId: USER_ID_PLACEHOLDER,
       });
@@ -75,22 +61,14 @@ export function MarketResearch() {
     },
     onError: (error: unknown) => {
       const message = error instanceof Error ? error.message : "エラーが発生しました。もう一度お試しください。";
-      setFeedback({ 
-        type: "error", 
-        message
-      });
-      setTimeout(() => setFeedback({ type: null, message: "" }), 5000);
+      toast.showError(message);
     },
   });
 
   const competitorMutation =
     api.marketResearch.executeCompetitorAnalysis.useMutation({
       onSuccess: () => {
-        setFeedback({
-          type: "success",
-          message: "競合調査が完了しました",
-        });
-        setTimeout(() => setFeedback({ type: null, message: "" }), 5000);
+        toast.showSuccess("競合調査が完了しました");
         void utils.marketResearch.list.invalidate({
           userId: USER_ID_PLACEHOLDER,
         });
@@ -99,8 +77,7 @@ export function MarketResearch() {
       },
       onError: (error: unknown) => {
         const message = error instanceof Error ? error.message : "エラーが発生しました";
-        setFeedback({ type: "error", message });
-        setTimeout(() => setFeedback({ type: null, message: "" }), 5000);
+        toast.showError(message);
       },
     });
 
@@ -173,16 +150,11 @@ export function MarketResearch() {
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    setFeedback({ type: null, message: "" });
 
     try {
       if (researchType === "trend_analysis") {
         if (!location.trim()) {
-          setFeedback({
-            type: "error",
-            message: "場所を入力してください",
-          });
-          setTimeout(() => setFeedback({ type: null, message: "" }), 5000);
+          toast.showError("場所を入力してください");
           return;
         }
         await trendMutation.mutateAsync({
@@ -191,19 +163,11 @@ export function MarketResearch() {
         });
       } else if (researchType === "price_research") {
         if (treatments.length === 0) {
-          setFeedback({
-            type: "error",
-            message: "少なくとも1つの施術を追加してください",
-          });
-          setTimeout(() => setFeedback({ type: null, message: "" }), 5000);
+          toast.showError("少なくとも1つの施術を追加してください");
           return;
         }
         if (cities.length === 0) {
-          setFeedback({
-            type: "error",
-            message: "少なくとも1つの都市を追加してください",
-          });
-          setTimeout(() => setFeedback({ type: null, message: "" }), 5000);
+          toast.showError("少なくとも1つの都市を追加してください");
           return;
         }
         await priceMutation.mutateAsync({
@@ -213,11 +177,7 @@ export function MarketResearch() {
         });
       } else if (researchType === "competitor_analysis") {
         if (!location.trim()) {
-          setFeedback({
-            type: "error",
-            message: "場所を入力してください",
-          });
-          setTimeout(() => setFeedback({ type: null, message: "" }), 5000);
+          toast.showError("場所を入力してください");
           return;
         }
         await competitorMutation.mutateAsync({
@@ -228,8 +188,7 @@ export function MarketResearch() {
       }
     } catch (error) {
       if (error instanceof TRPCClientError) {
-        setFeedback({ type: "error", message: error.message });
-        setTimeout(() => setFeedback({ type: null, message: "" }), 5000);
+        toast.showError(error.message);
       }
     }
   };
@@ -279,11 +238,6 @@ export function MarketResearch() {
       </header>
 
       {/* フィードバックメッセージ */}
-      {feedback.type && (
-        <Banner appearance={feedback.type === "success" ? "announcement" : "error"}>
-          {feedback.message}
-        </Banner>
-      )}
 
       {/* 調査フォーム */}
       <section style={{ marginBottom: "32px", padding: "32px", background: "#FFFFFF", borderRadius: "8px", border: "1px solid #DFE1E6" }}>

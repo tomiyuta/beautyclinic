@@ -4,6 +4,7 @@ import { Inter, JetBrains_Mono } from "next/font/google";
 import { TRPCReactProvider } from "@/trpc/provider";
 import { AtlassianProvider } from "@/components/AtlassianProvider";
 import { Navigation } from "@/components/Navigation";
+import { ToastProvider } from "@/components/ToastProvider";
 
 import "./globals.css";
 
@@ -24,7 +25,7 @@ const jetbrainsMono = JetBrains_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "マケクリ",
+  title: "クリマケ",
   description:
     "美容クリニック向けの戦略立案・素材生成を支援するAI協調システム",
 };
@@ -39,8 +40,10 @@ export default function RootLayout({
       <body className={`${inter.variable} ${jetbrainsMono.variable} antialiased`}>
         <AtlassianProvider>
           <TRPCReactProvider>
-            <Navigation />
-            {children}
+            <ToastProvider>
+              <Navigation />
+              {children}
+            </ToastProvider>
           </TRPCReactProvider>
         </AtlassianProvider>
       </body>

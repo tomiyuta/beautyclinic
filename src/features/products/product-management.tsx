@@ -12,6 +12,11 @@ import EmptyState from "@atlaskit/empty-state";
 import type { ClinicProduct } from "@/generated/prisma/client";
 import { api } from "@/trpc/react";
 import { TRPCClientError } from "@trpc/client";
+import { useToastContext } from "@/components/ToastProvider";
+import { useConfirmModal } from "@/components/ConfirmModal";
+import { SkeletonTable, SkeletonGrid } from "@/components/Skeleton";
+import { ProductCard } from "@/components/ProductCard";
+import { AnimatedTextField } from "@/components/AnimatedTextField";
 
 type FormState = {
   name: string;
@@ -35,38 +40,34 @@ const USER_ID_PLACEHOLDER = 1;
 
 export function ProductManagement() {
   const utils = api.useUtils();
+  const toast = useToastContext();
+  const confirmModal = useConfirmModal();
   const [form, setForm] = useState<FormState>(defaultFormState);
-  const [feedback, setFeedback] = useState<{
-    type: "success" | "error" | null;
-    message: string;
-  }>({ type: null, message: "" });
+  const [viewMode, setViewMode] = useState<"table" | "card">("card");
+  const [errors, setErrors] = useState<Partial<Record<keyof FormState, string>>>({});
 
   const productsQuery = api.product.list.useQuery({ userId: USER_ID_PLACEHOLDER });
 
   const createMutation = api.product.create.useMutation({
     onSuccess: async () => {
-      setFeedback({ type: "success", message: "商品を保存しました" });
+      toast.showSuccess("商品を保存しました");
       setForm(defaultFormState);
-      setTimeout(() => setFeedback({ type: null, message: "" }), 5000);
       await utils.product.list.invalidate({ userId: USER_ID_PLACEHOLDER });
     },
     onError: (error: unknown) => {
       const message = error instanceof Error ? error.message : "エラーが発生しました";
-      setFeedback({ type: "error", message });
-      setTimeout(() => setFeedback({ type: null, message: "" }), 5000);
+      toast.showError(message);
     },
   });
 
   const deleteMutation = api.product.delete.useMutation({
     onSuccess: async () => {
-      setFeedback({ type: "success", message: "商品を削除しました" });
-      setTimeout(() => setFeedback({ type: null, message: "" }), 5000);
+      toast.showSuccess("商品を削除しました");
       await utils.product.list.invalidate({ userId: USER_ID_PLACEHOLDER });
     },
     onError: (error: unknown) => {
       const message = error instanceof Error ? error.message : "エラーが発生しました";
-      setFeedback({ type: "error", message });
-      setTimeout(() => setFeedback({ type: null, message: "" }), 5000);
+      toast.showError(message);
     },
   });
 
@@ -78,17 +79,12 @@ export function ProductManagement() {
     const sellingPrice = Number.parseInt(form.sellingPrice, 10);
 
     if (Number.isNaN(costPrice) || Number.isNaN(sellingPrice)) {
-      setFeedback({ type: "error", message: "原価と販売価格は数値で入力してください" });
-      setTimeout(() => setFeedback({ type: null, message: "" }), 5000);
+      toast.showError("原価と販売価格は数値で入力してください");
       return;
     }
 
     if (sellingPrice < costPrice) {
-      setFeedback({
-        type: "error",
-        message: "販売価格は原価以上で入力してください",
-      });
-      setTimeout(() => setFeedback({ type: null, message: "" }), 5000);
+      toast.showError("販売価格は原価以上で入力してください");
       return;
     }
 
@@ -104,32 +100,37 @@ export function ProductManagement() {
       });
     } catch (error) {
       if (error instanceof TRPCClientError) {
-        setFeedback({ type: "error", message: error.message });
+        toast.showError(error.message);
       } else {
-        setFeedback({ type: "error", message: "保存時にエラーが発生しました" });
+        toast.showError("保存時にエラーが発生しました");
       }
-      setTimeout(() => setFeedback({ type: null, message: "" }), 5000);
     }
   };
 
   const handleDelete = async (product: ClinicProduct) => {
-    if (!window.confirm(`${product.name} を削除しますか？`)) {
-      return;
-    }
-
-    try {
-      await deleteMutation.mutateAsync({
-        id: product.id,
-        userId: USER_ID_PLACEHOLDER,
-      });
-    } catch (error) {
-      if (error instanceof TRPCClientError) {
-        setFeedback({ type: "error", message: error.message });
-      } else {
-        setFeedback({ type: "error", message: "削除に失敗しました" });
+    confirmModal.showConfirm(
+      "商品の削除",
+      `${product.name} を削除しますか？この操作は取り消せません。`,
+      async () => {
+        try {
+          await deleteMutation.mutateAsync({
+            id: product.id,
+            userId: USER_ID_PLACEHOLDER,
+          });
+        } catch (error) {
+          if (error instanceof TRPCClientError) {
+            toast.showError(error.message);
+          } else {
+            toast.showError("削除に失敗しました");
+          }
+        }
+      },
+      {
+        appearance: "danger",
+        confirmLabel: "削除する",
+        cancelLabel: "キャンセル",
       }
-      setTimeout(() => setFeedback({ type: null, message: "" }), 5000);
-    }
+    );
   };
 
   const onInputChange = (
@@ -140,10 +141,48 @@ export function ProductManagement() {
       ...prev,
       [field]: value,
     }));
+    
+    // リアルタイムバリデーション
+    if (field === "costPrice" || field === "sellingPrice") {
+      const numValue = typeof value === "string" ? Number.parseInt(value, 10) : 0;
+      if (value && Number.isNaN(numValue)) {
+        setErrors((prev) => ({ ...prev, [field]: "数値で入力してください" }));
+      } else {
+        setErrors((prev) => {
+          const newErrors = { ...prev };
+          delete newErrors[field];
+          return newErrors;
+        });
+      }
+      
+      // 販売価格と原価の比較
+      if (field === "sellingPrice" && form.costPrice) {
+        const costPrice = Number.parseInt(form.costPrice, 10);
+        if (!Number.isNaN(costPrice) && !Number.isNaN(numValue) && numValue < costPrice) {
+          setErrors((prev) => ({ ...prev, sellingPrice: "販売価格は原価以上で入力してください" }));
+        } else {
+          setErrors((prev) => {
+            const newErrors = { ...prev };
+            delete newErrors.sellingPrice;
+            return newErrors;
+          });
+        }
+      }
+    } else if (field === "name" && typeof value === "string" && value.trim().length === 0) {
+      setErrors((prev) => ({ ...prev, name: "商品名は必須です" }));
+    } else {
+      setErrors((prev) => {
+        const newErrors = { ...prev };
+        delete newErrors[field];
+        return newErrors;
+      });
+    }
   };
 
   return (
-    <div style={{ maxWidth: "1000px", margin: "0 auto", padding: "48px 16px" }}>
+    <>
+      {confirmModal.Modal}
+      <div style={{ maxWidth: "1000px", margin: "0 auto", padding: "48px 16px" }}>
       <header style={{ marginBottom: "40px" }}>
         <h1 style={{ fontSize: "24px", fontWeight: 600, marginBottom: "8px", color: "#172B4D" }}>
           商品情報の入力
@@ -153,66 +192,49 @@ export function ProductManagement() {
         </p>
       </header>
 
-      {/* フィードバックメッセージ */}
-      {feedback.type && (
-        <Banner appearance={feedback.type === "success" ? "announcement" : "error"}>
-          {feedback.message}
-        </Banner>
-      )}
-
       {/* 商品登録フォーム */}
       <section style={{ marginBottom: "32px", padding: "32px", background: "#FFFFFF", borderRadius: "8px", border: "1px solid #DFE1E6" }}>
         <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: "24px" }}>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(250px, 1fr))", gap: "16px" }}>
-            <div>
-              <label style={{ display: "block", marginBottom: "8px", fontSize: "14px", fontWeight: 500, color: "#42526E" }}>
-                商品名 *
-              </label>
-              <TextField
-                required
-                value={form.name}
-                onChange={(e) => onInputChange("name", (e.target as HTMLInputElement).value)}
-                placeholder="例：ダーマペン4 全顔"
-                style={{ width: "100%" }}
-              />
-            </div>
-            <div>
-              <label style={{ display: "block", marginBottom: "8px", fontSize: "14px", fontWeight: 500, color: "#42526E" }}>
-                カテゴリ
-              </label>
-              <TextField
-                value={form.category}
-                onChange={(e) => onInputChange("category", (e.target as HTMLInputElement).value)}
-                placeholder="例：美容皮膚科／美容内科"
-                style={{ width: "100%" }}
-              />
-            </div>
-            <div>
-              <label style={{ display: "block", marginBottom: "8px", fontSize: "14px", fontWeight: 500, color: "#42526E" }}>
-                原価 (円) *
-              </label>
-              <TextField
-                required
-                inputMode="numeric"
-                value={form.costPrice}
-                onChange={(e) => onInputChange("costPrice", (e.target as HTMLInputElement).value.replace(/[^0-9]/g, ""))}
-                placeholder="例：12000"
-                style={{ width: "100%" }}
-              />
-            </div>
-            <div>
-              <label style={{ display: "block", marginBottom: "8px", fontSize: "14px", fontWeight: 500, color: "#42526E" }}>
-                販売価格 (円) *
-              </label>
-              <TextField
-                required
-                inputMode="numeric"
-                value={form.sellingPrice}
-                onChange={(e) => onInputChange("sellingPrice", (e.target as HTMLInputElement).value.replace(/[^0-9]/g, ""))}
-                placeholder="例：24800"
-                style={{ width: "100%" }}
-              />
-            </div>
+          <div style={{ 
+            display: "grid", 
+            gridTemplateColumns: "repeat(auto-fit, minmax(min(250px, 100%), 1fr))", 
+            gap: "16px"
+          }}>
+            <AnimatedTextField
+              label="商品名"
+              value={form.name}
+              onChange={(value) => onInputChange("name", value)}
+              placeholder="例：ダーマペン4 全顔"
+              required
+              error={errors.name}
+            />
+            <AnimatedTextField
+              label="カテゴリ"
+              value={form.category}
+              onChange={(value) => onInputChange("category", value)}
+              placeholder="例：美容皮膚科／美容内科"
+              error={errors.category}
+            />
+            <AnimatedTextField
+              label="原価 (円)"
+              value={form.costPrice}
+              onChange={(value) => onInputChange("costPrice", value.replace(/[^0-9]/g, ""))}
+              placeholder="例：12000"
+              required
+              type="text"
+              inputMode="numeric"
+              error={errors.costPrice}
+            />
+            <AnimatedTextField
+              label="販売価格 (円)"
+              value={form.sellingPrice}
+              onChange={(value) => onInputChange("sellingPrice", value.replace(/[^0-9]/g, ""))}
+              placeholder="例：24800"
+              required
+              type="text"
+              inputMode="numeric"
+              error={errors.sellingPrice}
+            />
           </div>
 
           <div>
@@ -250,12 +272,30 @@ export function ProductManagement() {
       <section style={{ padding: "24px", background: "#FFFFFF", borderRadius: "8px", border: "1px solid #DFE1E6" }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "16px" }}>
           <h2 style={{ fontSize: "16px", fontWeight: 600, color: "#172B4D" }}>登録済み商品</h2>
-          {productsQuery.isLoading && (
-            <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-              <Spinner size="small" />
-              <span style={{ fontSize: "12px", color: "#6B778C" }}>読み込み中...</span>
+          <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+            <div style={{ display: "flex", gap: "4px", border: "1px solid #DFE1E6", borderRadius: "4px", padding: "2px" }}>
+              <Button
+                appearance={viewMode === "table" ? "primary" : "subtle"}
+                onClick={() => setViewMode("table")}
+                style={{ minWidth: "auto", padding: "4px 12px" }}
+              >
+                📋
+              </Button>
+              <Button
+                appearance={viewMode === "card" ? "primary" : "subtle"}
+                onClick={() => setViewMode("card")}
+                style={{ minWidth: "auto", padding: "4px 12px" }}
+              >
+                🎴
+              </Button>
             </div>
-          )}
+            {productsQuery.isLoading && (
+              <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                <Spinner size="small" />
+                <span style={{ fontSize: "12px", color: "#6B778C" }}>読み込み中...</span>
+              </div>
+            )}
+          </div>
         </div>
 
         {productsQuery.error && (
@@ -264,64 +304,85 @@ export function ProductManagement() {
           </Banner>
         )}
 
-        {productsQuery.data && productsQuery.data.length > 0 ? (
-          <div style={{ overflowX: "auto" }}>
-            <table style={{ width: "100%", borderCollapse: "collapse" }}>
-              <thead style={{ background: "#F4F5F7" }}>
-                <tr>
-                  <th style={{ padding: "12px 16px", textAlign: "left", fontSize: "14px", fontWeight: 600, color: "#42526E", borderBottom: "1px solid #DFE1E6" }}>
-                    商品名
-                  </th>
-                  <th style={{ padding: "12px 16px", textAlign: "left", fontSize: "14px", fontWeight: 600, color: "#42526E", borderBottom: "1px solid #DFE1E6" }}>
-                    カテゴリ
-                  </th>
-                  <th style={{ padding: "12px 16px", textAlign: "right", fontSize: "14px", fontWeight: 600, color: "#42526E", borderBottom: "1px solid #DFE1E6" }}>
-                    原価
-                  </th>
-                  <th style={{ padding: "12px 16px", textAlign: "right", fontSize: "14px", fontWeight: 600, color: "#42526E", borderBottom: "1px solid #DFE1E6" }}>
-                    販売価格
-                  </th>
-                  <th style={{ padding: "12px 16px", textAlign: "left", fontSize: "14px", fontWeight: 600, color: "#42526E", borderBottom: "1px solid #DFE1E6" }}>
-                    ステータス
-                  </th>
-                  <th style={{ padding: "12px 16px", borderBottom: "1px solid #DFE1E6" }} />
-                </tr>
-              </thead>
-              <tbody>
-                {productsQuery.data.map((product: ClinicProduct) => (
-                  <tr key={product.id} style={{ borderBottom: "1px solid #DFE1E6" }}>
-                    <td style={{ padding: "12px 16px", fontSize: "14px", color: "#172B4D" }}>
-                      {product.name}
-                    </td>
-                    <td style={{ padding: "12px 16px", fontSize: "14px", color: "#42526E" }}>
-                      {product.category ?? "-"}
-                    </td>
-                    <td style={{ padding: "12px 16px", textAlign: "right", fontSize: "14px", color: "#42526E" }}>
-                      {product.costPrice.toLocaleString()}円
-                    </td>
-                    <td style={{ padding: "12px 16px", textAlign: "right", fontSize: "14px", color: "#42526E" }}>
-                      {product.sellingPrice.toLocaleString()}円
-                    </td>
-                    <td style={{ padding: "12px 16px" }}>
-                      <Badge appearance={product.isActive ? "added" : "removed"}>
-                        {product.isActive ? "販売中" : "停止中"}
-                      </Badge>
-                    </td>
-                    <td style={{ padding: "12px 16px", textAlign: "right" }}>
-                      <Button
-                        appearance="subtle-link"
-                        onClick={() => handleDelete(product)}
-                        isDisabled={deleteMutation.isPending}
-                      >
-                        削除
-                      </Button>
-                    </td>
+        {productsQuery.isLoading && (
+          viewMode === "table" ? <SkeletonTable rows={5} /> : <SkeletonGrid count={6} />
+        )}
+
+        {!productsQuery.isLoading && productsQuery.data && productsQuery.data.length > 0 && (
+          viewMode === "card" ? (
+            <div style={{
+              display: "grid",
+              gridTemplateColumns: "repeat(auto-fill, minmax(min(300px, 100%), 1fr))",
+              gap: "16px",
+            }}>
+              {productsQuery.data.map((product: ClinicProduct) => (
+                <ProductCard
+                  key={product.id}
+                  product={product}
+                  onDelete={handleDelete}
+                  isDeleting={deleteMutation.isPending}
+                />
+              ))}
+            </div>
+          ) : (
+            <div style={{ overflowX: "auto" }}>
+              <table style={{ width: "100%", borderCollapse: "collapse" }}>
+                <thead style={{ background: "#F4F5F7" }}>
+                  <tr>
+                    <th style={{ padding: "12px 16px", textAlign: "left", fontSize: "14px", fontWeight: 600, color: "#42526E", borderBottom: "1px solid #DFE1E6" }}>
+                      商品名
+                    </th>
+                    <th style={{ padding: "12px 16px", textAlign: "left", fontSize: "14px", fontWeight: 600, color: "#42526E", borderBottom: "1px solid #DFE1E6" }}>
+                      カテゴリ
+                    </th>
+                    <th style={{ padding: "12px 16px", textAlign: "right", fontSize: "14px", fontWeight: 600, color: "#42526E", borderBottom: "1px solid #DFE1E6" }}>
+                      原価
+                    </th>
+                    <th style={{ padding: "12px 16px", textAlign: "right", fontSize: "14px", fontWeight: 600, color: "#42526E", borderBottom: "1px solid #DFE1E6" }}>
+                      販売価格
+                    </th>
+                    <th style={{ padding: "12px 16px", textAlign: "left", fontSize: "14px", fontWeight: 600, color: "#42526E", borderBottom: "1px solid #DFE1E6" }}>
+                      ステータス
+                    </th>
+                    <th style={{ padding: "12px 16px", borderBottom: "1px solid #DFE1E6" }} />
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        ) : null}
+                </thead>
+                <tbody>
+                  {productsQuery.data.map((product: ClinicProduct) => (
+                    <tr key={product.id} style={{ borderBottom: "1px solid #DFE1E6" }}>
+                      <td style={{ padding: "12px 16px", fontSize: "14px", color: "#172B4D" }}>
+                        {product.name}
+                      </td>
+                      <td style={{ padding: "12px 16px", fontSize: "14px", color: "#42526E" }}>
+                        {product.category ?? "-"}
+                      </td>
+                      <td style={{ padding: "12px 16px", textAlign: "right", fontSize: "14px", color: "#42526E" }}>
+                        {product.costPrice.toLocaleString()}円
+                      </td>
+                      <td style={{ padding: "12px 16px", textAlign: "right", fontSize: "14px", color: "#42526E" }}>
+                        {product.sellingPrice.toLocaleString()}円
+                      </td>
+                      <td style={{ padding: "12px 16px" }}>
+                        <Badge appearance={product.isActive ? "added" : "removed"}>
+                          {product.isActive ? "販売中" : "停止中"}
+                        </Badge>
+                      </td>
+                      <td style={{ padding: "12px 16px", textAlign: "right" }}>
+                        <Button
+                          appearance="subtle-link"
+                          onClick={() => handleDelete(product)}
+                          isDisabled={deleteMutation.isPending}
+                        >
+                          削除
+                        </Button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )
+        )}
 
         {!productsQuery.isLoading &&
           !productsQuery.error &&
@@ -333,6 +394,7 @@ export function ProductManagement() {
           )}
       </section>
     </div>
+    </>
   );
 }
 

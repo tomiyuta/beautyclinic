@@ -13,6 +13,7 @@ import Select from "@atlaskit/select";
 import Link from "next/link";
 import { api } from "@/trpc/react";
 import { TRPCClientError } from "@trpc/client";
+import { useToastContext } from "@/components/ToastProvider";
 
 const USER_ID_PLACEHOLDER = 1;
 
@@ -21,86 +22,54 @@ export function StrategyAnalysis() {
   const [selectedProductIds, setSelectedProductIds] = useState<number[]>([]);
   const [includeMarketData, setIncludeMarketData] = useState(true);
   const [includeSNSData, setIncludeSNSData] = useState(true);
-  const [feedback, setFeedback] = useState<{
-    type: "success" | "error" | null;
-    message: string;
-  }>({ type: null, message: "" });
 
   const utils = api.useUtils();
+  const toast = useToastContext();
 
   const marketPositionMutation =
     api.strategy.analyzeMarketPosition.useMutation({
       onSuccess: () => {
-        setFeedback({
-          type: "success",
-          message: "総合分析が完了しました",
-        });
-        setTimeout(() => setFeedback({ type: null, message: "" }), 5000);
+        toast.showSuccess("総合分析が完了しました");
         void utils.strategy.list.invalidate({ userId: USER_ID_PLACEHOLDER });
         setLocation("");
       },
       onError: (error: unknown) => {
         const message = error instanceof Error ? error.message : "エラーが発生しました。もう一度お試しください。";
-        setFeedback({ 
-          type: "error", 
-          message
-        });
-        setTimeout(() => setFeedback({ type: null, message: "" }), 5000);
+        toast.showError(message);
       },
     });
 
   const priceRecommendationMutation =
     api.strategy.generatePriceRecommendations.useMutation({
       onSuccess: () => {
-        setFeedback({
-          type: "success",
-          message: "価格設定提案が完了しました",
-        });
-        setTimeout(() => setFeedback({ type: null, message: "" }), 5000);
+        toast.showSuccess("価格設定提案が完了しました");
         void utils.strategy.list.invalidate({ userId: USER_ID_PLACEHOLDER });
       },
       onError: (error: unknown) => {
         const message = error instanceof Error ? error.message : "エラーが発生しました。もう一度お試しください。";
-        setFeedback({ 
-          type: "error", 
-          message
-        });
-        setTimeout(() => setFeedback({ type: null, message: "" }), 5000);
+        toast.showError(message);
       },
     });
 
   const campaignMutation = api.strategy.generateCampaignProposals.useMutation({
     onSuccess: () => {
-      setFeedback({
-        type: "success",
-        message: "キャンペーン案が生成されました",
-      });
-      setTimeout(() => setFeedback({ type: null, message: "" }), 5000);
+      toast.showSuccess("キャンペーン案が生成されました");
       void utils.strategy.list.invalidate({ userId: USER_ID_PLACEHOLDER });
     },
     onError: (error) => {
-      setFeedback({ type: "error", message: error.message });
-      setTimeout(() => setFeedback({ type: null, message: "" }), 5000);
+      toast.showError(error.message);
     },
   });
 
   const newTreatmentMutation =
     api.strategy.suggestNewTreatments.useMutation({
       onSuccess: () => {
-        setFeedback({
-          type: "success",
-          message: "新施術提案が完了しました",
-        });
-        setTimeout(() => setFeedback({ type: null, message: "" }), 5000);
+        toast.showSuccess("新施術提案が完了しました");
         void utils.strategy.list.invalidate({ userId: USER_ID_PLACEHOLDER });
       },
       onError: (error: unknown) => {
         const message = error instanceof Error ? error.message : "エラーが発生しました。もう一度お試しください。";
-        setFeedback({ 
-          type: "error", 
-          message
-        });
-        setTimeout(() => setFeedback({ type: null, message: "" }), 5000);
+        toast.showError(message);
       },
     });
 
@@ -146,16 +115,11 @@ export function StrategyAnalysis() {
     onSuccess: () => {
       void userSettingsQuery.refetch();
       void modelInfoQuery.refetch();
-      setFeedback({
-        type: "success",
-        message: "AI設定を更新しました",
-      });
-      setTimeout(() => setFeedback({ type: null, message: "" }), 5000);
+      toast.showSuccess("AI設定を更新しました");
     },
     onError: (error: unknown) => {
       const message = error instanceof Error ? error.message : "エラーが発生しました";
-      setFeedback({ type: "error", message });
-      setTimeout(() => setFeedback({ type: null, message: "" }), 5000);
+      toast.showError(message);
     },
   });
 
@@ -184,23 +148,14 @@ export function StrategyAnalysis() {
     e: React.FormEvent<HTMLFormElement>,
   ) => {
     e.preventDefault();
-    setFeedback({ type: null, message: "" });
 
     if (!location.trim()) {
-      setFeedback({
-        type: "error",
-        message: "場所を入力してください",
-      });
-      setTimeout(() => setFeedback({ type: null, message: "" }), 5000);
+      toast.showError("場所を入力してください");
       return;
     }
 
     if (selectedProductIds.length === 0) {
-      setFeedback({
-        type: "error",
-        message: "分析する商品を1つ以上選択してください",
-      });
-      setTimeout(() => setFeedback({ type: null, message: "" }), 5000);
+      toast.showError("分析する商品を1つ以上選択してください");
       return;
     }
 
@@ -214,8 +169,7 @@ export function StrategyAnalysis() {
       });
     } catch (error) {
       if (error instanceof TRPCClientError) {
-        setFeedback({ type: "error", message: error.message });
-        setTimeout(() => setFeedback({ type: null, message: "" }), 5000);
+        toast.showError(error.message);
       }
     }
   };
@@ -244,43 +198,37 @@ export function StrategyAnalysis() {
   };
 
   const handleGeneratePriceRecommendations = async () => {
-    setFeedback({ type: null, message: "" });
     try {
       await priceRecommendationMutation.mutateAsync({
         userId: USER_ID_PLACEHOLDER,
       });
     } catch (error) {
       if (error instanceof TRPCClientError) {
-        setFeedback({ type: "error", message: error.message });
-        setTimeout(() => setFeedback({ type: null, message: "" }), 5000);
+        toast.showError(error.message);
       }
     }
   };
 
   const handleGenerateCampaigns = async () => {
-    setFeedback({ type: null, message: "" });
     try {
       await campaignMutation.mutateAsync({
         userId: USER_ID_PLACEHOLDER,
       });
     } catch (error) {
       if (error instanceof TRPCClientError) {
-        setFeedback({ type: "error", message: error.message });
-        setTimeout(() => setFeedback({ type: null, message: "" }), 5000);
+        toast.showError(error.message);
       }
     }
   };
 
   const handleSuggestNewTreatments = async () => {
-    setFeedback({ type: null, message: "" });
     try {
       await newTreatmentMutation.mutateAsync({
         userId: USER_ID_PLACEHOLDER,
       });
     } catch (error) {
       if (error instanceof TRPCClientError) {
-        setFeedback({ type: "error", message: error.message });
-        setTimeout(() => setFeedback({ type: null, message: "" }), 5000);
+        toast.showError(error.message);
       }
     }
   };
@@ -351,13 +299,6 @@ export function StrategyAnalysis() {
         </p>
       </header>
 
-      {feedback.type && (
-        <div style={{ marginBottom: "16px" }}>
-          <Banner appearance={feedback.type === "success" ? "announcement" : "error"}>
-            {feedback.message}
-          </Banner>
-        </div>
-      )}
 
       <section style={{ display: "flex", flexDirection: "column", gap: "24px" }}>
         {/* 総合分析 */}

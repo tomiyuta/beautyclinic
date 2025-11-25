@@ -11,6 +11,7 @@ import Spinner from "@atlaskit/spinner";
 import EmptyState from "@atlaskit/empty-state";
 import { api } from "@/trpc/react";
 import { TRPCClientError } from "@trpc/client";
+import { useToastContext } from "@/components/ToastProvider";
 
 type SNSPlatform = "twitter" | "instagram" | "youtube" | "tiktok";
 type TimeRange = "last_week" | "last_month" | "last_3months";
@@ -120,20 +121,13 @@ export function SNSResearch() {
   const [keywords, setKeywords] = useState<string[]>([]);
   const [keywordInput, setKeywordInput] = useState("");
   const [timeRange, setTimeRange] = useState<TimeRange>("last_month");
-  const [feedback, setFeedback] = useState<{
-    type: "success" | "error" | null;
-    message: string;
-  }>({ type: null, message: "" });
 
   const utils = api.useUtils();
+  const toast = useToastContext();
 
   const twitterMutation = api.snsResearch.analyzeTwitter.useMutation({
     onSuccess: () => {
-      setFeedback({
-        type: "success",
-        message: "Twitter調査が完了しました",
-      });
-      setTimeout(() => setFeedback({ type: null, message: "" }), 5000);
+      toast.showSuccess("Twitter調査が完了しました");
       void utils.snsResearch.list.invalidate({
         userId: USER_ID_PLACEHOLDER,
       });
@@ -141,21 +135,13 @@ export function SNSResearch() {
     },
     onError: (error: unknown) => {
       const message = error instanceof Error ? error.message : "エラーが発生しました。もう一度お試しください。";
-      setFeedback({ 
-        type: "error", 
-        message
-      });
-      setTimeout(() => setFeedback({ type: null, message: "" }), 5000);
+      toast.showError(message);
     },
   });
 
   const instagramMutation = api.snsResearch.analyzeInstagram.useMutation({
     onSuccess: () => {
-      setFeedback({
-        type: "success",
-        message: "Instagram調査が完了しました",
-      });
-      setTimeout(() => setFeedback({ type: null, message: "" }), 5000);
+      toast.showSuccess("Instagram調査が完了しました");
       void utils.snsResearch.list.invalidate({
         userId: USER_ID_PLACEHOLDER,
       });
@@ -163,21 +149,13 @@ export function SNSResearch() {
     },
     onError: (error: unknown) => {
       const message = error instanceof Error ? error.message : "エラーが発生しました。もう一度お試しください。";
-      setFeedback({ 
-        type: "error", 
-        message
-      });
-      setTimeout(() => setFeedback({ type: null, message: "" }), 5000);
+      toast.showError(message);
     },
   });
 
   const tiktokMutation = api.snsResearch.analyzeTikTok.useMutation({
     onSuccess: () => {
-      setFeedback({
-        type: "success",
-        message: "TikTok調査が完了しました",
-      });
-      setTimeout(() => setFeedback({ type: null, message: "" }), 5000);
+      toast.showSuccess("TikTok調査が完了しました");
       void utils.snsResearch.list.invalidate({
         userId: USER_ID_PLACEHOLDER,
       });
@@ -185,21 +163,13 @@ export function SNSResearch() {
     },
     onError: (error: unknown) => {
       const message = error instanceof Error ? error.message : "エラーが発生しました。もう一度お試しください。";
-      setFeedback({ 
-        type: "error", 
-        message
-      });
-      setTimeout(() => setFeedback({ type: null, message: "" }), 5000);
+      toast.showError(message);
     },
   });
 
   const youtubeMutation = api.snsResearch.analyzeYouTube.useMutation({
     onSuccess: () => {
-      setFeedback({
-        type: "success",
-        message: "YouTube調査が完了しました",
-      });
-      setTimeout(() => setFeedback({ type: null, message: "" }), 5000);
+      toast.showSuccess("YouTube調査が完了しました");
       void utils.snsResearch.list.invalidate({
         userId: USER_ID_PLACEHOLDER,
       });
@@ -207,11 +177,7 @@ export function SNSResearch() {
     },
     onError: (error: unknown) => {
       const message = error instanceof Error ? error.message : "エラーが発生しました。もう一度お試しください。";
-      setFeedback({ 
-        type: "error", 
-        message
-      });
-      setTimeout(() => setFeedback({ type: null, message: "" }), 5000);
+      toast.showError(message);
     },
   });
 
@@ -245,23 +211,14 @@ export function SNSResearch() {
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    setFeedback({ type: null, message: "" });
 
     if (!platform) {
-      setFeedback({
-        type: "error",
-        message: "プラットフォームを選択してください",
-      });
-      setTimeout(() => setFeedback({ type: null, message: "" }), 5000);
+      toast.showError("プラットフォームを選択してください");
       return;
     }
 
     if (keywords.length === 0) {
-      setFeedback({
-        type: "error",
-        message: "少なくとも1つのキーワードを追加してください",
-      });
-      setTimeout(() => setFeedback({ type: null, message: "" }), 5000);
+      toast.showError("少なくとも1つのキーワードを追加してください");
       return;
     }
 
@@ -283,8 +240,7 @@ export function SNSResearch() {
       }
     } catch (error) {
       if (error instanceof TRPCClientError) {
-        setFeedback({ type: "error", message: error.message });
-        setTimeout(() => setFeedback({ type: null, message: "" }), 5000);
+        toast.showError(error.message);
       }
     }
   };
@@ -417,13 +373,6 @@ export function SNSResearch() {
             />
           </div>
 
-          {feedback.type && (
-            <div>
-              <Banner appearance={feedback.type === "success" ? "announcement" : "error"}>
-                {feedback.message}
-              </Banner>
-            </div>
-          )}
 
           <Button
             type="submit"
