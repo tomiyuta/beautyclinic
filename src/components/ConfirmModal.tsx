@@ -27,17 +27,11 @@ export function ConfirmModal({
 }: ConfirmModalProps) {
   const primaryAppearance = appearance === "danger" ? "danger" : "primary";
 
-  const actions = [
-    { text: cancelLabel, onClick: onCancel, appearance: "subtle" as const },
-    { text: confirmLabel, onClick: onConfirm, appearance: primaryAppearance as "primary" | "danger" },
-  ];
-
   return (
     <ModalTransition>
       {isOpen && (
         <ModalDialog
           onClose={onCancel}
-          actions={actions}
         >
           <div>
             <h2 style={{ 
@@ -48,7 +42,26 @@ export function ConfirmModal({
             }}>
               {title}
             </h2>
-            <p style={{ margin: 0, color: "#42526E", lineHeight: "1.6" }}>{message}</p>
+            <p style={{ margin: "0 0 24px 0", color: "#42526E", lineHeight: "1.6" }}>{message}</p>
+            <div style={{ 
+              display: "flex", 
+              justifyContent: "flex-end", 
+              gap: "8px",
+              marginTop: "24px"
+            }}>
+              <Button
+                appearance="subtle"
+                onClick={onCancel}
+              >
+                {cancelLabel}
+              </Button>
+              <Button
+                appearance={primaryAppearance}
+                onClick={onConfirm}
+              >
+                {confirmLabel}
+              </Button>
+            </div>
           </div>
         </ModalDialog>
       )}
