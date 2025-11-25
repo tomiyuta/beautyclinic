@@ -73,7 +73,6 @@ export function ProductManagement() {
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    setFeedback({ type: null, message: "" });
 
     const costPrice = Number.parseInt(form.costPrice, 10);
     const sellingPrice = Number.parseInt(form.sellingPrice, 10);
