@@ -36,12 +36,20 @@ export function ConfirmModal({
     <ModalTransition>
       {isOpen && (
         <ModalDialog
-          heading={title}
           onClose={onCancel}
-          appearance={appearance}
           actions={actions}
         >
-          <p style={{ margin: 0, color: "#42526E", lineHeight: "1.6" }}>{message}</p>
+          <div>
+            <h2 style={{ 
+              fontSize: "20px", 
+              fontWeight: 600, 
+              color: "#172B4D", 
+              margin: "0 0 16px 0" 
+            }}>
+              {title}
+            </h2>
+            <p style={{ margin: 0, color: "#42526E", lineHeight: "1.6" }}>{message}</p>
+          </div>
         </ModalDialog>
       )}
     </ModalTransition>
