@@ -4,6 +4,7 @@ import { ReactNode } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import Button from "@atlaskit/button";
 import Badge from "@atlaskit/badge";
+import Spinner from "@atlaskit/spinner";
 
 interface WizardStep {
   id: string;
@@ -194,9 +195,15 @@ export function Wizard({
           appearance="primary"
           onClick={handleNext}
           isDisabled={!canGoNext || isLoading}
-          isLoading={isLoading}
         >
-          {isLastStep ? "完了" : "次へ"}
+          {isLoading ? (
+            <span style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+              <Spinner size="small" />
+              <span>処理中...</span>
+            </span>
+          ) : (
+            isLastStep ? "完了" : "次へ"
+          )}
         </Button>
       </div>
     </div>
