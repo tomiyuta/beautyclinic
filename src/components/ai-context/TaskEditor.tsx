@@ -210,9 +210,9 @@ export default function TaskEditor({ task, onClose, onUpdate }: TaskEditorProps)
           <Button
             appearance="primary"
             onClick={handleSave}
-            isLoading={updateMutation.isPending}
+            isDisabled={updateMutation.isPending}
           >
-            保存
+            {updateMutation.isPending ? "保存中..." : "保存"}
           </Button>
         </ModalFooter>
       </Modal>
