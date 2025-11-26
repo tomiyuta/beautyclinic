@@ -38,23 +38,27 @@ export async function extractTasks(
   });
 
   try {
-    const response = await openai.chat.completions.create({
-      model: "gpt-4o-mini", // コスト効率の良いモデル
-      messages: [
-        {
-          role: "system",
-          content:
-            "あなたはタスク抽出エージェントです。会話を分析し、JSON配列のみを出力してください。配列の形式: [{ \"order\": 1, \"description\": \"...\", \"status\": \"pending\", \"progresses\": [], \"userPreferences\": [] }]",
-        },
-        {
-          role: "user",
-          content: prompt,
-        },
-      ],
-      temperature: 0.3, // 一貫性を重視
-      // response_formatは使用しない（配列を直接返すため）
-      timeout: options.timeoutMs ? options.timeoutMs / 1000 : 30, // 秒単位
-    });
+    const response = await openai.chat.completions.create(
+      {
+        model: "gpt-4o-mini", // コスト効率の良いモデル
+        messages: [
+          {
+            role: "system",
+            content:
+              "あなたはタスク抽出エージェントです。会話を分析し、JSON配列のみを出力してください。配列の形式: [{ \"order\": 1, \"description\": \"...\", \"status\": \"pending\", \"progresses\": [], \"userPreferences\": [] }]",
+          },
+          {
+            role: "user",
+            content: prompt,
+          },
+        ],
+        temperature: 0.3, // 一貫性を重視
+        // response_formatは使用しない（配列を直接返すため）
+      },
+      {
+        timeout: options.timeoutMs ? options.timeoutMs : 30000, // ミリ秒単位
+      }
+    );
 
     const content = response.choices[0]?.message?.content;
     if (!content) {
