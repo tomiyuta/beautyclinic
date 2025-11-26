@@ -363,9 +363,9 @@ AI_STORAGE_DB_THRESHOLD=${settings.storage.dbThreshold}`}
             <Button
               appearance="primary"
               onClick={handleSave}
-              isLoading={isSaving}
+              isDisabled={isSaving}
             >
-              設定を保存
+              {isSaving ? "保存中..." : "設定を保存"}
             </Button>
           </div>
         </div>
