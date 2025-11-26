@@ -3,6 +3,7 @@
  */
 
 import { z } from "zod";
+import { Prisma } from "@prisma/client";
 import { publicProcedure, router } from "../trpc";
 import { db } from "@/server/db";
 
@@ -24,7 +25,7 @@ export const aiSpaceRouter = router({
           userId: USER_ID_PLACEHOLDER,
           name: input.name,
           description: input.description,
-          metadata: (input.metadata ?? {}) as Record<string, unknown>,
+          metadata: (input.metadata ?? {}) as Prisma.InputJsonValue,
         },
       });
       return space;
@@ -118,7 +119,7 @@ export const aiSpaceRouter = router({
         data: {
           name: input.name,
           description: input.description,
-          metadata: input.metadata ? (input.metadata as Record<string, unknown>) : undefined,
+          metadata: input.metadata ? (input.metadata as Prisma.InputJsonValue) : undefined,
         },
       });
     }),
