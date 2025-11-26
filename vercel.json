@@ -2,15 +2,5 @@
   "buildCommand": "prisma generate --schema=./prisma/schema.prisma && next build",
   "installCommand": "npm install",
   "framework": "nextjs",
-  "outputDirectory": ".next",
-  "crons": [
-    {
-      "path": "/api/cron/process-experience-jobs",
-      "schedule": "*/1 * * * *"
-    },
-    {
-      "path": "/api/cron/aggregate-metrics",
-      "schedule": "0 1 * * *"
-    }
-  ]
+  "outputDirectory": ".next"
 }
