@@ -245,7 +245,7 @@ export default function AcontextDashboardPage() {
                 >
                   メッセージ
                 </h2>
-                <Badge appearance="subtle">
+                <Badge appearance="default">
                   {sessionId ? "セッション選択中" : "セッション未選択"}
                 </Badge>
               </div>
