@@ -90,8 +90,8 @@ export async function extractTasks(
       : [];
 
     // タスクを検証・正規化
-    const tasks: Task[] = tasksArray
-      .map((task: unknown, index: number): Task | null => {
+    const tasksWithNulls: (Task | null)[] = tasksArray.map(
+      (task: unknown, index: number): Task | null => {
         if (typeof task !== "object" || task === null) {
           return null;
         }
@@ -116,8 +116,12 @@ export async function extractTasks(
             ? t.userPreferences.map(String)
             : undefined,
         };
-      })
-      .filter((task): task is Task => task !== null);
+      }
+    );
+
+    const tasks: Task[] = tasksWithNulls.filter(
+      (task): task is Task => task !== null
+    );
 
     return tasks;
   } catch (error) {
