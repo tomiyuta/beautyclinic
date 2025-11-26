@@ -181,10 +181,9 @@ export default function SpacesPage() {
                 <Button
                   appearance="primary"
                   onClick={handleCreate}
-                  isLoading={createMutation.isPending}
-                  isDisabled={!newName.trim()}
+                  isDisabled={!newName.trim() || createMutation.isPending}
                 >
-                  作成
+                  {createMutation.isPending ? "作成中..." : "作成"}
                 </Button>
               </ModalFooter>
             </Modal>
