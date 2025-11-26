@@ -16,6 +16,7 @@ const navigationItems = [
   { href: "/workflow", label: "ワークフロー管理", icon: "🔄" },
   { href: "/api-key", label: "APIキー設定", icon: "🔑" },
   { href: "/prompt", label: "プロンプト管理", icon: "💬" },
+  { href: "/ai-context", label: "Acontextダッシュボード", icon: "🧠" },
 ];
 
 export function Navigation() {

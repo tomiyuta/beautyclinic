@@ -7,6 +7,7 @@ import { snsResearchRouter } from "./routers/sns-research";
 import { strategyManagementRouter } from "./routers/strategy-management";
 import { strategyRouter } from "./routers/strategy";
 import { workflowRouter } from "./routers/workflow";
+import { aiSessionRouter } from "./routers/ai-session";
 import { router } from "./trpc";
 
 export const appRouter = router({
@@ -19,6 +20,7 @@ export const appRouter = router({
   strategyManagement: strategyManagementRouter,
   apiKey: apiKeyRouter,
   prompt: promptRouter,
+  aiSession: aiSessionRouter,
 });
 
 export type AppRouter = typeof appRouter;

@@ -262,3 +262,192 @@ model ComplianceCheckLog {
 
   @@map("complianceCheckLogs")
 }
+
+// ============================================
+// Acontext関連モデル（要件定義書に基づく）
+// ============================================
+
+enum AiSessionStatus {
+  active
+  completed
+  archived
+}
+
+enum AiExperienceStatus {
+  pending
+  processing
+  completed
+  failed
+}
+
+enum AiTaskStatus {
+  pending
+  running
+  success
+  failed
+}
+
+enum AiStorageType {
+  database
+  s3
+  local
+}
+
+enum AiSkillComplexity {
+  simple
+  medium
+  complex
+}
+
+// スペース（プロジェクト/ワークスペース）
+model AiSpace {
+  id          String       @id @default(uuid())
+  userId      Int
+  name        String       @db.VarChar(255)
+  description String?      @db.Text
+  metadata    Json?        // 追加メタデータ
+  createdAt   DateTime     @default(now()) @map("created_at")
+  updatedAt   DateTime     @updatedAt @map("updated_at")
+  
+  sessions    AiSession[]
+  skills       AiSkill[]
+  
+  @@index([userId])
+  @@map("ai_spaces")
+}
+
+// セッション（会話セッション）
+model AiSession {
+  id          String    @id @default(uuid())
+  spaceId     String?   @map("space_id")
+  space       AiSpace?  @relation(fields: [spaceId], references: [id], onDelete: SetNull)
+  title       String?
+  status      AiSessionStatus @default(active)
+  context     Json?     // セッションコンテキスト
+  experienceStatus AiExperienceStatus @default(pending) @map("experience_status")
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+  completedAt DateTime? @map("completed_at")
+  
+  messages    AiMessage[]
+  tasks       AiTask[]
+  experienceJobs AiExperienceJob[]
+  
+  @@index([spaceId])
+  @@index([status])
+  @@index([experienceStatus])
+  @@index([createdAt])
+  @@map("ai_sessions")
+}
+
+// メッセージ（会話メッセージ）
+model AiMessage {
+  id        String   @id @default(uuid())
+  sessionId String   @map("session_id")
+  session   AiSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  role      String   @db.VarChar(20) // "user" | "assistant" | "system"
+  content   String   @db.LongText
+  metadata  Json?    // 追加メタデータ（OpenAI/Anthropic形式対応）
+  createdAt DateTime @default(now()) @map("created_at")
+  
+  @@index([sessionId])
+  @@index([createdAt])
+  @@map("ai_messages")
+}
+
+// タスク（抽出されたタスク）
+model AiTask {
+  id              String        @id @default(uuid())
+  sessionId       String        @map("session_id")
+  session         AiSession     @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  order           Int           // タスクの順序
+  description     String        @db.Text
+  status          AiTaskStatus @default(pending)
+  progresses      Json?        // 進捗履歴（配列）
+  userPreferences Json?        // ユーザーの好みや制約（配列）
+  createdAt       DateTime      @default(now()) @map("created_at")
+  updatedAt       DateTime      @updatedAt @map("updated_at")
+  completedAt     DateTime?     @map("completed_at")
+  
+  @@index([sessionId])
+  @@index([status])
+  @@index([createdAt])
+  @@map("ai_tasks")
+}
+
+// スキル（学習されたSOP）
+model AiSkill {
+  id          String            @id @default(uuid())
+  spaceId     String?           @map("space_id")
+  space       AiSpace?          @relation(fields: [spaceId], references: [id], onDelete: SetNull)
+  name        String            @db.VarChar(255)
+  description String            @db.Text
+  steps       Json              // ステップ（配列）
+  complexity  AiSkillComplexity @default(simple)
+  tags        Json?             // タグ（配列）
+  usageCount  Int               @default(0) @map("usage_count")
+  successRate Float?            @default(0) @map("success_rate") // 0.0-1.0
+  createdAt   DateTime          @default(now()) @map("created_at")
+  updatedAt   DateTime          @updatedAt @map("updated_at")
+  
+  @@index([spaceId])
+  @@index([name])
+  @@fulltext([name, description])
+  @@map("ai_skills")
+}
+
+// バックグラウンドジョブ（Experience Agent）
+model AiExperienceJob {
+  id          String              @id @default(uuid())
+  sessionId   String              @map("session_id")
+  session     AiSession           @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  jobType     String              @db.VarChar(50) // "task_extraction" | "skill_learning"
+  status      AiExperienceStatus  @default(pending)
+  input       Json?               // 入力データ
+  output      Json?               // 出力データ
+  error       String?             @db.Text
+  createdAt   DateTime            @default(now()) @map("created_at")
+  updatedAt   DateTime            @updatedAt @map("updated_at")
+  completedAt DateTime?           @map("completed_at")
+  
+  @@index([sessionId])
+  @@index([status])
+  @@index([jobType])
+  @@index([createdAt])
+  @@map("ai_experience_jobs")
+}
+
+// アーティファクト（Disk管理）
+model AiArtifact {
+  id          String          @id @default(uuid())
+  sessionId   String?         @map("session_id")
+  name        String          @db.VarChar(255)
+  storageType AiStorageType   @map("storage_type")
+  path        String          @db.VarChar(500) // ストレージパス
+  size        Int             // ファイルサイズ（bytes）
+  mimeType    String?         @db.VarChar(100) @map("mime_type")
+  metadata    Json?           // 追加メタデータ
+  createdAt   DateTime        @default(now()) @map("created_at")
+  updatedAt   DateTime        @updatedAt @map("updated_at")
+  
+  @@index([sessionId])
+  @@index([storageType])
+  @@index([createdAt])
+  @@map("ai_artifacts")
+}
+
+// メトリクス（集計データ）
+model AiMetric {
+  id          Int      @id @default(autoincrement())
+  spaceId     String?  @map("space_id")
+  metricType  String   @db.VarChar(50) @map("metric_type") // "daily" | "weekly" | "monthly"
+  date        DateTime  @db.Date
+  data        Json      // メトリクスデータ
+  createdAt   DateTime  @default(now()) @map("created_at")
+  
+  @@unique([spaceId, metricType, date])
+  @@index([spaceId])
+  @@index([metricType])
+  @@index([date])
+  @@map("ai_metrics")
+}
