@@ -92,23 +92,27 @@ export async function searchSkillsAgentic(
       existingSkills: skillsText || "既存スキルなし",
     });
 
-    const response = await openai.chat.completions.create({
-      model: "gpt-4o-mini",
-      messages: [
-        {
-          role: "system",
-          content:
-            "あなたはスキル検索エージェントです。ユーザーの意図から関連キーワードを抽出し、JSON形式のみを出力してください。",
-        },
-        {
-          role: "user",
-          content: prompt,
-        },
-      ],
-      temperature: 0.3,
-      // response_formatは使用しない（オブジェクトを直接返すため）
-      timeout: 10,
-    });
+    const response = await openai.chat.completions.create(
+      {
+        model: "gpt-4o-mini",
+        messages: [
+          {
+            role: "system",
+            content:
+              "あなたはスキル検索エージェントです。ユーザーの意図から関連キーワードを抽出し、JSON形式のみを出力してください。",
+          },
+          {
+            role: "user",
+            content: prompt,
+          },
+        ],
+        temperature: 0.3,
+        // response_formatは使用しない（オブジェクトを直接返すため）
+      },
+      {
+        timeout: 10000, // 10秒 = 10000ミリ秒
+      }
+    );
 
     const content = response.choices[0]?.message?.content;
     if (!content) {
