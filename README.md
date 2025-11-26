@@ -543,3 +543,47 @@ npm run dev
 - **コンテンツ履歴表示の改善**: 動画・画像の適切な表示とダウンロード機能
 
 詳細は `CHANGELOG_RECENT.md` を参照してください。
+
+---
+
+## Acontext（会話コンテキスト管理）
+
+本プロジェクトには、会話コンテキストとタスクを扱う **Acontext機能** が統合されています。
+
+### 機能概要
+
+- **Acontextダッシュボード (`/ai-context`)**
+  - 会話セッションの一覧・作成
+  - セッションごとのメッセージ履歴表示
+  - 会話からのタスク自動抽出（LLM利用）
+  - 抽出されたタスクの一覧・ステータス・進捗表示
+- **バックグラウンド処理（Vercel Cron Jobs連携）**
+  - `/api/cron/process-experience-jobs` : 未処理ジョブ（タスク抽出・スキル学習）を定期実行
+  - `/api/cron/aggregate-metrics` : 日次メトリクス集計
+- **OpenAIキー連携**
+  - 「APIキー設定」画面で登録した OpenAI キー（`OPENAI_API_KEY`）をそのまま Acontext でも利用
+
+### 関連ディレクトリ構成
+
+```text
+src/
+  app/
+    ai-context/              # Acontextダッシュボードページ
+    api/cron/                # Cron用エンドポイント（Experience Jobs / Metrics）
+  server/
+    api/
+      routers/
+        ai-session.ts        # Acontext用 tRPC ルーター（Session/Task/Skill/Artifact 等）
+    services/
+      ai-context/            # Acontextサービス群
+        ai-session.ts        # セッション作成・メッセージ送信・flush など
+        task-extraction.ts   # 会話→タスク抽出（LLM）
+        skill-learning.ts    # タスク→スキル学習（SOP抽出）
+        skill-search.ts      # スキル検索（fast / agentic）
+        storage-adapter.ts   # アーティファクト保存（database / s3）
+        experience-agent.ts  # バックグラウンドジョブ処理
+prisma/
+  schema.prisma              # AiSession / AiTask / AiSkill / AiArtifact / AiMetric などのモデル定義
+```
+
+詳細な実装状況は `ACONTEXT_IMPLEMENTATION_STATUS.md` を参照してください。
