@@ -91,7 +91,7 @@ export async function extractTasks(
 
     // タスクを検証・正規化
     const tasks: Task[] = tasksArray
-      .map((task: unknown, index: number) => {
+      .map((task: unknown, index: number): Task | null => {
         if (typeof task !== "object" || task === null) {
           return null;
         }
