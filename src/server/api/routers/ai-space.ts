@@ -82,7 +82,7 @@ export const aiSpaceRouter = router({
             orderBy: { usageCount: "desc" },
           },
           _count: {
-            select: { sessions: true, skills: true, metrics: true },
+            select: { sessions: true, skills: true },
           },
         },
       });

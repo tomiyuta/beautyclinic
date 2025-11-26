@@ -76,8 +76,8 @@ export default function SpaceDetailPage() {
                   </p>
                 )}
                 <div style={{ marginTop: "8px", display: "flex", gap: "16px", fontSize: "14px", color: "#6B778C" }}>
-                  <span>セッション: {space._count.sessions}</span>
-                  <span>スキル: {space._count.skills}</span>
+                  <span>セッション: {space._count?.sessions ?? 0}</span>
+                  <span>スキル: {space._count?.skills ?? 0}</span>
                   <span>
                     作成: {new Date(space.createdAt).toLocaleDateString("ja-JP")}
                   </span>
