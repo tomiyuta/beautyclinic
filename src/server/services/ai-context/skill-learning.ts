@@ -107,7 +107,7 @@ export async function learnSkill(
       : [parsed];
 
     const skills: Skill[] = skillsData
-      .map((skill: unknown) => {
+      .map((skill: unknown): Skill | null => {
         if (typeof skill !== "object" || skill === null) {
           return null;
         }
