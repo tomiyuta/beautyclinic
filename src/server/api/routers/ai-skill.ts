@@ -74,6 +74,9 @@ export const aiSkillRouter = router({
       }
 
       // 所有権チェック
+      if (!skill.spaceId) {
+        throw new Error("Access denied");
+      }
       const space = await db.aiSpace.findUnique({
         where: { id: skill.spaceId },
       });
