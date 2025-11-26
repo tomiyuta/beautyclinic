@@ -61,23 +61,27 @@ export async function learnSkill(
   });
 
   try {
-    const response = await openai.chat.completions.create({
-      model: "gpt-4o-mini",
-      messages: [
-        {
-          role: "system",
-          content:
-            "あなたはスキル学習エージェントです。完了したタスクから再利用可能なスキルを抽出し、JSON形式のみを出力してください。",
-        },
-        {
-          role: "user",
-          content: prompt,
-        },
-      ],
-      temperature: 0.3,
-      // response_formatは使用しない（オブジェクトを直接返すため）
-      timeout: options.timeoutMs ? options.timeoutMs / 1000 : 30,
-    });
+    const response = await openai.chat.completions.create(
+      {
+        model: "gpt-4o-mini",
+        messages: [
+          {
+            role: "system",
+            content:
+              "あなたはスキル学習エージェントです。完了したタスクから再利用可能なスキルを抽出し、JSON形式のみを出力してください。",
+          },
+          {
+            role: "user",
+            content: prompt,
+          },
+        ],
+        temperature: 0.3,
+        // response_formatは使用しない（オブジェクトを直接返すため）
+      },
+      {
+        timeout: options.timeoutMs ? options.timeoutMs : 30000,
+      }
+    );
 
     const content = response.choices[0]?.message?.content;
     if (!content) {
