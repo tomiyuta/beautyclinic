@@ -219,7 +219,7 @@ export default function SkillsPage() {
                   <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", fontSize: "14px" }}>
                     <div style={{ display: "flex", gap: "12px", color: "#6B778C" }}>
                       <span>使用: {skill.usageCount}回</span>
-                      <span>成功率: {Math.round(skill.successRate * 100)}%</span>
+                      <span>成功率: {Math.round((skill.successRate ?? 0) * 100)}%</span>
                     </div>
                     {"space" in skill && skill.space && (
                       <span style={{ fontSize: "12px", color: "#97A0AF" }}>

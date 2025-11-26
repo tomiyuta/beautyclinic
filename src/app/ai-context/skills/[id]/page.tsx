@@ -125,7 +125,7 @@ export default function SkillDetailPage() {
               textAlign: "center",
             }}>
               <p style={{ fontSize: "24px", fontWeight: 600, color: "#36B37E", marginBottom: "4px" }}>
-                {Math.round(skill.successRate * 100)}%
+                {Math.round((skill.successRate ?? 0) * 100)}%
               </p>
               <p style={{ fontSize: "14px", color: "#6B778C" }}>成功率</p>
             </div>
