@@ -142,7 +142,8 @@ export const aiSkillRouter = router({
       }
 
       const newUsageCount = skill.usageCount + 1;
-      const currentSuccessCount = Math.round(skill.successRate * skill.usageCount);
+      const currentSuccessRate = skill.successRate ?? 0;
+      const currentSuccessCount = Math.round(currentSuccessRate * skill.usageCount);
       const newSuccessCount = input.success ? currentSuccessCount + 1 : currentSuccessCount;
       const newSuccessRate = newSuccessCount / newUsageCount;
 
