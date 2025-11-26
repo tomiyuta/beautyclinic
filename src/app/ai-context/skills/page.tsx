@@ -61,7 +61,7 @@ export default function SkillsPage() {
   };
 
   const isLoading = isSearching ? isSearchLoading : isListLoading;
-  const skills = isSearching ? (searchData as typeof listData?.skills) : listData?.skills;
+  const skills = isSearching ? (searchData as NonNullable<typeof listData>["skills"]) : listData?.skills;
 
   return (
     <div style={{ minHeight: "100vh", background: "#F4F5F7", padding: "24px" }}>
