@@ -115,8 +115,8 @@ export async function learnSkill(
         const s = skill as Record<string, unknown>;
 
         // ステップを正規化
-        const steps = Array.isArray(s.steps)
-          ? s.steps.map((step: unknown, index: number) => {
+        const stepsWithNulls = Array.isArray(s.steps)
+          ? s.steps.map((step: unknown, index: number): Skill["steps"][0] | null => {
               if (typeof step !== "object" || step === null) {
                 return null;
               }
@@ -131,10 +131,14 @@ export async function learnSkill(
             })
           : [];
 
+        const steps: Skill["steps"] = stepsWithNulls.filter(
+          (step): step is Skill["steps"][0] => step !== null
+        );
+
         return {
           name: String(s.name ?? "未命名スキル"),
           description: String(s.description ?? ""),
-          steps: steps.filter((step): step is Skill["steps"][0] => step !== null),
+          steps,
           complexity:
             typeof s.complexity === "string" &&
             ["simple", "medium", "complex"].includes(s.complexity)
