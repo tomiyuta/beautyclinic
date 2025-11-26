@@ -7,10 +7,21 @@ import Badge from "@atlaskit/badge";
 import TextField from "@atlaskit/textfield";
 import EmptyState from "@atlaskit/empty-state";
 import { api } from "@/trpc/react";
+import TaskEditor from "@/components/ai-context/TaskEditor";
+
+type Task = {
+  id: string;
+  order: number;
+  description: string;
+  status: "pending" | "running" | "success" | "failed";
+  progresses: string[] | null;
+  userPreferences: string[] | null;
+};
 
 export default function AcontextDashboardPage() {
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [message, setMessage] = useState("");
+  const [editingTask, setEditingTask] = useState<Task | null>(null);
 
   const utils = api.useUtils();
 
@@ -410,11 +421,27 @@ export default function AcontextDashboardPage() {
                     {tasks.map((task) => (
                       <div
                         key={task.id}
+                        onClick={() => setEditingTask({
+                          id: task.id,
+                          order: task.order,
+                          description: task.description,
+                          status: task.status,
+                          progresses: task.progresses as string[] | null,
+                          userPreferences: task.userPreferences as string[] | null,
+                        })}
                         style={{
                           padding: "10px 12px",
                           borderRadius: "6px",
                           border: "1px solid #DFE1E6",
                           backgroundColor: "#FFFFFF",
+                          cursor: "pointer",
+                          transition: "box-shadow 0.2s",
+                        }}
+                        onMouseEnter={(e) => {
+                          e.currentTarget.style.boxShadow = "0 2px 4px rgba(0,0,0,0.1)";
+                        }}
+                        onMouseLeave={(e) => {
+                          e.currentTarget.style.boxShadow = "none";
                         }}
                       >
                         <div
@@ -425,37 +452,49 @@ export default function AcontextDashboardPage() {
                             marginBottom: "4px",
                           }}
                         >
-                          <span
-                            style={{
-                              fontSize: "14px",
-                              fontWeight: 500,
-                              color: "#172B4D",
-                            }}
-                          >
-                            {task.description}
-                          </span>
+                          <div style={{ display: "flex", alignItems: "center", gap: "8px", flex: 1 }}>
+                            <span
+                              style={{
+                                fontSize: "12px",
+                                fontWeight: 500,
+                                color: "#6B778C",
+                              }}
+                            >
+                              #{task.order}
+                            </span>
+                            <Badge
+                              appearance={
+                                task.status === "success"
+                                  ? "added"
+                                  : task.status === "failed"
+                                  ? "removed"
+                                  : task.status === "running"
+                                  ? "primary"
+                                  : "default"
+                              }
+                            >
+                              {task.status}
+                            </Badge>
+                          </div>
                           <span
                             style={{
                               fontSize: "11px",
-                              color: "#6B778C",
+                              color: "#97A0AF",
                             }}
                           >
-                            #{task.order}
+                            クリックで編集
                           </span>
                         </div>
-                        <div style={{ marginBottom: "4px" }}>
-                          <Badge
-                            appearance={
-                              task.status === "success"
-                                ? "added"
-                                : task.status === "failed"
-                                ? "removed"
-                                : "default"
-                            }
-                          >
-                            {task.status}
-                          </Badge>
-                        </div>
+                        <p
+                          style={{
+                            fontSize: "14px",
+                            fontWeight: 500,
+                            color: "#172B4D",
+                            marginBottom: "4px",
+                          }}
+                        >
+                          {task.description}
+                        </p>
                         {task.progresses &&
                           Array.isArray(task.progresses) &&
                           task.progresses.length > 0 && (
@@ -470,8 +509,8 @@ export default function AcontextDashboardPage() {
                                 進捗:
                               </div>
                               <ul style={{ paddingLeft: "18px", margin: 0 }}>
-                                {task.progresses.map((progress, idx) => (
-                                  <li key={idx}>{String(progress)}</li>
+                                {(task.progresses as string[]).map((progress, idx) => (
+                                  <li key={idx}>{progress}</li>
                                 ))}
                               </ul>
                             </div>
@@ -494,6 +533,18 @@ export default function AcontextDashboardPage() {
           </div>
         </section>
       </div>
+
+      {/* タスク編集モーダル */}
+      {editingTask && (
+        <TaskEditor
+          task={editingTask}
+          onClose={() => setEditingTask(null)}
+          onUpdate={() => {
+            void utils.aiSession.getTasks.invalidate({ sessionId: sessionId! });
+            setEditingTask(null);
+          }}
+        />
+      )}
     </main>
   );
 }

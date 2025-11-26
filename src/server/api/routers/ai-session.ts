@@ -4,6 +4,7 @@
 
 import { z } from "zod";
 import { publicProcedure, router } from "../trpc";
+import { db } from "@/server/db";
 import {
   createSession,
   sendMessage,
@@ -186,6 +187,214 @@ export const aiSessionRouter = router({
     )
     .query(async ({ input }) => {
       return listArtifacts(input.sessionId, input.limit);
+    }),
+
+  /**
+   * タスク更新
+   */
+  updateTask: publicProcedure
+    .input(
+      z.object({
+        taskId: z.string(),
+        status: z.enum(["pending", "running", "success", "failed"]).optional(),
+        progresses: z.array(z.string()).optional(),
+        userPreferences: z.array(z.string()).optional(),
+      })
+    )
+    .mutation(async ({ input }) => {
+      // タスク存在確認
+      const task = await db.aiTask.findUnique({
+        where: { id: input.taskId },
+        include: {
+          session: {
+            include: {
+              space: true,
+            },
+          },
+        },
+      });
+
+      if (!task) {
+        throw new Error("Task not found");
+      }
+
+      const updateData: Record<string, unknown> = {};
+      
+      if (input.status !== undefined) {
+        updateData.status = input.status;
+        if (input.status === "success" || input.status === "failed") {
+          updateData.completedAt = new Date();
+        }
+      }
+      
+      if (input.progresses !== undefined) {
+        updateData.progresses = input.progresses;
+      }
+      
+      if (input.userPreferences !== undefined) {
+        updateData.userPreferences = input.userPreferences;
+      }
+
+      const updatedTask = await db.aiTask.update({
+        where: { id: input.taskId },
+        data: updateData,
+      });
+
+      return updatedTask;
+    }),
+
+  /**
+   * タスク進捗追加（単一追加用）
+   */
+  addTaskProgress: publicProcedure
+    .input(
+      z.object({
+        taskId: z.string(),
+        progress: z.string().min(1),
+      })
+    )
+    .mutation(async ({ input }) => {
+      const task = await db.aiTask.findUnique({
+        where: { id: input.taskId },
+      });
+
+      if (!task) {
+        throw new Error("Task not found");
+      }
+
+      const currentProgresses = (task.progresses as string[]) ?? [];
+      
+      const updatedTask = await db.aiTask.update({
+        where: { id: input.taskId },
+        data: {
+          progresses: [...currentProgresses, input.progress],
+        },
+      });
+
+      return updatedTask;
+    }),
+
+  /**
+   * メトリクス取得
+   */
+  getMetrics: publicProcedure
+    .input(
+      z.object({
+        spaceId: z.string().optional(),
+        metricType: z.enum(["daily", "weekly", "monthly"]).default("daily"),
+        days: z.number().min(1).max(90).default(30),
+      })
+    )
+    .query(async ({ input }) => {
+      const USER_ID_PLACEHOLDER = 1;
+      const startDate = new Date();
+      startDate.setDate(startDate.getDate() - input.days);
+
+      // スペース指定の処理
+      let spaceIds: string[] = [];
+      if (input.spaceId) {
+        spaceIds = [input.spaceId];
+      } else {
+        const userSpaces = await db.aiSpace.findMany({
+          where: { userId: USER_ID_PLACEHOLDER },
+          select: { id: true },
+        });
+        spaceIds = userSpaces.map((s) => s.id);
+      }
+
+      // 保存済みメトリクスを取得
+      const metrics = await db.aiMetric.findMany({
+        where: {
+          spaceId: { in: spaceIds },
+          metricType: input.metricType,
+          date: { gte: startDate },
+        },
+        orderBy: { date: "asc" },
+      });
+
+      return metrics;
+    }),
+
+  /**
+   * リアルタイム集計（保存済みメトリクスがない日用）
+   */
+  getRealtimeStats: publicProcedure
+    .input(
+      z.object({
+        spaceId: z.string().optional(),
+      })
+    )
+    .query(async ({ input }) => {
+      const USER_ID_PLACEHOLDER = 1;
+      // スペース指定の処理
+      let spaceIds: string[] = [];
+      if (input.spaceId) {
+        spaceIds = [input.spaceId];
+      } else {
+        const userSpaces = await db.aiSpace.findMany({
+          where: { userId: USER_ID_PLACEHOLDER },
+          select: { id: true },
+        });
+        spaceIds = userSpaces.map((s) => s.id);
+      }
+
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+
+      // 今日のセッション数
+      const todaySessions = await db.aiSession.count({
+        where: {
+          spaceId: { in: spaceIds },
+          createdAt: { gte: today },
+        },
+      });
+
+      // 今日のタスク
+      const todayTasks = await db.aiTask.findMany({
+        where: {
+          session: { spaceId: { in: spaceIds } },
+          createdAt: { gte: today },
+        },
+        select: { status: true },
+      });
+
+      const taskSuccess = todayTasks.filter((t) => t.status === "success").length;
+      const taskFailed = todayTasks.filter((t) => t.status === "failed").length;
+
+      // 総計
+      const totalSessions = await db.aiSession.count({
+        where: { spaceId: { in: spaceIds } },
+      });
+
+      const totalSkills = await db.aiSkill.count({
+        where: { spaceId: { in: spaceIds } },
+      });
+
+      const totalTasks = await db.aiTask.count({
+        where: { session: { spaceId: { in: spaceIds } } },
+      });
+
+      const successTasks = await db.aiTask.count({
+        where: {
+          session: { spaceId: { in: spaceIds } },
+          status: "success",
+        },
+      });
+
+      return {
+        today: {
+          sessions: todaySessions,
+          tasks: todayTasks.length,
+          taskSuccess,
+          taskFailed,
+        },
+        total: {
+          sessions: totalSessions,
+          skills: totalSkills,
+          tasks: totalTasks,
+          taskSuccessRate: totalTasks > 0 ? successTasks / totalTasks : 0,
+        },
+      };
     }),
 });
 

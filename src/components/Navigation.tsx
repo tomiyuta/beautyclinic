@@ -17,6 +17,10 @@ const navigationItems = [
   { href: "/api-key", label: "APIキー設定", icon: "🔑" },
   { href: "/prompt", label: "プロンプト管理", icon: "💬" },
   { href: "/ai-context", label: "Acontextダッシュボード", icon: "🧠" },
+  { href: "/ai-context/spaces", label: "スペース管理", icon: "📁" },
+  { href: "/ai-context/skills", label: "スキル管理", icon: "🎯" },
+  { href: "/ai-context/metrics", label: "メトリクス", icon: "📊" },
+  { href: "/ai-context/settings", label: "Acontext設定", icon: "⚙️" },
 ];
 
 export function Navigation() {

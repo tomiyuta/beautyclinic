@@ -8,6 +8,8 @@ import { strategyManagementRouter } from "./routers/strategy-management";
 import { strategyRouter } from "./routers/strategy";
 import { workflowRouter } from "./routers/workflow";
 import { aiSessionRouter } from "./routers/ai-session";
+import { aiSpaceRouter } from "./routers/ai-space";
+import { aiSkillRouter } from "./routers/ai-skill";
 import { router } from "./trpc";
 
 export const appRouter = router({
@@ -21,6 +23,8 @@ export const appRouter = router({
   apiKey: apiKeyRouter,
   prompt: promptRouter,
   aiSession: aiSessionRouter,
+  aiSpace: aiSpaceRouter,
+  aiSkill: aiSkillRouter,
 });
 
 export type AppRouter = typeof appRouter;
