@@ -77,6 +77,7 @@ export async function searchSkillsAgentic(
       take: 20,
       orderBy: { usageCount: "desc" },
       select: {
+        id: true,
         name: true,
         description: true,
         tags: true,
