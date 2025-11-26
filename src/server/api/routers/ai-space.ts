@@ -24,7 +24,7 @@ export const aiSpaceRouter = router({
           userId: USER_ID_PLACEHOLDER,
           name: input.name,
           description: input.description,
-          metadata: input.metadata ?? undefined,
+          metadata: input.metadata ? JSON.parse(JSON.stringify(input.metadata)) : undefined,
         },
       });
       return space;
@@ -118,7 +118,7 @@ export const aiSpaceRouter = router({
         data: {
           name: input.name,
           description: input.description,
-          metadata: input.metadata ?? undefined,
+          metadata: input.metadata ? JSON.parse(JSON.stringify(input.metadata)) : undefined,
         },
       });
     }),
