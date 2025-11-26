@@ -98,10 +98,12 @@ export async function learnSkill(
 
     // スキルを正規化
     // レスポンスは { name: "...", description: "...", ... } または { skills: [...] } の可能性がある
-    const skillsData = Array.isArray(parsed)
+    const skillsData: unknown[] = Array.isArray(parsed)
       ? parsed
       : typeof parsed === "object" && parsed !== null && "skills" in parsed
-      ? (parsed as { skills: unknown }).skills
+      ? Array.isArray((parsed as { skills: unknown }).skills)
+        ? (parsed as { skills: unknown[] }).skills
+        : []
       : [parsed];
 
     const skills: Skill[] = skillsData
