@@ -30,7 +30,7 @@ export const aiSessionRouter = router({
       z.object({
         spaceId: z.string().optional(),
         title: z.string().optional(),
-        context: z.record(z.unknown()).optional(),
+        context: z.record(z.string(), z.unknown()).optional(),
       })
     )
     .mutation(async ({ input }) => {
@@ -46,7 +46,7 @@ export const aiSessionRouter = router({
         sessionId: z.string(),
         role: z.enum(["user", "assistant", "system"]),
         content: z.string(),
-        metadata: z.record(z.unknown()).optional(),
+        metadata: z.record(z.string(), z.unknown()).optional(),
       })
     )
     .mutation(async ({ input }) => {
@@ -151,7 +151,7 @@ export const aiSessionRouter = router({
         name: z.string(),
         data: z.string(), // Base64エンコードされたデータ
         mimeType: z.string().optional(),
-        metadata: z.record(z.unknown()).optional(),
+        metadata: z.record(z.string(), z.unknown()).optional(),
       })
     )
     .mutation(async ({ input }) => {
