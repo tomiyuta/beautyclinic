@@ -24,7 +24,7 @@ export const aiSpaceRouter = router({
           userId: USER_ID_PLACEHOLDER,
           name: input.name,
           description: input.description,
-          metadata: input.metadata ?? {},
+          metadata: (input.metadata ?? {}) as Record<string, unknown>,
         },
       });
       return space;
