@@ -118,7 +118,7 @@ export const aiSpaceRouter = router({
         data: {
           name: input.name,
           description: input.description,
-          metadata: input.metadata,
+          metadata: input.metadata ? (input.metadata as Record<string, unknown>) : undefined,
         },
       });
     }),
