@@ -27,6 +27,20 @@ import {
 } from "@/server/services/gemini";
 
 import { publicProcedure, router } from "../trpc";
+import { runCouncil } from "@/server/services/ai-council";
+import {
+  councilConfigSchema,
+  strategyCouncilInputSchema,
+  strategySingleInputSchema,
+  analysisTypeSchema,
+} from "../schemas/council";
+import type { CouncilResult, CouncilModel } from "@/types/ai-council";
+// 新規サービスのインポート
+import { buildPromptForAnalysisType } from "@/server/services/strategy/prompt-builder";
+import { fetchStrategyData, fetchDataStatus } from "@/server/services/strategy/data-fetcher";
+import { callAIWithTimeout } from "@/server/services/strategy/ai-caller";
+import { runStrategyCouncil } from "@/server/services/ai-council/council";
+import { getQueryForAnalysisType } from "@/server/services/ai-council/prompts";
 
 /**
  * ユーザー設定に基づいて使用するAIプロバイダーを決定
@@ -880,5 +894,234 @@ export const strategyRouter = router({
         });
       }
     }),
+
+  /**
+   * Council戦略分析（合議制）- 統合版
+   */
+  runCouncilAnalysis: publicProcedure
+    .input(
+      z.object({
+        userId: z.number().int().positive(),
+        analysisType: analysisTypeSchema,
+        councilConfig: councilConfigSchema,
+        // オプション: 手動でデータを指定する場合（未指定時はDBから取得）
+        marketData: z.any().optional(),
+        snsData: z.any().optional(),
+        products: z.array(z.any()).optional(),
+      })
+    )
+    .mutation(async ({ input }): Promise<CouncilResult> => {
+      const { userId, analysisType, councilConfig, marketData, snsData, products } = input;
+
+      console.log(`[Strategy] Council analysis: ${analysisType}`);
+
+      // 1. データ取得（DB or 手動指定）
+      let data;
+      if (products || marketData || snsData) {
+        // 手動指定されたデータを使用
+        const dbData = await fetchStrategyData(userId);
+        data = {
+          products: products?.map((p: any) => ({
+            id: p.id ?? 0,
+            name: p.name ?? p.treatment ?? "",
+            category: p.category ?? "未分類",
+            price: p.price ?? p.sellingPrice ?? 0,
+            description: p.description,
+          })) ?? dbData.products,
+          marketData: marketData ? {
+            id: 0,
+            location: dbData.marketData?.location ?? "",
+            competitors: marketData.competitors,
+            priceRanges: marketData.pricing ?? marketData.priceRanges,
+            trends: marketData.trends,
+            createdAt: new Date(),
+          } : dbData.marketData,
+          snsData: snsData ? {
+            id: 0,
+            keywords: [],
+            instagramData: null,
+            twitterData: null,
+            tiktokData: null,
+            trends: snsData,
+            createdAt: new Date(),
+          } : dbData.snsData,
+          location: dbData.location,
+        };
+      } else {
+        // DBから取得
+        data = await fetchStrategyData(userId);
+      }
+
+      // 2. プロンプト生成（既存の詳細プロンプト）
+      const prompt = await buildPromptForAnalysisType(analysisType, data);
+
+      // 3. 元のクエリ（分析タイプ名）
+      const originalQuery = getQueryForAnalysisType(analysisType);
+
+      // 4. バリデーション: 議長「自動」選択時はピアレビュー必須
+      const finalConfig = {
+        ...councilConfig,
+        enablePeerReview:
+          councilConfig.chairmanMode === "auto"
+            ? true
+            : councilConfig.enablePeerReview,
+      };
+
+      // 5. Council実行
+      const result = await runStrategyCouncil(
+        prompt,
+        originalQuery,
+        analysisType,
+        finalConfig
+      );
+
+      // 6. 結果保存
+      await saveCouncilResult(db, userId, analysisType, result);
+
+      return result;
+    }),
+
+  /**
+   * 単一AI戦略分析（統合版）
+   */
+  runSingleAnalysis: publicProcedure
+    .input(
+      z.object({
+        userId: z.number().int().positive(),
+        analysisType: analysisTypeSchema,
+        aiProvider: z.enum(["claude", "chatgpt", "gemini", "grok"]),
+        // オプション: 手動でデータを指定する場合（未指定時はDBから取得）
+        marketData: z.any().optional(),
+        snsData: z.any().optional(),
+        products: z.array(z.any()).optional(),
+      })
+    )
+    .mutation(async ({ input }) => {
+      const { userId, analysisType, aiProvider, marketData, snsData, products } = input;
+      const startTime = Date.now();
+
+      console.log(`[Strategy] Single analysis: ${analysisType} with ${aiProvider}`);
+
+      // 1. データ取得（DB or 手動指定）
+      let data;
+      if (products || marketData || snsData) {
+        // 手動指定されたデータを使用
+        const dbData = await fetchStrategyData(userId);
+        data = {
+          products: products?.map((p: any) => ({
+            id: p.id ?? 0,
+            name: p.name ?? p.treatment ?? "",
+            category: p.category ?? "未分類",
+            price: p.price ?? p.sellingPrice ?? 0,
+            description: p.description,
+          })) ?? dbData.products,
+          marketData: marketData ? {
+            id: 0,
+            location: dbData.marketData?.location ?? "",
+            competitors: marketData.competitors,
+            priceRanges: marketData.pricing ?? marketData.priceRanges,
+            trends: marketData.trends,
+            createdAt: new Date(),
+          } : dbData.marketData,
+          snsData: snsData ? {
+            id: 0,
+            keywords: [],
+            instagramData: null,
+            twitterData: null,
+            tiktokData: null,
+            trends: snsData,
+            createdAt: new Date(),
+          } : dbData.snsData,
+          location: dbData.location,
+        };
+      } else {
+        // DBから取得
+        data = await fetchStrategyData(userId);
+      }
+
+      // 2. プロンプト生成（既存の詳細プロンプト）
+      const prompt = await buildPromptForAnalysisType(analysisType, data);
+
+      // 3. AI呼び出し
+      const content = await callAIWithTimeout(aiProvider, prompt, 60000);
+
+      // 4. 結果保存
+      await saveAnalysisResult(db, userId, analysisType, content, aiProvider, "single");
+
+      return {
+        content,
+        aiProvider,
+        durationMs: Date.now() - startTime,
+      };
+    }),
+
+  /**
+   * データ状態確認
+   */
+  getDataStatus: publicProcedure
+    .input(z.object({ userId: z.number().int().positive() }))
+    .query(async ({ input }) => {
+      return fetchDataStatus(input.userId);
+    }),
 });
+
+// ============================================================
+// 内部ヘルパー関数
+// ============================================================
+
+/**
+ * 単一AI分析結果を保存（内部関数）
+ */
+async function saveAnalysisResult(
+  db: typeof import("@/server/db").db,
+  userId: number,
+  analysisType: string,
+  content: string,
+  aiProvider: string,
+  mode: string
+) {
+  try {
+    await db.strategyRecommendation.create({
+      data: {
+        userId,
+        marketingStrategy: analysisType === "comprehensive" ? content : null,
+        priceRecommendations: analysisType === "pricing" ? content : null,
+        campaignProposals: analysisType === "campaign" ? content : null,
+        newTreatmentSuggestions: analysisType === "new-treatment" ? content : null,
+      },
+    });
+    console.log(`[Strategy] Saved ${mode} analysis result`);
+  } catch (e) {
+    console.warn("[Strategy] Failed to save result:", e);
+  }
+}
+
+/**
+ * Council分析結果を保存（内部関数）
+ */
+async function saveCouncilResult(
+  db: typeof import("@/server/db").db,
+  userId: number,
+  analysisType: string,
+  result: CouncilResult
+) {
+  try {
+    await db.strategyRecommendation.create({
+      data: {
+        userId,
+        marketingStrategy:
+          analysisType === "comprehensive" ? result.stage3.content : null,
+        priceRecommendations:
+          analysisType === "pricing" ? result.stage3.content : null,
+        campaignProposals:
+          analysisType === "campaign" ? result.stage3.content : null,
+        newTreatmentSuggestions:
+          analysisType === "new-treatment" ? result.stage3.content : null,
+      },
+    });
+    console.log(`[Strategy] Saved council analysis result`);
+  } catch (e) {
+    console.warn("[Strategy] Failed to save council result:", e);
+  }
+}
 

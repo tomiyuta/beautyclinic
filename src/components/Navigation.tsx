@@ -57,8 +57,8 @@ export function Navigation() {
         margin: "0 auto", 
         display: "flex", 
         flexDirection: "column",
-        alignItems: "center",
-        gap: "16px"
+        alignItems: "flex-start",
+        gap: "12px"
       }}>
         <div style={{ 
           display: "flex", 
@@ -66,21 +66,17 @@ export function Navigation() {
           justifyContent: "space-between",
           width: "100%"
         }}>
-          <motion.h1 
+          <h1 
             style={{ 
-              fontSize: "clamp(14px, 2.5vw, 18px)", 
+              fontSize: "16px", 
               fontWeight: 600, 
               color: "#172B4D",
               margin: 0,
-              textAlign: "center",
-              flex: 1
+              whiteSpace: "nowrap"
             }}
-            initial={{ opacity: 0, y: -10 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.3 }}
           >
             クリマケ(クリニック向けAI統合リサーチ)
-          </motion.h1>
+          </h1>
           
           {/* モバイルメニューボタン */}
           {isMobile && (
@@ -98,53 +94,56 @@ export function Navigation() {
           <div 
             style={{ 
               display: "flex", 
-              gap: "8px",
+              gap: "6px",
               flexWrap: "wrap",
-              justifyContent: "center",
-              width: "100%"
+              justifyContent: "flex-start",
+              width: "100%",
+              alignItems: "center",
+              marginTop: "8px"
             }}
           >
           {navigationItems.map((item, index) => {
             const isActive = pathname === item.href;
             return (
-              <motion.div
+              <div
                 key={item.href}
-                initial={{ opacity: 0, y: -10 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.3, delay: index * 0.05 }}
+                style={{ 
+                  flexShrink: 0,
+                  display: "inline-block"
+                }}
               >
-                <Link href={item.href} style={{ textDecoration: "none", position: "relative", display: "block" }}>
-                  <motion.div
-                    whileHover={{ scale: 1.05 }}
-                    whileTap={{ scale: 0.95 }}
-                    transition={{ duration: 0.2 }}
+                <Link 
+                  href={item.href} 
+                  style={{ 
+                    textDecoration: "none", 
+                    position: "relative", 
+                    display: "inline-block"
+                  }}
+                >
+                  <Button
+                    appearance={isActive ? "primary" : "subtle"}
+                    isSelected={isActive}
+                    style={{ 
+                      whiteSpace: "nowrap",
+                      background: isActive ? "#0052CC" : "#FFFFFF",
+                      border: isActive ? "1px solid #0052CC" : "1px solid #DFE1E6",
+                      color: isActive ? "#FFFFFF" : "#172B4D",
+                      fontWeight: isActive ? 600 : 400,
+                      fontSize: "13px",
+                      padding: "6px 12px",
+                      minHeight: "32px",
+                      borderRadius: "4px",
+                      cursor: "pointer",
+                      display: "inline-flex",
+                      alignItems: "center",
+                      justifyContent: "center"
+                    }}
                   >
-                    <Button
-                      appearance={isActive ? "primary" : "subtle"}
-                      isSelected={isActive}
-                    >
-                      <span style={{ marginRight: "6px" }}>{item.icon}</span>
-                      {!isTablet && <span>{item.label}</span>}
-                    </Button>
-                  </motion.div>
-                  {isActive && (
-                    <motion.div
-                      layoutId="activeIndicator"
-                      style={{
-                        height: "3px",
-                        background: "#0052CC",
-                        borderRadius: "2px 2px 0 0",
-                        marginTop: "4px",
-                        position: "absolute",
-                        left: 0,
-                        right: 0,
-                      }}
-                      initial={false}
-                      transition={{ duration: 0.3, ease: "easeOut" }}
-                    />
-                  )}
+                    <span style={{ marginRight: "6px", display: "inline-block" }}>{item.icon}</span>
+                    <span style={{ display: "inline-block" }}>{item.label}</span>
+                  </Button>
                 </Link>
-              </motion.div>
+              </div>
             );
           })}
         </div>
@@ -182,10 +181,19 @@ export function Navigation() {
                       <Button
                         appearance={isActive ? "primary" : "subtle"}
                         isSelected={isActive}
-                        style={{ width: "100%", justifyContent: "flex-start" }}
+                        style={{ 
+                          width: "100%", 
+                          justifyContent: "flex-start",
+                          background: isActive ? undefined : "#FFFFFF",
+                          border: isActive ? undefined : "1px solid #DFE1E6",
+                          color: isActive ? undefined : "#172B4D",
+                          fontWeight: isActive ? 600 : 400,
+                          fontSize: "14px",
+                          padding: "8px 12px"
+                        }}
                       >
                         <span style={{ marginRight: "8px" }}>{item.icon}</span>
-                        {item.label}
+                        <span style={{ color: isActive ? undefined : "#172B4D" }}>{item.label}</span>
                       </Button>
                     </Link>
                   );
