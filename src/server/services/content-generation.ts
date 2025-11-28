@@ -184,7 +184,7 @@ ${snsContext}
 - SNS調査結果を参考に、トレンドに合った内容にする
 - 現在の日付は${currentDateStr}です。${currentYear}年${currentMonth}月時点の最新情報を優先的に使用してください`;
 
-  const response = await callChatGPT(prompt);
+  const response = await callChatGPT(prompt, undefined, 2000, "gpt-5.1");
 
   // JSONとMarkdownを抽出
   const jsonMatch = response.match(/<CONSENSUS_JSON>\s*([\s\S]*?)\s*<\/CONSENSUS_JSON>/);
@@ -333,7 +333,7 @@ ${snsContext}
 - 医療広告ガイドラインに準拠（誇大表現禁止）
 - 現在の日付は${currentDateStr}です。${currentYear}年${currentMonth}月時点の最新情報を優先的に使用してください`;
 
-  const response = await callChatGPT(prompt);
+  const response = await callChatGPT(prompt, undefined, 2000, "gpt-5.1");
 
   // JSONとMarkdownを抽出
   const jsonMatch = response.match(/<CONSENSUS_JSON>\s*([\s\S]*?)\s*<\/CONSENSUS_JSON>/);
@@ -485,7 +485,7 @@ ${snsContext}
 - 実績がない場合は表現をぼかす
 - 現在の日付は${currentDateStr}です。${currentYear}年${currentMonth}月時点の最新情報を優先的に使用してください`;
 
-  const response = await callChatGPT(prompt);
+  const response = await callChatGPT(prompt, undefined, 2000, "gpt-5.1");
 
   // JSONとMarkdownを抽出
   const jsonMatch = response.match(/<CONSENSUS_JSON>\s*([\s\S]*?)\s*<\/CONSENSUS_JSON>/);

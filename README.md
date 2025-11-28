@@ -264,6 +264,23 @@ AIとの会話からタスクを自動抽出し、完了したタスクから再
 - 実装ステータスの管理
 - 戦略書のエクスポート（JSON、テキスト、PDF、Excel形式）
 
+##### 3.4 戦略分析結果ダウンロード機能 ⭐ **NEW**
+- **PDF形式ダウンロード**: 
+  - A4サイズ、日本語対応のPDF生成
+  - 表紙（分析情報、処理時間）+ 分析結果の構成
+  - Council分析対応（最終統合結果、ピアレビュー、各AI回答）
+  - Markdown→平文変換による見やすいレイアウト
+- **JSON形式ダウンロード**: 
+  - 構造化データ（開発者・データ分析用）
+  - 完全なメタデータ（分析ID、日時、AI、処理時間）
+  - 入力データ（商品選択、市場調査選択情報）
+- **UI統合**: 
+  - プログレス表示（生成中の進捗バー）
+  - エラーハンドリング（分かりやすいエラーメッセージ）
+  - 完了通知（成功メッセージとファイル情報）
+  - 情報パネル（ダウンロード内容の説明）
+- **ファイル名規則**: `戦略分析_{分析タイプ}_{AI名}_{日付}.{拡張子}`
+
 #### 4. コンテンツ生成機能群
 
 ##### 4.1 コンテンツ生成 (`/content`)
@@ -374,6 +391,7 @@ AIとの会話からタスクを自動抽出し、完了したタスクから再
 ### その他
 - **html2canvas 1.4.1**: フロントエンド画像エクスポート
 - **jspdf 3.0.3**: PDF生成
+- **file-saver 2.0.5**: ファイルダウンロード
 - **exceljs 4.4.0**: Excelエクスポート
 
 ### データベース
@@ -418,7 +436,10 @@ beautyproject/
 │   │   │   └── TaskEditor.tsx     # タスク編集コンポーネント
 │   │   ├── strategy/              # 戦略分析用コンポーネント
 │   │   │   ├── CouncilConfigPanel.tsx  # Council設定UI
-│   │   │   └── CouncilResultView.tsx   # Council結果表示UI
+│   │   │   ├── CouncilResultView.tsx   # Council結果表示UI
+│   │   │   ├── DownloadButton.tsx      # ダウンロードボタン ⭐ NEW
+│   │   │   ├── DownloadUtils.ts        # ダウンロードユーティリティ ⭐ NEW
+│   │   │   └── PDFGenerator.ts         # PDF生成ロジック ⭐ NEW
 │   │   └── Navigation.tsx        # ナビゲーション
 │   ├── features/                  # 機能別モジュール
 │   │   ├── api-key/               # APIキー管理機能
@@ -479,6 +500,8 @@ beautyproject/
 │   ├── archive/                   # アーカイブ
 │   ├── api/                       # APIドキュメント
 │   ├── deployment/                # デプロイドキュメント
+│   ├── design/                    # 設計ドキュメント
+│   │   └── ANALYSIS_DOWNLOAD_SPEC.md  # 戦略分析ダウンロード機能仕様 ⭐ NEW
 │   ├── features/                  # 機能ドキュメント
 │   └── implementation/            # 実装ドキュメント
 ├── scripts/                       # スクリプト
@@ -616,6 +639,10 @@ npm start
 3. 分析タイプを選択（総合分析、価格設定提案、キャンペーン案生成、新施術導入提案）
 4. 必要な情報を入力
 5. 分析を実行
+6. **結果のダウンロード** ⭐ **NEW**:
+   - 分析結果の右上にある「ダウンロード」ボタンをクリック
+   - PDF形式またはJSON形式を選択
+   - ファイルが自動的にダウンロードされる
 
 #### 5.2 Council合議制版
 
@@ -631,6 +658,10 @@ npm start
    - 最終統合結果
    - ピアレビュー結果（ランキング）
    - 各AIの個別回答
+7. **結果のダウンロード** ⭐ **NEW**:
+   - Council分析結果の右上にある「ダウンロード」ボタンをクリック
+   - PDF形式（全AI回答含む）またはJSON形式を選択
+   - ファイルが自動的にダウンロードされる
 
 ### 6. コンテンツ生成
 
@@ -848,7 +879,44 @@ npm run dev
 - `CHANGELOG_RECENT.md` - 最近の変更履歴
 - `PROJECT_STRUCTURE.md` - プロジェクト構造の詳細
 - `ACONTEXT_IMPLEMENTATION_STATUS.md` - Acontext実装状況
+- `docs/design/ANALYSIS_DOWNLOAD_SPEC.md` - 戦略分析ダウンロード機能仕様 ⭐ **NEW**
 - `docs/` - その他のドキュメント
+
+---
+
+## 🆕 最新の更新情報
+
+### 2024年11月28日 - 戦略分析結果ダウンロード機能リリース ⭐
+
+#### 📋 **Phase 1 実装完了**
+
+**新機能**:
+- **PDF基本ダウンロード**: A4サイズ、日本語対応のPDF生成
+- **JSON形式ダウンロード**: 構造化データ（開発者・データ分析用）
+- **UI統合**: プログレス表示、エラーハンドリング、完了通知
+
+**技術詳細**:
+- **ライブラリ**: `jsPDF 3.0.3`, `html2canvas 1.4.1`, `file-saver 2.0.5`
+- **対応分析**: 単一AI分析、Council合議制分析
+- **ファイル形式**: PDF（人間可読）、JSON（機械処理用）
+- **メタデータ**: 分析ID、日時、AI、処理時間、入力データ
+
+**新規ファイル**:
+- `src/components/strategy/DownloadButton.tsx` - ダウンロードUI
+- `src/components/strategy/PDFGenerator.ts` - PDF生成ロジック
+- `src/components/strategy/DownloadUtils.ts` - 共通ユーティリティ
+- `docs/design/ANALYSIS_DOWNLOAD_SPEC.md` - 機能仕様書
+
+**使用方法**:
+1. 戦略分析を実行
+2. 結果画面の右上「ダウンロード」ボタンをクリック
+3. PDF形式またはJSON形式を選択
+4. ファイルが自動ダウンロード
+
+**今後の予定（Phase 2）**:
+- Word形式ダウンロード（編集可能なドキュメント）
+- ダウンロード設定機能（カスタマイズオプション）
+- バッチダウンロード（複数結果の一括処理）
 
 ---
 

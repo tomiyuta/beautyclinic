@@ -140,54 +140,49 @@ async function fetchLatestMarketResearch(
 
   const latest = allResearch[0]!;
 
-  // processedDataをパースして構造化
+  // processedDataをパースして構造化（JSON形式のみで統一）
   let trends: any = null;
   let priceRanges: any = null;
   let competitors: any = null;
 
-  if (latest.processedData) {
+  // テキスト形式のデータをJSON形式に変換するヘルパー関数
+  const convertToJSON = (text: string, type: string): any => {
+    // 既にJSON形式の場合はそのまま返す
     try {
-      const parsed = JSON.parse(latest.processedData);
-      if (latest.researchType === "trend_analysis") {
-        trends = parsed;
-      } else if (latest.researchType === "price_research") {
-        priceRanges = parsed;
-      } else if (latest.researchType === "competitor_analysis") {
-        competitors = parsed;
-      }
+      return JSON.parse(text);
     } catch {
-      // JSONパース失敗時はそのまま使用
-      if (latest.researchType === "trend_analysis") {
-        trends = latest.processedData;
-      } else if (latest.researchType === "price_research") {
-        priceRanges = latest.processedData;
-      } else if (latest.researchType === "competitor_analysis") {
-        competitors = latest.processedData;
-      }
+      // テキスト形式の場合はJSON形式に変換
+      // 長文の場合は最初の5000文字に制限（トークン削減）
+      const truncatedText = text.length > 5000 ? text.substring(0, 5000) + "..." : text;
+      return {
+        type: type,
+        text: truncatedText,
+        summary: text.length > 5000 ? "データが長いため要約されています" : undefined,
+        originalLength: text.length,
+      };
+    }
+  };
+
+  if (latest.processedData) {
+    const parsed = convertToJSON(latest.processedData, latest.researchType);
+    if (latest.researchType === "trend_analysis") {
+      trends = parsed;
+    } else if (latest.researchType === "price_research") {
+      priceRanges = parsed;
+    } else if (latest.researchType === "competitor_analysis") {
+      competitors = parsed;
     }
   }
 
-  // 他の調査タイプのデータも取得
+  // 他の調査タイプのデータも取得（JSON形式に統一）
   if (trendResearch && trendResearch.processedData && trendResearch.id !== latest.id) {
-    try {
-      trends = JSON.parse(trendResearch.processedData);
-    } catch {
-      trends = trendResearch.processedData;
-    }
+    trends = convertToJSON(trendResearch.processedData, "trend_analysis");
   }
   if (priceResearch && priceResearch.processedData && priceResearch.id !== latest.id) {
-    try {
-      priceRanges = JSON.parse(priceResearch.processedData);
-    } catch {
-      priceRanges = priceResearch.processedData;
-    }
+    priceRanges = convertToJSON(priceResearch.processedData, "price_research");
   }
   if (competitorResearch && competitorResearch.processedData && competitorResearch.id !== latest.id) {
-    try {
-      competitors = JSON.parse(competitorResearch.processedData);
-    } catch {
-      competitors = competitorResearch.processedData;
-    }
+    competitors = convertToJSON(competitorResearch.processedData, "competitor_analysis");
   }
 
   return {
@@ -248,65 +243,55 @@ async function fetchLatestSNSResearch(
 
   const latest = allResearch[0]!;
 
-  // trendDataをパース
+  // trendDataをパース（JSON形式のみで統一）
   let trends: any = null;
   let instagramData: any = null;
   let twitterData: any = null;
   let tiktokData: any = null;
 
-  if (latest.trendData) {
+  // テキスト形式のデータをJSON形式に変換するヘルパー関数
+  const convertSNSDataToJSON = (text: string, platform: string): any => {
+    // 既にJSON形式の場合はそのまま返す
     try {
-      const parsed = JSON.parse(latest.trendData);
-      if (latest.platform === "instagram") {
-        instagramData = parsed;
-        trends = parsed;
-      } else if (latest.platform === "twitter") {
-        twitterData = parsed;
-        trends = parsed;
-      } else if (latest.platform === "tiktok") {
-        tiktokData = parsed;
-        trends = parsed;
-      } else if (latest.platform === "youtube") {
-        trends = parsed;
-      }
+      return JSON.parse(text);
     } catch {
-      // JSONパース失敗時はそのまま使用
-      if (latest.platform === "instagram") {
-        instagramData = latest.trendData;
-        trends = latest.trendData;
-      } else if (latest.platform === "twitter") {
-        twitterData = latest.trendData;
-        trends = latest.trendData;
-      } else if (latest.platform === "tiktok") {
-        tiktokData = latest.trendData;
-        trends = latest.trendData;
-      } else {
-        trends = latest.trendData;
-      }
+      // テキスト形式の場合はJSON形式に変換
+      // 長文の場合は最初の5000文字に制限（トークン削減）
+      const truncatedText = text.length > 5000 ? text.substring(0, 5000) + "..." : text;
+      return {
+        platform: platform,
+        text: truncatedText,
+        summary: text.length > 5000 ? "データが長いため要約されています" : undefined,
+        originalLength: text.length,
+      };
+    }
+  };
+
+  if (latest.trendData) {
+    const parsed = convertSNSDataToJSON(latest.trendData, latest.platform);
+    if (latest.platform === "instagram") {
+      instagramData = parsed;
+      trends = parsed;
+    } else if (latest.platform === "twitter") {
+      twitterData = parsed;
+      trends = parsed;
+    } else if (latest.platform === "tiktok") {
+      tiktokData = parsed;
+      trends = parsed;
+    } else if (latest.platform === "youtube") {
+      trends = parsed;
     }
   }
 
-  // 他のプラットフォームのデータも取得
+  // 他のプラットフォームのデータも取得（JSON形式に統一）
   if (instagram && instagram.trendData && instagram.id !== latest.id) {
-    try {
-      instagramData = JSON.parse(instagram.trendData);
-    } catch {
-      instagramData = instagram.trendData;
-    }
+    instagramData = convertSNSDataToJSON(instagram.trendData, "instagram");
   }
   if (twitter && twitter.trendData && twitter.id !== latest.id) {
-    try {
-      twitterData = JSON.parse(twitter.trendData);
-    } catch {
-      twitterData = twitter.trendData;
-    }
+    twitterData = convertSNSDataToJSON(twitter.trendData, "twitter");
   }
   if (tiktok && tiktok.trendData && tiktok.id !== latest.id) {
-    try {
-      tiktokData = JSON.parse(tiktok.trendData);
-    } catch {
-      tiktokData = tiktok.trendData;
-    }
+    tiktokData = convertSNSDataToJSON(tiktok.trendData, "tiktok");
   }
 
   // キーワードを集約

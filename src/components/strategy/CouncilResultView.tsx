@@ -6,10 +6,28 @@ import Tabs, { Tab, TabList, TabPanel } from "@atlaskit/tabs";
 import Spinner from "@atlaskit/spinner";
 import ReactMarkdown from "react-markdown";
 import type { CouncilResult, CouncilModel } from "@/types/ai-council";
+import DownloadButton from "./DownloadButton";
+import type { AnalysisResultData } from "./DownloadUtils";
 
 interface CouncilResultViewProps {
   result: CouncilResult | null;
   isLoading?: boolean;
+  // ダウンロード用の追加メタデータ
+  metadata?: {
+    analysisId?: string;
+    analysisType?: string;
+    userId?: number;
+    createdAt?: Date;
+    location?: string;
+  };
+  inputData?: {
+    productIds?: number[];
+    marketDataSelection?: {
+      trendIds?: number[];
+      priceIds?: number[];
+      competitorIds?: number[];
+    };
+  };
 }
 
 const MODEL_LABELS: Record<CouncilModel, string> = {
@@ -22,6 +40,8 @@ const MODEL_LABELS: Record<CouncilModel, string> = {
 export default function CouncilResultView({
   result,
   isLoading = false,
+  metadata,
+  inputData,
 }: CouncilResultViewProps) {
   const [selectedTab, setSelectedTab] = useState(0);
 
@@ -42,6 +62,20 @@ export default function CouncilResultView({
   }
 
   const validResponses = result.stage1.responses.filter((r) => !r.error);
+
+  // ダウンロード用データを準備
+  const downloadData: AnalysisResultData = {
+    councilResult: result,
+    metadata: {
+      analysisId: metadata?.analysisId || `council_${Date.now()}`,
+      analysisType: metadata?.analysisType || 'comprehensive',
+      analysisMode: 'council',
+      userId: metadata?.userId || 1,
+      createdAt: metadata?.createdAt || new Date(),
+      location: metadata?.location,
+    },
+    inputData,
+  };
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "24px" }}>
@@ -168,6 +202,9 @@ export default function CouncilResultView({
           )}
         </Tabs>
       </div>
+
+      {/* ダウンロードボタンを追加 */}
+      <DownloadButton data={downloadData} />
     </div>
   );
 }

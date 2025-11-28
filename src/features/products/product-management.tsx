@@ -18,12 +18,14 @@ import { SkeletonTable, SkeletonGrid } from "@/components/Skeleton";
 import { ProductCard } from "@/components/ProductCard";
 import { AnimatedTextField } from "@/components/AnimatedTextField";
 import { USER_ID_PLACEHOLDER } from "@/lib/constants";
+import { NumberInput } from "@/components/ui/NumberInput";
+import { PriceSimulation } from "@/components/ui/PriceSimulation";
 
 type FormState = {
   name: string;
   category: string;
-  costPrice: string;
-  sellingPrice: string;
+  costPrice: number;
+  sellingPrice: number;
   description: string;
   isActive: boolean;
 };
@@ -31,8 +33,8 @@ type FormState = {
 const defaultFormState: FormState = {
   name: "",
   category: "",
-  costPrice: "",
-  sellingPrice: "",
+  costPrice: 0,
+  sellingPrice: 0,
   description: "",
   isActive: true,
 };
@@ -73,17 +75,14 @@ export function ProductManagement() {
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
 
-    const costPrice = Number.parseInt(form.costPrice, 10);
-    const sellingPrice = Number.parseInt(form.sellingPrice, 10);
-
-    if (Number.isNaN(costPrice) || Number.isNaN(sellingPrice)) {
-      toast.showError("原価と販売価格は数値で入力してください");
+    if (!form.costPrice || !form.sellingPrice) {
+      toast.showError("原価と販売価格を入力してください");
       return;
     }
 
-    if (sellingPrice < costPrice) {
-      toast.showError("販売価格は原価以上で入力してください");
-      return;
+    if (form.sellingPrice < form.costPrice) {
+      toast.showWarning("販売価格が原価を下回っています。本当に登録しますか？");
+      // 警告は出すが、登録は継続
     }
 
     try {
@@ -91,8 +90,8 @@ export function ProductManagement() {
         userId: USER_ID_PLACEHOLDER,
         name: form.name.trim(),
         category: form.category.trim(),
-        costPrice,
-        sellingPrice,
+        costPrice: form.costPrice,
+        sellingPrice: form.sellingPrice,
         description: form.description.trim(),
         isActive: form.isActive,
       });
@@ -133,7 +132,7 @@ export function ProductManagement() {
 
   const onInputChange = (
     field: keyof FormState,
-    value: string | boolean,
+    value: string | boolean | number,
   ) => {
     setForm((prev) => ({
       ...prev,
@@ -142,9 +141,9 @@ export function ProductManagement() {
     
     // リアルタイムバリデーション
     if (field === "costPrice" || field === "sellingPrice") {
-      const numValue = typeof value === "string" ? Number.parseInt(value, 10) : 0;
-      if (value && Number.isNaN(numValue)) {
-        setErrors((prev) => ({ ...prev, [field]: "数値で入力してください" }));
+      const numValue = typeof value === "number" ? value : 0;
+      if (numValue < 0) {
+        setErrors((prev) => ({ ...prev, [field]: "0以上の値を入力してください" }));
       } else {
         setErrors((prev) => {
           const newErrors = { ...prev };
@@ -153,17 +152,10 @@ export function ProductManagement() {
         });
       }
       
-      // 販売価格と原価の比較
+      // 販売価格と原価の比較（警告のみ、エラーにはしない）
       if (field === "sellingPrice" && form.costPrice) {
-        const costPrice = Number.parseInt(form.costPrice, 10);
-        if (!Number.isNaN(costPrice) && !Number.isNaN(numValue) && numValue < costPrice) {
-          setErrors((prev) => ({ ...prev, sellingPrice: "販売価格は原価以上で入力してください" }));
-        } else {
-          setErrors((prev) => {
-            const newErrors = { ...prev };
-            delete newErrors.sellingPrice;
-            return newErrors;
-          });
+        if (numValue < form.costPrice) {
+          // 警告はPriceSimulationコンポーネントで表示されるため、ここでは何もしない
         }
       }
     } else if (field === "name" && typeof value === "string" && value.trim().length === 0) {
@@ -213,27 +205,31 @@ export function ProductManagement() {
               placeholder="例：美容皮膚科／美容内科"
               error={errors.category}
             />
-            <AnimatedTextField
+            <NumberInput
               label="原価 (円)"
               value={form.costPrice}
-              onChange={(value) => onInputChange("costPrice", value.replace(/[^0-9]/g, ""))}
+              onChange={(value) => onInputChange("costPrice", value)}
               placeholder="例：12000"
               required
-              type="text"
-              inputMode="numeric"
-              error={errors.costPrice}
+              min={0}
             />
-            <AnimatedTextField
+            <NumberInput
               label="販売価格 (円)"
               value={form.sellingPrice}
-              onChange={(value) => onInputChange("sellingPrice", value.replace(/[^0-9]/g, ""))}
+              onChange={(value) => onInputChange("sellingPrice", value)}
               placeholder="例：24800"
               required
-              type="text"
-              inputMode="numeric"
-              error={errors.sellingPrice}
+              min={0}
             />
           </div>
+
+          {/* 利益シミュレーション */}
+          {(form.costPrice > 0 || form.sellingPrice > 0) && (
+            <PriceSimulation
+              costPrice={form.costPrice}
+              sellingPrice={form.sellingPrice}
+            />
+          )}
 
           <div>
             <label style={{ display: "block", marginBottom: "8px", fontSize: "14px", fontWeight: 500, color: "#42526E" }}>

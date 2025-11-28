@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useEffect, useMemo } from "react";
+import { useState, useRef, useEffect, useMemo } from "react";
 import html2canvas from "html2canvas";
 import Button from "@atlaskit/button";
 import TextField from "@atlaskit/textfield";
@@ -45,8 +45,18 @@ import { CampaignInfoFields } from "./components/CampaignInfoFields";
 import { TemplateSelector } from "./components/TemplateSelector";
 import { InstagramLPPreview } from "./components/InstagramLPPreview";
 import { USER_ID_PLACEHOLDER } from "@/lib/constants";
+import { Wizard } from "@/components/Wizard";
+import {
+  Step1BasicSettings,
+  Step2CampaignInfo,
+  Step3DetailSettings,
+  Step4Confirmation,
+} from "./components/ContentGenerationSteps";
 
 export function ContentGeneration() {
+  const [currentStep, setCurrentStep] = useState(0);
+  const [useWizard, setUseWizard] = useState(true); // ウィザードモードの切り替え
+
   const formState = useContentGenerationFormState();
   const contentMutations = useContentMutations(formState);
   const handlers = useContentFormHandlers(formState);
@@ -613,6 +623,85 @@ export function ContentGeneration() {
 
   // handleContentTypeChangeはhandlersから取得済み
 
+  // ウィザードステップの定義
+  const wizardSteps = [
+    {
+      id: "basics",
+      title: "基本設定",
+      description: "コンテンツのカテゴリーとタイプを選択してください",
+      component: (
+        <Step1BasicSettings
+          formState={formState}
+          handlers={handlers}
+          templates={templatesQuery.data}
+          onApplyTemplate={handleApplyTemplate}
+          onDeleteTemplate={(id) => deleteTemplateMutation.mutate({ userId: USER_ID_PLACEHOLDER, id })}
+          isDeleting={deleteTemplateMutation.isPending}
+        />
+      ),
+    },
+    {
+      id: "campaign",
+      title: "キャンペーン情報",
+      description: "キャンペーンの詳細情報を入力してください",
+      component: (
+        <Step2CampaignInfo
+          formState={formState}
+          handlers={handlers}
+          templates={templatesQuery.data}
+          onApplyTemplate={handleApplyTemplate}
+          onDeleteTemplate={(id) => deleteTemplateMutation.mutate({ userId: USER_ID_PLACEHOLDER, id })}
+          isDeleting={deleteTemplateMutation.isPending}
+        />
+      ),
+    },
+    {
+      id: "details",
+      title: "詳細設定",
+      description: "コンテンツタイプに応じた詳細設定を行ってください",
+      component: (
+        <Step3DetailSettings
+          formState={formState}
+          handlers={handlers}
+          templates={templatesQuery.data}
+          onApplyTemplate={handleApplyTemplate}
+          onDeleteTemplate={(id) => deleteTemplateMutation.mutate({ userId: USER_ID_PLACEHOLDER, id })}
+          isDeleting={deleteTemplateMutation.isPending}
+        />
+      ),
+    },
+    {
+      id: "confirmation",
+      title: "確認",
+      description: "設定内容を確認して、コンテンツを生成してください",
+      component: <Step4Confirmation formState={formState} />,
+    },
+  ];
+
+  // 各ステップのバリデーション
+  const canGoNext = () => {
+    switch (currentStep) {
+      case 0: // Step 1: 基本設定
+        return contentCategory !== "" && contentType !== "";
+      case 1: // Step 2: キャンペーン情報
+        return campaignTitle.trim() !== "" && campaignDescription.trim() !== "";
+      case 2: // Step 3: 詳細設定
+        return true; // 詳細設定は任意項目が多いため常にtrue
+      case 3: // Step 4: 確認
+        return true;
+      default:
+        return false;
+    }
+  };
+
+  // ウィザード完了時の処理
+  const handleWizardComplete = async () => {
+    const fakeEvent = {
+      preventDefault: () => {},
+    } as React.FormEvent<HTMLFormElement>;
+    await handleSubmit(fakeEvent);
+  };
+
   return (
     <div style={{ maxWidth: "1000px", margin: "0 auto", padding: "48px 16px" }}>
       <header style={{ marginBottom: "40px" }}>
@@ -620,6 +709,7 @@ export function ContentGeneration() {
           <h1 style={{ fontSize: "24px", fontWeight: 600, margin: 0, color: "#172B4D" }}>
             コンテンツ生成
           </h1>
+          <div style={{ display: "flex", alignItems: "center", gap: "16px" }}>
           {currentAIInfo && (
             <div
               style={{
@@ -636,6 +726,13 @@ export function ContentGeneration() {
               使用AI: {(currentAIInfo as any).aiAgent?.toUpperCase() || 'CHATGPT'} ({(currentAIInfo as any).model || 'gpt-5.1'})
             </div>
           )}
+            <Button
+              appearance="subtle"
+              onClick={() => setUseWizard(!useWizard)}
+            >
+              {useWizard ? "従来モードに切替" : "ウィザードモードに切替"}
+            </Button>
+          </div>
         </div>
         <p style={{ fontSize: "14px", color: "#6B778C" }}>
           キャンペーン用のマーケティング素材を自動生成します
@@ -649,7 +746,21 @@ export function ContentGeneration() {
         </Banner>
       )}
 
-      {/* コンテンツ生成フォーム */}
+      {/* ウィザードモード */}
+      {useWizard ? (
+        <section style={{ marginBottom: "32px", padding: "32px", background: "#FFFFFF", borderRadius: "8px", border: "1px solid #DFE1E6" }}>
+          <Wizard
+            steps={wizardSteps}
+            currentStep={currentStep}
+            onStepChange={setCurrentStep}
+            onComplete={handleWizardComplete}
+            canGoNext={canGoNext()}
+            canGoBack={true}
+            isLoading={isPending}
+          />
+        </section>
+      ) : (
+        /* 従来のフォーム（後方互換性のため残す） */
       <section style={{ marginBottom: "32px", padding: "32px", background: "#FFFFFF", borderRadius: "8px", border: "1px solid #DFE1E6" }}>
         <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: "24px" }}>
           {/* カテゴリー選択 */}
@@ -948,6 +1059,7 @@ export function ContentGeneration() {
           </div>
         </form>
       </section>
+      )}
 
       {/* バッチ生成ダイアログ */}
       {showBatchDialog && (

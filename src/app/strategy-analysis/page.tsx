@@ -11,6 +11,7 @@ import CouncilConfigPanel from "@/components/strategy/CouncilConfigPanel";
 import CouncilResultView from "@/components/strategy/CouncilResultView";
 import SingleResultView from "@/components/strategy/SingleResultView";
 import DataStatusPanel from "@/components/strategy/DataStatusPanel";
+import MarketDataSelectionDrawer from "@/components/strategy/MarketDataSelectionDrawer";
 
 import type { CouncilConfig, CouncilModel, CouncilResult } from "@/types/ai-council";
 import { DEFAULT_COUNCIL_CONFIG } from "@/types/ai-council";
@@ -33,12 +34,27 @@ const AI_PROVIDER_OPTIONS: { label: string; value: AIProvider }[] = [
   { label: "Grok", value: "grok" },
 ];
 
+interface MarketDataSelection {
+  trendIds: number[];
+  priceIds: number[];
+  competitorIds: number[];
+}
+
 export default function StrategyAnalysisPage() {
   // 状態管理
   const [analysisType, setAnalysisType] = useState<StrategyAnalysisType>("comprehensive");
   const [analysisMode, setAnalysisMode] = useState<AnalysisMode>("single");
   const [aiProvider, setAiProvider] = useState<AIProvider>("claude");
   const [councilConfig, setCouncilConfig] = useState<CouncilConfig>(DEFAULT_COUNCIL_CONFIG);
+  
+  // 市場調査データ選択
+  const [isDrawerOpen, setIsDrawerOpen] = useState(false);
+  const [marketDataSelection, setMarketDataSelection] = useState<MarketDataSelection>({
+    trendIds: [],
+    priceIds: [],
+    competitorIds: [],
+  });
+  const [useCustomSelection, setUseCustomSelection] = useState(false);
 
   // 結果
   const [singleResult, setSingleResult] = useState<{
@@ -47,6 +63,10 @@ export default function StrategyAnalysisPage() {
     durationMs: number;
   } | null>(null);
   const [councilResult, setCouncilResult] = useState<CouncilResult | null>(null);
+  const [resultMetadata, setResultMetadata] = useState<{
+    analysisId: string;
+    createdAt: Date;
+  } | null>(null);
 
   // データ状態取得
   const { data: dataStatus, isLoading: isLoadingStatus } =
@@ -57,6 +77,10 @@ export default function StrategyAnalysisPage() {
     onSuccess: (data) => {
       setSingleResult(data);
       setCouncilResult(null);
+      setResultMetadata({
+        analysisId: `single_${Date.now()}`,
+        createdAt: new Date(),
+      });
     },
   });
 
@@ -64,6 +88,10 @@ export default function StrategyAnalysisPage() {
     onSuccess: (data) => {
       setCouncilResult(data);
       setSingleResult(null);
+      setResultMetadata({
+        analysisId: `council_${Date.now()}`,
+        createdAt: new Date(),
+      });
     },
   });
 
@@ -71,10 +99,20 @@ export default function StrategyAnalysisPage() {
 
   // 分析実行
   const handleAnalyze = () => {
+    const baseParams = {
+      userId: USER_ID_PLACEHOLDER,
+      analysisType,
+      // カスタム選択が有効で、何かしら選択されている場合のみ送信
+      ...(useCustomSelection && (
+        marketDataSelection.trendIds.length > 0 ||
+        marketDataSelection.priceIds.length > 0 ||
+        marketDataSelection.competitorIds.length > 0
+      ) && { marketDataSelection }),
+    };
+
     if (analysisMode === "single") {
       singleMutation.mutate({
-        userId: USER_ID_PLACEHOLDER,
-        analysisType,
+        ...baseParams,
         aiProvider,
       });
     } else {
@@ -89,11 +127,28 @@ export default function StrategyAnalysisPage() {
       }
 
       councilMutation.mutate({
-        userId: USER_ID_PLACEHOLDER,
-        analysisType,
+        ...baseParams,
         councilConfig,
       });
     }
+  };
+
+  // 選択状態の表示用
+  const getSelectionSummary = () => {
+    if (!useCustomSelection) return "自動選択（最新データ）";
+    
+    const parts = [];
+    if (marketDataSelection.trendIds.length > 0) {
+      parts.push(`トレンド: ${marketDataSelection.trendIds.length}件`);
+    }
+    if (marketDataSelection.priceIds.length > 0) {
+      parts.push(`価格: ${marketDataSelection.priceIds.length}件`);
+    }
+    if (marketDataSelection.competitorIds.length > 0) {
+      parts.push(`競合: ${marketDataSelection.competitorIds.length}件`);
+    }
+    
+    return parts.length > 0 ? parts.join(", ") : "未選択";
   };
 
   // データ不足警告
@@ -181,6 +236,74 @@ export default function StrategyAnalysisPage() {
             <DataStatusPanel status={dataStatus} isLoading={isLoadingStatus} />
           </div>
 
+          {/* 市場調査データ選択 */}
+          <div style={{ marginBottom: "24px" }}>
+            <label style={{ display: "block", marginBottom: "12px", fontSize: "14px", fontWeight: 500, color: "#172B4D" }}>
+              市場調査データの選択
+            </label>
+            
+            <div style={{ 
+              border: "1px solid #DFE1E6", 
+              borderRadius: "8px", 
+              padding: "16px",
+              background: "#F4F5F7"
+            }}>
+              <div style={{ display: "flex", alignItems: "center", gap: "12px", marginBottom: "12px" }}>
+                <input
+                  type="radio"
+                  id="auto-selection"
+                  name="data-selection"
+                  checked={!useCustomSelection}
+                  onChange={() => setUseCustomSelection(false)}
+                  disabled={isLoading}
+                />
+                <label htmlFor="auto-selection" style={{ fontSize: "14px", color: "#172B4D" }}>
+                  自動選択（各カテゴリの最新データ）
+                </label>
+              </div>
+              
+              <div style={{ display: "flex", alignItems: "center", gap: "12px", marginBottom: "12px" }}>
+                <input
+                  type="radio"
+                  id="custom-selection"
+                  name="data-selection"
+                  checked={useCustomSelection}
+                  onChange={() => setUseCustomSelection(true)}
+                  disabled={isLoading}
+                />
+                <label htmlFor="custom-selection" style={{ fontSize: "14px", color: "#172B4D" }}>
+                  カスタム選択（複数のAIデータを組み合わせ）
+                </label>
+              </div>
+              
+              {useCustomSelection && (
+                <div style={{ 
+                  marginTop: "16px", 
+                  paddingTop: "16px", 
+                  borderTop: "1px solid #DFE1E6" 
+                }}>
+                  <div style={{ 
+                    display: "flex", 
+                    alignItems: "center", 
+                    justifyContent: "space-between",
+                    marginBottom: "8px"
+                  }}>
+                    <span style={{ fontSize: "14px", color: "#172B4D" }}>
+                      選択状態: {getSelectionSummary()}
+                    </span>
+                    <Button
+                      appearance="subtle"
+                      onClick={() => setIsDrawerOpen(true)}
+                      isDisabled={isLoading}
+                    >
+                      データを選択
+                    </Button>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+
           {/* データ不足警告 */}
           {hasDataWarning && (
             <div style={{ marginBottom: "24px" }}>
@@ -222,13 +345,39 @@ export default function StrategyAnalysisPage() {
           <SingleResultView
             result={singleResult}
             isLoading={singleMutation.isPending}
+            metadata={resultMetadata ? {
+              analysisId: resultMetadata.analysisId,
+              analysisType,
+              userId: USER_ID_PLACEHOLDER,
+              createdAt: resultMetadata.createdAt,
+            } : undefined}
+            inputData={useCustomSelection ? {
+              marketDataSelection: marketDataSelection,
+            } : undefined}
           />
         ) : (
           <CouncilResultView
             result={councilResult}
             isLoading={councilMutation.isPending}
+            metadata={resultMetadata ? {
+              analysisId: resultMetadata.analysisId,
+              analysisType,
+              userId: USER_ID_PLACEHOLDER,
+              createdAt: resultMetadata.createdAt,
+            } : undefined}
+            inputData={useCustomSelection ? {
+              marketDataSelection: marketDataSelection,
+            } : undefined}
           />
         )}
+
+        {/* データ選択ドロワー */}
+        <MarketDataSelectionDrawer
+          isOpen={isDrawerOpen}
+          onClose={() => setIsDrawerOpen(false)}
+          selection={marketDataSelection}
+          onSelectionChange={setMarketDataSelection}
+        />
       </div>
     </main>
   );

@@ -3,6 +3,8 @@
 import Spinner from "@atlaskit/spinner";
 import ReactMarkdown from "react-markdown";
 import type { AIProvider } from "@/types/strategy";
+import DownloadButton from "./DownloadButton";
+import type { AnalysisResultData } from "./DownloadUtils";
 
 interface SingleResultViewProps {
   result: {
@@ -11,6 +13,22 @@ interface SingleResultViewProps {
     durationMs: number;
   } | null;
   isLoading?: boolean;
+  // ダウンロード用の追加メタデータ
+  metadata?: {
+    analysisId?: string;
+    analysisType?: string;
+    userId?: number;
+    createdAt?: Date;
+    location?: string;
+  };
+  inputData?: {
+    productIds?: number[];
+    marketDataSelection?: {
+      trendIds?: number[];
+      priceIds?: number[];
+      competitorIds?: number[];
+    };
+  };
 }
 
 const PROVIDER_LABELS: Record<AIProvider, string> = {
@@ -23,6 +41,8 @@ const PROVIDER_LABELS: Record<AIProvider, string> = {
 export default function SingleResultView({
   result,
   isLoading = false,
+  metadata,
+  inputData,
 }: SingleResultViewProps) {
   if (isLoading) {
     return (
@@ -37,6 +57,24 @@ export default function SingleResultView({
     return null;
   }
 
+  // ダウンロード用データを準備
+  const downloadData: AnalysisResultData = {
+    singleResult: {
+      content: result.content,
+      aiProvider: result.aiProvider,
+      durationMs: result.durationMs,
+    },
+    metadata: {
+      analysisId: metadata?.analysisId || `single_${Date.now()}`,
+      analysisType: metadata?.analysisType || 'comprehensive',
+      analysisMode: 'single',
+      userId: metadata?.userId || 1,
+      createdAt: metadata?.createdAt || new Date(),
+      location: metadata?.location,
+    },
+    inputData,
+  };
+
   return (
     <div style={{ borderRadius: "8px", border: "1px solid #DFE1E6", background: "#FFFFFF", padding: "24px" }}>
       <div style={{ marginBottom: "16px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
@@ -48,6 +86,9 @@ export default function SingleResultView({
       <div style={{ fontSize: "14px", lineHeight: "1.6", color: "#172B4D" }}>
         <ReactMarkdown>{result.content}</ReactMarkdown>
       </div>
+      
+      {/* ダウンロードボタンを追加 */}
+      <DownloadButton data={downloadData} />
     </div>
   );
 }

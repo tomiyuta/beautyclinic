@@ -8,7 +8,7 @@ export function useContentFormHandlers(formState: ContentGenerationFormState) {
     selection: { contentCategory, contentType, setContentType, setContentCategory },
     campaign: { campaignDescription, setCampaignDescription },
     text,
-    compliance: { setRealtimeCompliance, setIsCheckingCompliance, setHighlightedText },
+    compliance: { realtimeCompliance, setRealtimeCompliance, setIsCheckingCompliance, setHighlightedText },
   } = formState;
 
   const utils = api.useUtils();
@@ -94,14 +94,22 @@ export function useContentFormHandlers(formState: ContentGenerationFormState) {
     }, 500);
   };
 
-  // 代替案を適用
-  const handleApplySuggestion = (original: string, suggestion: string) => {
-    const newText = campaignDescription.replace(
-      new RegExp(original.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "g"),
-      suggestion
-    );
-    setCampaignDescription(newText);
-    handleCampaignDescriptionChange(newText);
+  // 代替案を適用（簡略化版：suggestionのみを受け取る）
+  const handleApplySuggestion = (suggestion: string) => {
+    // リアルタイムコンプライアンスの結果から元のテキストを取得して置換
+    if (realtimeCompliance?.suggestions && realtimeCompliance.suggestions.length > 0) {
+      let newText = campaignDescription;
+      realtimeCompliance.suggestions.forEach((s) => {
+        if (s.suggestion === suggestion) {
+          newText = newText.replace(
+            new RegExp(s.original.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "g"),
+            s.suggestion
+          );
+        }
+      });
+      setCampaignDescription(newText);
+      handleCampaignDescriptionChange(newText);
+    }
   };
 
   // コンテンツタイプが変更されたときにデフォルト値を設定

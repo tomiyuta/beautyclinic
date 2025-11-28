@@ -28,33 +28,33 @@ const navigationCategories: NavCategory[] = [
   {
     title: "リサーチ & 分析",
     items: [
-      { href: "/market-research", label: "市場調査", icon: "📊" },
-      { href: "/sns-research", label: "SNS調査", icon: "📱" },
-      { href: "/strategy-analysis", label: "戦略分析", icon: "🎯" },
+  { href: "/market-research", label: "市場調査", icon: "📊" },
+  { href: "/sns-research", label: "SNS調査", icon: "📱" },
+  { href: "/strategy-analysis", label: "戦略分析", icon: "🎯" },
     ],
   },
   {
     title: "戦略 & 実行",
     items: [
-      { href: "/strategy-management", label: "戦略管理", icon: "📋" },
-      { href: "/content", label: "コンテンツ生成", icon: "✨" },
-      { href: "/workflow", label: "ワークフロー管理", icon: "🔄" },
+  { href: "/strategy-management", label: "戦略管理", icon: "📋" },
+  { href: "/content", label: "コンテンツ生成", icon: "✨" },
+  { href: "/workflow", label: "ワークフロー管理", icon: "🔄" },
     ],
   },
   {
     title: "資産管理",
     items: [
       { href: "/products", label: "商品管理", icon: "📦" },
-      { href: "/prompt", label: "プロンプト管理", icon: "💬" },
+  { href: "/prompt", label: "プロンプト管理", icon: "💬" },
     ],
   },
   {
     title: "AIコンテキスト",
     items: [
       { href: "/ai-context", label: "ダッシュボード", icon: "🧠" },
-      { href: "/ai-context/spaces", label: "スペース管理", icon: "📁" },
-      { href: "/ai-context/skills", label: "スキル管理", icon: "🎯" },
-      { href: "/ai-context/metrics", label: "メトリクス", icon: "📊" },
+  { href: "/ai-context/spaces", label: "スペース管理", icon: "📁" },
+  { href: "/ai-context/skills", label: "スキル管理", icon: "🎯" },
+  { href: "/ai-context/metrics", label: "メトリクス", icon: "📊" },
       { href: "/ai-context/settings", label: "設定", icon: "⚙️" },
     ],
   },
@@ -74,6 +74,7 @@ export function Navigation() {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
   const [expandedCategory, setExpandedCategory] = useState<string | null>(null);
+  const [hoveredItem, setHoveredItem] = useState<string | null>(null);
 
   useEffect(() => {
     const checkScreenSize = () => {
@@ -107,33 +108,67 @@ export function Navigation() {
     return pathname === href || pathname.startsWith(href + "/");
   };
 
-  // デスクトップ用のナビゲーションボタン
+  // デスクトップ用のナビゲーションボタン（Magic Line対応）
   const NavButton = ({ item }: { item: NavItem }) => {
     const isActive = isItemActive(item.href);
+    const isHovered = hoveredItem === item.href;
+    
     return (
-      <Link href={item.href} style={{ textDecoration: "none" }}>
-        <Button
-          appearance={isActive ? "primary" : "subtle"}
-          isSelected={isActive}
-          style={{ 
-            whiteSpace: "nowrap",
-            background: isActive ? "#0052CC" : "#FFFFFF",
-            border: isActive ? "1px solid #0052CC" : "1px solid #DFE1E6",
-            color: isActive ? "#FFFFFF" : "#172B4D",
-            fontWeight: isActive ? 600 : 400,
-            fontSize: "13px",
-            padding: "6px 12px",
-            minHeight: "32px",
-            borderRadius: "4px",
-            cursor: "pointer",
-            display: "inline-flex",
-            alignItems: "center",
-            justifyContent: "center"
-          }}
+      <Link href={item.href} style={{ textDecoration: "none", position: "relative" }}>
+        <motion.div
+          onHoverStart={() => setHoveredItem(item.href)}
+          onHoverEnd={() => setHoveredItem(null)}
+          whileHover={{ scale: 1.02 }}
+          whileTap={{ scale: 0.98 }}
+          transition={{ duration: 0.2 }}
+          style={{ position: "relative" }}
         >
-          <span style={{ marginRight: "6px", display: "inline-block" }}>{item.icon}</span>
-          <span style={{ display: "inline-block" }}>{item.label}</span>
-        </Button>
+          <Button
+            appearance={isActive ? "primary" : "subtle"}
+            isSelected={isActive}
+            style={{ 
+              whiteSpace: "nowrap",
+              background: isActive ? "#0052CC" : isHovered ? "#F4F5F7" : "#FFFFFF",
+              border: isActive ? "1px solid #0052CC" : "1px solid #DFE1E6",
+              color: isActive ? "#FFFFFF" : "#172B4D",
+              fontWeight: isActive ? 600 : 400,
+              fontSize: "13px",
+              padding: "6px 12px",
+              minHeight: "32px",
+              borderRadius: "4px",
+              cursor: "pointer",
+              display: "inline-flex",
+              alignItems: "center",
+              justifyContent: "center",
+              transition: "background 0.2s ease, box-shadow 0.2s ease",
+              boxShadow: isHovered ? "0 2px 4px rgba(0,0,0,0.1)" : "none"
+            }}
+          >
+            <span style={{ marginRight: "6px", display: "inline-block" }}>{item.icon}</span>
+            <span style={{ display: "inline-block" }}>{item.label}</span>
+          </Button>
+          
+          {/* Magic Line - アクティブ時のアンダーライン */}
+          {isActive && (
+            <motion.div
+              layoutId="activeNavIndicator"
+              style={{
+                position: "absolute",
+                bottom: "-2px",
+                left: "0",
+                right: "0",
+                height: "3px",
+                background: "#0052CC",
+                borderRadius: "3px 3px 0 0",
+              }}
+              transition={{
+                type: "spring",
+                stiffness: 380,
+                damping: 30,
+              }}
+            />
+          )}
+        </motion.div>
       </Link>
     );
   };
@@ -176,7 +211,7 @@ export function Navigation() {
             }}>
               <span style={{ fontSize: "20px" }}>💎</span>
               クリマケ
-            </h1>
+          </h1>
           </Link>
           
           {/* モバイルメニューボタン */}
@@ -197,21 +232,21 @@ export function Navigation() {
         {/* デスクトップナビゲーション */}
         {!isMobile && (
           <div style={{ 
-            display: "flex", 
+              display: "flex", 
             flexDirection: "column",
             gap: "8px",
             marginTop: "4px"
           }}>
             {navigationCategories.map((category, categoryIndex) => (
-              <div 
+              <div
                 key={category.title}
                 style={{ 
                   display: "flex", 
                   alignItems: "center",
                   gap: "8px",
                   flexWrap: "wrap"
-                }}
-              >
+                  }}
+                >
                 {/* カテゴリラベル */}
                 <span style={{ 
                   fontSize: "11px", 
@@ -239,7 +274,7 @@ export function Navigation() {
                 </div>
               </div>
             ))}
-          </div>
+        </div>
         )}
 
         {/* モバイルメニュー */}
@@ -259,9 +294,9 @@ export function Navigation() {
                   marginTop: "8px"
                 }}
               >
-                <div style={{ 
-                  display: "flex", 
-                  flexDirection: "column",
+              <div style={{ 
+                display: "flex", 
+                flexDirection: "column",
                   padding: "8px"
                 }}>
                   {navigationCategories.map((category) => {
@@ -310,15 +345,15 @@ export function Navigation() {
                             >
                               {category.items.map((item) => {
                                 const isActive = isItemActive(item.href);
-                                return (
-                                  <Link 
-                                    key={item.href} 
-                                    href={item.href} 
-                                    style={{ textDecoration: "none" }}
-                                    onClick={() => setIsMobileMenuOpen(false)}
-                                  >
+                  return (
+                    <Link 
+                      key={item.href} 
+                      href={item.href} 
+                      style={{ textDecoration: "none" }}
+                      onClick={() => setIsMobileMenuOpen(false)}
+                    >
                                     <div
-                                      style={{
+                        style={{ 
                                         display: "flex",
                                         alignItems: "center",
                                         gap: "10px",
@@ -327,24 +362,24 @@ export function Navigation() {
                                         color: isActive ? "#FFFFFF" : "#172B4D",
                                         borderRadius: "6px",
                                         marginTop: "4px",
-                                        fontWeight: isActive ? 600 : 400,
-                                        fontSize: "14px",
-                                      }}
-                                    >
+                          fontWeight: isActive ? 600 : 400,
+                          fontSize: "14px",
+                        }}
+                      >
                                       <span style={{ fontSize: "16px" }}>{item.icon}</span>
                                       <span>{item.label}</span>
                                     </div>
-                                  </Link>
+                    </Link>
                                 );
                               })}
                             </motion.div>
                           )}
                         </AnimatePresence>
                       </div>
-                    );
-                  })}
-                </div>
-              </motion.div>
+                  );
+                })}
+              </div>
+            </motion.div>
             )}
           </AnimatePresence>
         )}

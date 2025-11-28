@@ -95,6 +95,11 @@ export const strategyRouter = router({
         productIds: z.array(z.number().int().positive()).optional(),
         includeMarketData: z.boolean().optional().default(true),
         includeSNSData: z.boolean().optional().default(true),
+        marketDataSelection: z.object({
+          trendIds: z.array(z.number()).optional(),
+          priceIds: z.array(z.number()).optional(),
+          competitorIds: z.array(z.number()).optional(),
+        }).optional(),
       }),
     )
     .mutation(async ({ input }) => {
@@ -122,44 +127,128 @@ export const strategyRouter = router({
           });
         }
 
-        // 市場調査データを取得
+        // 市場調査データを取得（複数選択対応）
         const marketData: {
-          trends: string | Record<string, unknown> | null;
-          pricing: string | Record<string, unknown> | null;
-          competitors: string | Record<string, unknown> | null;
+          trends: Array<{ source: string; date: string; data: any }> | null;
+          pricing: Array<{ source: string; date: string; data: any }> | null;
+          competitors: Array<{ source: string; date: string; data: any }> | null;
         } = { trends: null, pricing: null, competitors: null };
+        
         if (input.includeMarketData) {
-          const marketResults = await db.marketResearchResult.findMany({
-            where: { userId: input.userId },
-            orderBy: { createdAt: "desc" },
-            take: 10,
-          });
+          // テキスト形式のデータをJSON形式に変換するヘルパー関数
+          const convertMarketDataToJSON = (text: string, type: string): any => {
+            try {
+              return JSON.parse(text);
+            } catch {
+              // テキスト形式の場合はJSON形式に変換（長文の場合は5000文字に制限）
+              const truncatedText = text.length > 5000 ? text.substring(0, 5000) + "..." : text;
+              return {
+                type: type,
+                text: truncatedText,
+                summary: text.length > 5000 ? "データが長いため要約されています" : undefined,
+                originalLength: text.length,
+              };
+            }
+          };
 
-          marketResults.forEach((result) => {
-            if (result.processedData) {
-              // データを直接渡す（ラッパーを削除してトークン量を削減）
-              // JSON形式の場合はパース、テキスト形式の場合はそのまま
-              try {
-                const parsed = JSON.parse(result.processedData);
-                if (result.researchType === "trend_analysis") {
-                  marketData.trends = parsed;
-                } else if (result.researchType === "price_research") {
-                  marketData.pricing = parsed;
-                } else if (result.researchType === "competitor_analysis") {
-                  marketData.competitors = parsed;
-                }
-              } catch {
-                // JSONでない場合はテキスト形式としてそのまま使用
-                if (result.researchType === "trend_analysis") {
-                  marketData.trends = result.processedData;
-                } else if (result.researchType === "price_research") {
-                  marketData.pricing = result.processedData;
-                } else if (result.researchType === "competitor_analysis") {
-                  marketData.competitors = result.processedData;
+          // 複数選択されたIDがある場合は、それらを取得
+          if (input.marketDataSelection) {
+            const { trendIds, priceIds, competitorIds } = input.marketDataSelection;
+            
+            // トレンド分析データ
+            if (trendIds && trendIds.length > 0) {
+              const trendResults = await db.marketResearchResult.findMany({
+                where: { 
+                  userId: input.userId,
+                  id: { in: trendIds },
+                  researchType: "trend_analysis"
+                },
+                orderBy: { createdAt: "desc" },
+              });
+              marketData.trends = trendResults.map(result => ({
+                source: result.aiAgent,
+                date: result.createdAt.toISOString(),
+                data: result.processedData ? convertMarketDataToJSON(result.processedData, result.researchType) : null,
+              }));
+            }
+            
+            // 価格調査データ
+            if (priceIds && priceIds.length > 0) {
+              const priceResults = await db.marketResearchResult.findMany({
+                where: { 
+                  userId: input.userId,
+                  id: { in: priceIds },
+                  researchType: "price_research"
+                },
+                orderBy: { createdAt: "desc" },
+              });
+              marketData.pricing = priceResults.map(result => ({
+                source: result.aiAgent,
+                date: result.createdAt.toISOString(),
+                data: result.processedData ? convertMarketDataToJSON(result.processedData, result.researchType) : null,
+              }));
+            }
+            
+            // 競合分析データ
+            if (competitorIds && competitorIds.length > 0) {
+              const competitorResults = await db.marketResearchResult.findMany({
+                where: { 
+                  userId: input.userId,
+                  id: { in: competitorIds },
+                  researchType: "competitor_analysis"
+                },
+                orderBy: { createdAt: "desc" },
+              });
+              marketData.competitors = competitorResults.map(result => ({
+                source: result.aiAgent,
+                date: result.createdAt.toISOString(),
+                data: result.processedData ? convertMarketDataToJSON(result.processedData, result.researchType) : null,
+              }));
+            }
+          } else {
+            // 従来通り最新データを取得（後方互換性）
+            const marketResults = await db.marketResearchResult.findMany({
+              where: { userId: input.userId },
+              orderBy: { createdAt: "desc" },
+              take: 10,
+            });
+
+            const singleMarketData: {
+              trends: string | Record<string, unknown> | null;
+              pricing: string | Record<string, unknown> | null;
+              competitors: string | Record<string, unknown> | null;
+            } = { trends: null, pricing: null, competitors: null };
+
+            marketResults.forEach((result) => {
+              if (result.processedData) {
+                const parsed = convertMarketDataToJSON(result.processedData, result.researchType);
+                if (result.researchType === "trend_analysis" && !singleMarketData.trends) {
+                  singleMarketData.trends = parsed;
+                } else if (result.researchType === "price_research" && !singleMarketData.pricing) {
+                  singleMarketData.pricing = parsed;
+                } else if (result.researchType === "competitor_analysis" && !singleMarketData.competitors) {
+                  singleMarketData.competitors = parsed;
                 }
               }
-            }
-          });
+            });
+
+            // 単一データを配列形式に変換
+            marketData.trends = singleMarketData.trends ? [{ 
+              source: "auto", 
+              date: new Date().toISOString(), 
+              data: singleMarketData.trends 
+            }] : null;
+            marketData.pricing = singleMarketData.pricing ? [{ 
+              source: "auto", 
+              date: new Date().toISOString(), 
+              data: singleMarketData.pricing 
+            }] : null;
+            marketData.competitors = singleMarketData.competitors ? [{ 
+              source: "auto", 
+              date: new Date().toISOString(), 
+              data: singleMarketData.competitors 
+            }] : null;
+          }
         }
 
         // SNS調査データを取得
@@ -171,60 +260,73 @@ export const strategyRouter = router({
             take: 10,
           });
 
+          // テキスト形式のデータをJSON形式に変換するヘルパー関数
+          const convertSNSDataToJSON = (text: string, platform: string, aiAgent: string): Record<string, unknown> => {
+            // TikTok、YouTube、Instagramの場合は<CONSENSUS_JSON>セクションを抽出
+            if (platform === "tiktok" || platform === "youtube" || platform === "instagram") {
+              const consensusMatch = text.match(/<CONSENSUS_JSON>([\s\S]*?)<\/CONSENSUS_JSON>/);
+              if (consensusMatch) {
+                try {
+                  const parsed = JSON.parse(consensusMatch[1]!.trim());
+                  return {
+                    ...parsed,
+                    platform: platform,
+                    aiAgent: aiAgent,
+                  };
+                } catch {
+                  // JSONパースに失敗した場合は、テキストをJSON形式に変換
+                  const truncatedText = consensusMatch[1]!.trim().length > 5000 
+                    ? consensusMatch[1]!.trim().substring(0, 5000) + "..." 
+                    : consensusMatch[1]!.trim();
+                  return {
+                    platform: platform,
+                    aiAgent: aiAgent,
+                    text: truncatedText,
+                    summary: consensusMatch[1]!.trim().length > 5000 ? "データが長いため要約されています" : undefined,
+                    originalLength: consensusMatch[1]!.trim().length,
+                  };
+                }
+              }
+            }
+            
+            // 既にJSON形式の場合はそのまま使用
+            try {
+              const parsed = JSON.parse(text);
+              if (typeof parsed === "object" && parsed !== null && !Array.isArray(parsed)) {
+                return {
+                  ...parsed,
+                  platform: platform,
+                  aiAgent: aiAgent,
+                };
+              }
+              // 配列の場合はオブジェクトにラップ
+              return {
+                platform: platform,
+                aiAgent: aiAgent,
+                data: parsed,
+              };
+            } catch {
+              // テキスト形式の場合はJSON形式に変換（長文の場合は5000文字に制限）
+              const truncatedText = text.length > 5000 ? text.substring(0, 5000) + "..." : text;
+              return {
+                platform: platform,
+                aiAgent: aiAgent,
+                text: truncatedText,
+                summary: text.length > 5000 ? "データが長いため要約されています" : undefined,
+                originalLength: text.length,
+              };
+            }
+          };
+
           snsData = snsResults
             .map((result: { platform: string; aiAgent: string; trendData: string | null }) => {
               if (!result.trendData) {
                 return null;
               }
-              
-              // TikTok、YouTube、Instagramの場合は<CONSENSUS_JSON>セクションを抽出してJSON形式で送信
-              if (result.platform === "tiktok" || result.platform === "youtube" || result.platform === "instagram") {
-                const consensusMatch = result.trendData.match(/<CONSENSUS_JSON>([\s\S]*?)<\/CONSENSUS_JSON>/);
-                if (consensusMatch) {
-                  try {
-                    const parsed = JSON.parse(consensusMatch[1]!.trim());
-                    return {
-                      ...parsed,
-                      platform: result.platform,
-                      aiAgent: result.aiAgent,
-                    };
-                  } catch {
-                    // JSONパースに失敗した場合は、テキスト形式として扱う
-                    return {
-                      platform: result.platform,
-                      aiAgent: result.aiAgent,
-                      data: consensusMatch[1]!.trim(),
-                    };
-                  }
-                }
-                // <CONSENSUS_JSON>セクションがない場合は、全体をJSONとしてパースを試みる
-              }
-              
-              // その他のプラットフォームまたはTikTok/YouTube/Instagramで<CONSENSUS_JSON>がない場合
-              // JSON形式の場合はパース、テキスト形式の場合はそのまま
-              // プラットフォーム情報とAIエージェント情報を明示的に含める（Grokデータの識別のため）
-              try {
-                const parsed = JSON.parse(result.trendData);
-                // 既にオブジェクトの場合は、プラットフォーム情報を追加
-                if (typeof parsed === "object" && parsed !== null) {
-                  return {
-                    ...parsed,
-                    platform: result.platform,
-                    aiAgent: result.aiAgent,
-                  };
-                }
-                // 配列の場合はそのまま返す（プラットフォーム情報は含めない）
-                return parsed;
-              } catch {
-                // テキスト形式の場合は、プラットフォーム情報を含めたオブジェクトとして返す
-                return {
-                  platform: result.platform,
-                  aiAgent: result.aiAgent,
-                  data: result.trendData,
-                };
-              }
+              // JSON形式のみで統一
+              return convertSNSDataToJSON(result.trendData, result.platform, result.aiAgent);
             })
-            .filter((data): data is string | Record<string, unknown> => data !== null);
+            .filter((data): data is Record<string, unknown> => data !== null);
         }
 
         // AI APIで総合分析を実行（ユーザー設定に基づいてClaude/ChatGPT/Geminiを選択）
@@ -238,13 +340,20 @@ export const strategyRouter = router({
           category: p.category,
         }));
 
+        // marketDataを単一オブジェクト形式に変換（ChatGPT/Claude/Gemini用）
+        const singleMarketData = {
+          trends: marketData.trends?.[0]?.data || null,
+          pricing: marketData.pricing?.[0]?.data || null,
+          competitors: marketData.competitors?.[0]?.data || null,
+        };
+
         let result: string;
         if (aiProvider === "chatgpt") {
-          result = await chatgptAnalyzeMarketPosition(productData, marketData, snsData, input.location);
+          result = await chatgptAnalyzeMarketPosition(productData, singleMarketData, snsData, input.location);
         } else if (aiProvider === "gemini") {
-          result = await geminiAnalyzeMarketPosition(productData, marketData, snsData, input.location);
+          result = await geminiAnalyzeMarketPosition(productData, singleMarketData, snsData, input.location);
         } else {
-          result = await claudeAnalyzeMarketPosition(productData, marketData, snsData, input.location);
+          result = await claudeAnalyzeMarketPosition(productData, singleMarketData, snsData, input.location);
         }
 
         // データベースに保存（テキスト形式で保存）
@@ -418,60 +527,68 @@ export const strategyRouter = router({
           take: 10,
         });
 
+        // テキスト形式のデータをJSON形式に変換するヘルパー関数（generateCampaignProposals用）
+        const convertSNSDataToJSONForCampaign = (text: string, platform: string, aiAgent: string): Record<string, unknown> => {
+          if (platform === "tiktok" || platform === "youtube" || platform === "instagram") {
+            const consensusMatch = text.match(/<CONSENSUS_JSON>([\s\S]*?)<\/CONSENSUS_JSON>/);
+            if (consensusMatch) {
+              try {
+                const parsed = JSON.parse(consensusMatch[1]!.trim());
+                return {
+                  ...parsed,
+                  platform: platform,
+                  aiAgent: aiAgent,
+                };
+              } catch {
+                const truncatedText = consensusMatch[1]!.trim().length > 5000 
+                  ? consensusMatch[1]!.trim().substring(0, 5000) + "..." 
+                  : consensusMatch[1]!.trim();
+                return {
+                  platform: platform,
+                  aiAgent: aiAgent,
+                  text: truncatedText,
+                  summary: consensusMatch[1]!.trim().length > 5000 ? "データが長いため要約されています" : undefined,
+                  originalLength: consensusMatch[1]!.trim().length,
+                };
+              }
+            }
+          }
+          
+          try {
+            const parsed = JSON.parse(text);
+            if (typeof parsed === "object" && parsed !== null && !Array.isArray(parsed)) {
+              return {
+                ...parsed,
+                platform: platform,
+                aiAgent: aiAgent,
+              };
+            }
+            return {
+              platform: platform,
+              aiAgent: aiAgent,
+              data: parsed,
+            };
+          } catch {
+            const truncatedText = text.length > 5000 ? text.substring(0, 5000) + "..." : text;
+            return {
+              platform: platform,
+              aiAgent: aiAgent,
+              text: truncatedText,
+              summary: text.length > 5000 ? "データが長いため要約されています" : undefined,
+              originalLength: text.length,
+            };
+          }
+        };
+
         const snsData = snsResults
           .map((result) => {
             if (!result.trendData) {
               return null;
             }
-            
-            // TikTok、YouTube、Instagramの場合は<CONSENSUS_JSON>セクションを抽出してJSON形式で送信
-            if (result.platform === "tiktok" || result.platform === "youtube" || result.platform === "instagram") {
-              const consensusMatch = result.trendData.match(/<CONSENSUS_JSON>([\s\S]*?)<\/CONSENSUS_JSON>/);
-              if (consensusMatch) {
-                try {
-                  const parsed = JSON.parse(consensusMatch[1]!.trim());
-                  return {
-                    ...parsed,
-                    platform: result.platform,
-                    aiAgent: result.aiAgent,
-                  };
-                } catch {
-                  // JSONパースに失敗した場合は、テキスト形式として扱う
-                  return {
-                    platform: result.platform,
-                    aiAgent: result.aiAgent,
-                    data: consensusMatch[1]!.trim(),
-                  };
-                }
-              }
-              // <CONSENSUS_JSON>セクションがない場合は、全体をJSONとしてパースを試みる
-            }
-            
-            // その他のプラットフォームまたはTikTok/YouTube/Instagramで<CONSENSUS_JSON>がない場合
-            // データを直接渡す（ラッパーを削除してトークン量を削減）
-            // プラットフォーム情報とAIエージェント情報を明示的に含める（Grokデータの識別のため）
-            try {
-              const parsed = JSON.parse(result.trendData);
-              // 既にオブジェクトの場合は、プラットフォーム情報を追加
-              if (typeof parsed === "object" && parsed !== null && !Array.isArray(parsed)) {
-                return {
-                  ...parsed,
-                  platform: result.platform,
-                  aiAgent: result.aiAgent,
-                };
-              }
-              // 配列の場合はそのまま返す
-              return parsed;
-            } catch {
-              // テキスト形式の場合は、プラットフォーム情報を含めたオブジェクトとして返す
-              return {
-                platform: result.platform,
-                aiAgent: result.aiAgent,
-                data: result.trendData,
-              };
-            }
+            // JSON形式のみで統一
+            return convertSNSDataToJSONForCampaign(result.trendData, result.platform, result.aiAgent);
           })
-          .filter((data) => data !== null);
+          .filter((data): data is Record<string, unknown> => data !== null);
 
         // AI APIでキャンペーン案を生成（ユーザー設定に基づいてClaude/ChatGPT/Geminiを選択）
         const aiProvider = await getStrategyAIProvider(input.userId);
@@ -557,59 +674,68 @@ export const strategyRouter = router({
           take: 10,
         });
 
+        // テキスト形式のデータをJSON形式に変換するヘルパー関数（suggestNewTreatments用）
+        const convertSNSDataToJSONForTreatment = (text: string, platform: string, aiAgent: string): Record<string, unknown> => {
+          if (platform === "tiktok" || platform === "youtube" || platform === "instagram") {
+            const consensusMatch = text.match(/<CONSENSUS_JSON>([\s\S]*?)<\/CONSENSUS_JSON>/);
+            if (consensusMatch) {
+              try {
+                const parsed = JSON.parse(consensusMatch[1]!.trim());
+                return {
+                  ...parsed,
+                  platform: platform,
+                  aiAgent: aiAgent,
+                };
+              } catch {
+                const truncatedText = consensusMatch[1]!.trim().length > 5000 
+                  ? consensusMatch[1]!.trim().substring(0, 5000) + "..." 
+                  : consensusMatch[1]!.trim();
+                return {
+                  platform: platform,
+                  aiAgent: aiAgent,
+                  text: truncatedText,
+                  summary: consensusMatch[1]!.trim().length > 5000 ? "データが長いため要約されています" : undefined,
+                  originalLength: consensusMatch[1]!.trim().length,
+                };
+              }
+            }
+          }
+          
+          try {
+            const parsed = JSON.parse(text);
+            if (typeof parsed === "object" && parsed !== null && !Array.isArray(parsed)) {
+              return {
+                ...parsed,
+                platform: platform,
+                aiAgent: aiAgent,
+              };
+            }
+            return {
+              platform: platform,
+              aiAgent: aiAgent,
+              data: parsed,
+            };
+          } catch {
+            const truncatedText = text.length > 5000 ? text.substring(0, 5000) + "..." : text;
+            return {
+              platform: platform,
+              aiAgent: aiAgent,
+              text: truncatedText,
+              summary: text.length > 5000 ? "データが長いため要約されています" : undefined,
+              originalLength: text.length,
+            };
+          }
+        };
+
         const snsTrends = snsResults
           .map((result) => {
             if (!result.trendData) {
               return null;
             }
-            
-            // TikTok、YouTube、Instagramの場合は<CONSENSUS_JSON>セクションを抽出してJSON形式で送信
-            if (result.platform === "tiktok" || result.platform === "youtube" || result.platform === "instagram") {
-              const consensusMatch = result.trendData.match(/<CONSENSUS_JSON>([\s\S]*?)<\/CONSENSUS_JSON>/);
-              if (consensusMatch) {
-                try {
-                  const parsed = JSON.parse(consensusMatch[1]!.trim());
-                  return {
-                    ...parsed,
-                    platform: result.platform,
-                    aiAgent: result.aiAgent,
-                  };
-                } catch {
-                  // JSONパースに失敗した場合は、テキスト形式として扱う
-                  return {
-                    platform: result.platform,
-                    aiAgent: result.aiAgent,
-                    data: consensusMatch[1]!.trim(),
-                  };
-                }
-              }
-              // <CONSENSUS_JSON>セクションがない場合は、全体をJSONとしてパースを試みる
-            }
-            
-            // その他のプラットフォームまたはTikTok/YouTube/Instagramで<CONSENSUS_JSON>がない場合
-            // プラットフォーム情報とAIエージェント情報を明示的に含める（Grokデータの識別のため）
-            try {
-              const parsed = JSON.parse(result.trendData);
-              // 既にオブジェクトの場合は、プラットフォーム情報を追加
-              if (typeof parsed === "object" && parsed !== null && !Array.isArray(parsed)) {
-                return {
-                  ...parsed,
-                  platform: result.platform,
-                  aiAgent: result.aiAgent,
-                };
-              }
-              // 配列の場合はそのまま返す
-              return parsed;
-            } catch {
-              // テキスト形式の場合は、プラットフォーム情報を含めたオブジェクトとして返す
-              return {
-                platform: result.platform,
-                aiAgent: result.aiAgent,
-                data: result.trendData,
-              };
-            }
+            // JSON形式のみで統一
+            return convertSNSDataToJSONForTreatment(result.trendData, result.platform, result.aiAgent);
           })
-          .filter((data) => data !== null);
+          .filter((data): data is Record<string, unknown> => data !== null);
 
         // AI APIで新施術提案を実行（ユーザー設定に基づいてClaude/ChatGPT/Geminiを選択）
         const aiProvider = await getStrategyAIProvider(input.userId);
@@ -908,6 +1034,11 @@ export const strategyRouter = router({
         marketData: z.any().optional(),
         snsData: z.any().optional(),
         products: z.array(z.any()).optional(),
+        marketDataSelection: z.object({
+          trendIds: z.array(z.number()).optional(),
+          priceIds: z.array(z.number()).optional(),
+          competitorIds: z.array(z.number()).optional(),
+        }).optional(),
       })
     )
     .mutation(async ({ input }): Promise<CouncilResult> => {
@@ -994,6 +1125,11 @@ export const strategyRouter = router({
         marketData: z.any().optional(),
         snsData: z.any().optional(),
         products: z.array(z.any()).optional(),
+        marketDataSelection: z.object({
+          trendIds: z.array(z.number()).optional(),
+          priceIds: z.array(z.number()).optional(),
+          competitorIds: z.array(z.number()).optional(),
+        }).optional(),
       })
     )
     .mutation(async ({ input }) => {
@@ -1063,6 +1199,41 @@ export const strategyRouter = router({
     .query(async ({ input }) => {
       return fetchDataStatus(input.userId);
     }),
+
+  getMarketResearchHistory: publicProcedure
+    .input(z.object({ 
+      userId: z.number().int().positive(),
+      limit: z.number().optional().default(20)
+    }))
+    .query(async ({ input }) => {
+      const results = await db.marketResearchResult.findMany({
+        where: { userId: input.userId },
+        orderBy: { createdAt: "desc" },
+        take: input.limit,
+        select: {
+          id: true,
+          researchType: true,
+          aiAgent: true,
+          location: true,
+          createdAt: true,
+          processedData: true,
+        },
+      });
+
+      return results.map(result => ({
+        id: result.id,
+        researchType: result.researchType,
+        aiAgent: result.aiAgent,
+        location: result.location,
+        createdAt: result.createdAt,
+        preview: result.processedData ? 
+          (result.processedData.length > 100 ? 
+            result.processedData.substring(0, 100) + "..." : 
+            result.processedData) : 
+          "データなし",
+        tokenCount: result.processedData ? Math.ceil(result.processedData.length / 4) : 0,
+      }));
+    }),
 });
 
 // ============================================================
@@ -1124,4 +1295,128 @@ async function saveCouncilResult(
     console.warn("[Strategy] Failed to save council result:", e);
   }
 }
+
+// ダウンロード用のAPIを追加
+export const downloadRouter = router({
+  /**
+   * 分析結果をダウンロード用に取得
+   */
+  getAnalysisForDownload: publicProcedure
+    .input(
+      z.object({
+        userId: z.number().int().positive(),
+        analysisId: z.string().optional(),
+        includeInputData: z.boolean().default(false),
+        includeMetadata: z.boolean().default(true),
+      })
+    )
+    .query(async ({ input }) => {
+      try {
+        // 最新の戦略分析結果を取得
+        const strategyResult = await db.strategyRecommendation.findFirst({
+          where: { userId: input.userId },
+          orderBy: { createdAt: "desc" },
+        });
+
+        if (!strategyResult) {
+          throw new TRPCError({
+            code: "NOT_FOUND",
+            message: "分析結果が見つかりません",
+          });
+        }
+
+        const result = {
+          metadata: input.includeMetadata ? {
+            analysisId: input.analysisId || `analysis_${strategyResult.id}`,
+            userId: input.userId,
+            createdAt: strategyResult.createdAt,
+            analysisType: "comprehensive", // デフォルト
+          } : null,
+          content: strategyResult.marketingStrategy || 
+                  strategyResult.priceRecommendations || 
+                  strategyResult.campaignProposals || 
+                  strategyResult.newTreatmentSuggestions || "",
+        };
+
+        // 入力データを含める場合（オプション）
+        if (input.includeInputData) {
+          // 関連する市場調査・SNS調査データを取得
+          const [marketData, snsData] = await Promise.all([
+            db.marketResearchResult.findMany({
+              where: { userId: input.userId },
+              orderBy: { createdAt: "desc" },
+              take: 3,
+            }),
+            db.sNSResearchResult.findMany({
+              where: { userId: input.userId },
+              orderBy: { createdAt: "desc" },
+              take: 4,
+            }),
+          ]);
+
+          (result as any).inputData = {
+            marketDataCount: marketData.length,
+            snsDataCount: snsData.length,
+            lastMarketResearch: marketData[0]?.createdAt,
+            lastSNSResearch: snsData[0]?.createdAt,
+          };
+        }
+
+        return result;
+      } catch (error) {
+        console.error("[Download] Failed to get analysis for download:", error);
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: "ダウンロード用データの取得に失敗しました",
+        });
+      }
+    }),
+
+  /**
+   * 分析履歴一覧を取得（ダウンロード選択用）
+   */
+  getAnalysisHistory: publicProcedure
+    .input(
+      z.object({
+        userId: z.number().int().positive(),
+        limit: z.number().int().positive().max(100).default(20),
+      })
+    )
+    .query(async ({ input }) => {
+      try {
+        const results = await db.strategyRecommendation.findMany({
+          where: { userId: input.userId },
+          orderBy: { createdAt: "desc" },
+          take: input.limit,
+        });
+
+        return results.map((result) => ({
+          id: result.id,
+          createdAt: result.createdAt,
+          analysisType: result.marketingStrategy ? "comprehensive" :
+                       result.priceRecommendations ? "pricing" :
+                       result.campaignProposals ? "campaign" :
+                       result.newTreatmentSuggestions ? "new-treatment" : "unknown",
+          summary: (
+            result.marketingStrategy || 
+            result.priceRecommendations || 
+            result.campaignProposals || 
+            result.newTreatmentSuggestions || ""
+          ).substring(0, 100) + "...",
+          contentLength: (
+            result.marketingStrategy || 
+            result.priceRecommendations || 
+            result.campaignProposals || 
+            result.newTreatmentSuggestions || ""
+          ).length,
+        }));
+      } catch (error) {
+        console.error("[Download] Failed to get analysis history:", error);
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: "分析履歴の取得に失敗しました",
+        });
+      }
+    }),
+});
 

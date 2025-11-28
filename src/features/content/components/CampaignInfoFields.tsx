@@ -11,7 +11,7 @@ interface CampaignInfoFieldsProps {
   formState: ContentGenerationFormState;
   contentCategory: ContentCategory;
   onCampaignDescriptionChange: (value: string) => void;
-  onApplySuggestion: (original: string, suggestion: string) => void;
+  onApplySuggestion: (suggestion: string) => void;
 }
 
 export function CampaignInfoFields({
@@ -147,7 +147,7 @@ export function CampaignInfoFields({
                               </span>
                               <Button
                                 appearance="subtle"
-                                onClick={() => onApplySuggestion(suggestion.original, suggestion.suggestion)}
+                                onClick={() => onApplySuggestion(suggestion.suggestion)}
                               >
                                 適用
                               </Button>

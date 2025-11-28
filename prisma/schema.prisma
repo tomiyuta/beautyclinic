@@ -84,6 +84,9 @@ enum PromptType {
   claude_generate_price_recommendations
   claude_generate_campaign_proposals
   claude_suggest_new_treatments
+  claude_research_trend_analysis
+  claude_research_price_comparison
+  claude_research_competitor_analysis
   // Gemini
   gemini_research_trend_analysis
   gemini_research_price_comparison
@@ -93,11 +96,17 @@ enum PromptType {
   gemini_research_competitor_analysis
   // Grok
   grok_analyze_twitter_trends
+  grok_research_trend_analysis
+  grok_research_price_comparison
+  grok_research_competitor_analysis
   // ChatGPT
   chatgpt_system_prompt
   chatgpt_generate_instagram_lp
   chatgpt_generate_website_article
   chatgpt_generate_campaign_copy
+  chatgpt_research_trend_analysis
+  chatgpt_research_price_comparison
+  chatgpt_research_competitor_analysis
 }
 
 model ClinicProduct {
@@ -228,11 +237,12 @@ model PromptTemplate {
 }
 
 model UserSettings {
-  id                 Int      @id @default(autoincrement())
-  userId             Int      @unique
-  strategyAIProvider String   @default("chatgpt") @db.VarChar(20) // "claude" or "chatgpt"
-  createdAt          DateTime @default(now())
-  updatedAt          DateTime @updatedAt
+  id                     Int      @id @default(autoincrement())
+  userId                 Int      @unique
+  strategyAIProvider     String   @default("chatgpt") @db.VarChar(20) // "claude", "chatgpt", "gemini", "grok"
+  marketResearchAIProvider String @default("gemini") @db.VarChar(20) // "claude", "chatgpt", "gemini", "grok"
+  createdAt              DateTime @default(now())
+  updatedAt              DateTime @updatedAt
 
   @@map("userSettings")
 }

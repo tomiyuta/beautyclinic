@@ -6,7 +6,10 @@ if (!apiKey) {
   console.warn("OPENAI_API_KEY is not set. ChatGPT features will be disabled.");
 }
 
-const openai = apiKey ? new OpenAI({ apiKey }) : null;
+const openai = apiKey ? new OpenAI({ 
+  apiKey,
+  timeout: 300000, // 5分に延長（戦略分析は時間がかかるため）
+}) : null;
 
 // 成功したモデル名をキャッシュ（サーバー起動中は保持）
 let cachedModelName: string | null = null;
@@ -64,6 +67,7 @@ export async function callChatGPT(
   prompt: string,
   systemPrompt?: string,
   maxTokens: number = 2000,
+  model?: string, // オプショナル: 明示的にモデルを指定する場合
 ): Promise<string> {
   if (!openai) {
     throw new Error(
@@ -72,12 +76,8 @@ export async function callChatGPT(
   }
 
   try {
-    // 最新モデルを優先的に使用（2025年11月時点）
-    // 環境変数でモデルが指定されている場合はそれを使用
-    // 指定がない場合は、最新モデルから順に試行
-    const envModel = process.env.OPENAI_MODEL;
-    
     // 利用可能なモデル候補（優先順位順 - 最新版を最優先）
+    // 戦略分析・コンテンツ生成では最新モデル（GPT-5.1）を使用
     const MODEL_CANDIDATES = [
       "gpt-5.1",                    // GPT-5.1（最新・2025年11月リリース・API経由で利用可能・確認済み）
       "gpt-5",                       // GPT-5（最新・API経由で利用可能・確認済み）
@@ -89,17 +89,22 @@ export async function callChatGPT(
     let lastError: Error | null = null;
     let triedModels: string[] = [];
     
-    // 環境変数で指定されている場合はそのモデルのみを試行
-    // 指定がない場合は候補リストから順に試行
-    const modelsToTry = envModel ? [envModel] : MODEL_CANDIDATES;
+    // モデル指定の優先順位:
+    // 1. 関数引数で指定されたモデル（最優先）
+    // 2. 環境変数OPENAI_MODELで指定されたモデル
+    // 3. デフォルト候補リストから順に試行
+    const envModel = process.env.OPENAI_MODEL;
+    const modelsToTry = model ? [model] : (envModel ? [envModel] : MODEL_CANDIDATES);
     
     for (const model of modelsToTry) {
       triedModels.push(model);
       try {
         console.log(`[ChatGPT] Trying model: ${model}`);
         
-        // GPT-5.1/5.0ではmax_completion_tokensを使用、それ以外はmax_tokensを使用
+        // GPT-5シリーズ（gpt-5.1, gpt-5, gpt-5-mini）ではmax_completion_tokensを使用
+        // それ以外はmax_tokensを使用
         const isGPT5 = model.startsWith("gpt-5");
+        const isGPT5Mini = model.includes("mini");
         const requestParams: any = {
           model: model,
           messages: [
@@ -112,15 +117,36 @@ export async function callChatGPT(
               content: prompt,
             },
           ],
-          temperature: 0.8,
         };
         
-        // GPT-5.1/5.0ではmax_completion_tokens、それ以外はmax_tokensを使用
+        // gpt-5-miniはtemperatureパラメータをサポートしていない（デフォルト値1のみ）
+        // その他のモデルはtemperatureを設定
+        if (!isGPT5Mini) {
+          requestParams.temperature = 0.8;
+        }
+        
+        // GPT-5シリーズではmax_completion_tokensを使用
         if (isGPT5) {
           requestParams.max_completion_tokens = maxTokens;
+          // gpt-5-mini以外のGPT-5モデル（gpt-5.1, gpt-5）は推論機能があるため、reasoning_effortを設定
+          // gpt-5-miniは推論機能がないため、reasoning_effortは設定しない
+          if (!isGPT5Mini) {
+            // reasoning_effortをnoneに設定して推論を無効化
+            requestParams.reasoning_effort = "none";
+          }
         } else {
+          // GPT-4シリーズなどは通常のmax_tokensを使用
           requestParams.max_tokens = maxTokens;
         }
+        
+        // デバッグ: リクエストパラメータをログに出力
+        console.log(`[ChatGPT] Request params for ${model}:`, {
+          model: requestParams.model,
+          max_completion_tokens: requestParams.max_completion_tokens,
+          max_tokens: requestParams.max_tokens,
+          reasoning_effort: requestParams.reasoning_effort,
+          temperature: requestParams.temperature,
+        });
         
         const completion = await openai.chat.completions.create(requestParams);
 
@@ -129,6 +155,15 @@ export async function callChatGPT(
         if (!cachedModelName) {
           cachedModelName = model;
         }
+        
+        // デバッグ: レスポンスの詳細をログに出力
+        console.log(`[ChatGPT] Response details for ${model}:`, {
+          finish_reason: completion.choices[0]?.finish_reason,
+          usage: completion.usage,
+          has_content: !!completion.choices[0]?.message?.content,
+          content_length: completion.choices[0]?.message?.content?.length || 0,
+        });
+        
         const content = completion.choices[0]?.message?.content || "";
         
         // 空のレスポンスの場合は警告をログに記録し、次のモデルを試行
@@ -137,7 +172,27 @@ export async function callChatGPT(
             choices: completion.choices,
             usage: completion.usage,
             finishReason: completion.choices[0]?.finish_reason,
+            reasoning_tokens: completion.usage?.completion_tokens_details?.reasoning_tokens,
           });
+          
+          // GPT-5.1で推論トークンが全て使われている場合、GPT-4oにフォールバック
+          if (isGPT5 && completion.usage?.completion_tokens_details?.reasoning_tokens === maxTokens) {
+            console.warn(`[ChatGPT] GPT-5.1の推論トークンが全て消費されました。GPT-4oにフォールバックします。`);
+            // GPT-4oを使用して再試行
+            const fallbackParams = { ...requestParams };
+            fallbackParams.model = "gpt-4o";
+            delete fallbackParams.max_completion_tokens;
+            delete fallbackParams.reasoning_effort;
+            fallbackParams.max_tokens = maxTokens;
+            
+            const fallbackCompletion = await openai.chat.completions.create(fallbackParams);
+            const fallbackContent = fallbackCompletion.choices[0]?.message?.content || "";
+            if (fallbackContent && fallbackContent.trim().length > 0) {
+              console.log(`✓ Fallback to GPT-4o successful`);
+              const modelInfo = `【使用AIモデル: ChatGPT gpt-4o (GPT-5.1の推論制限によりフォールバック)】\n\n`;
+              return modelInfo + fallbackContent;
+            }
+          }
           
           // 空のレスポンスの場合は次のモデルを試行（最後のモデルでない場合）
           if (model !== modelsToTry[modelsToTry.length - 1]) {
@@ -292,7 +347,7 @@ ${webSearchResults}
     currentDate: currentDateStr
   });
 
-  return callChatGPT(prompt);
+  return callChatGPT(prompt, undefined, 2000, "gpt-5.1");
 }
 
 export async function generateWebsiteArticle(
@@ -362,7 +417,7 @@ ${webSearchResults}
     currentDate: currentDateStr
   });
 
-  return callChatGPT(prompt);
+  return callChatGPT(prompt, undefined, 2000, "gpt-5.1");
 }
 
 // 拡張されたテキスト生成オプション（要件定義書に基づく）
@@ -454,7 +509,7 @@ ${webSearchResults}
     currentDate: currentDateStr
   });
 
-  return callChatGPT(prompt);
+  return callChatGPT(prompt, undefined, 2000, "gpt-5.1");
 }
 
 /**
@@ -603,8 +658,15 @@ export async function analyzeMarketPosition(
     const userPromptWithWebSearch = `${userPrompt}\n\n${webSearchResults}`;
     
     console.log(`[ChatGPT analyzeMarketPosition] Using Claude prompt format (converted), systemPrompt length: ${systemPrompt.length}, userPrompt length: ${userPromptWithWebSearch.length}`);
+    console.log(`[ChatGPT analyzeMarketPosition] 推定トークン数: ${Math.ceil((systemPrompt.length + userPromptWithWebSearch.length) / 4)} tokens`);
     
-    const result = await callChatGPT(userPromptWithWebSearch, systemPrompt, 4096);
+    // プロンプトが非常に長い場合の警告
+    const totalLength = systemPrompt.length + userPromptWithWebSearch.length;
+    if (totalLength > 50000) {
+      console.warn(`[ChatGPT analyzeMarketPosition] ⚠️ 非常に長いプロンプト (${totalLength}文字) - タイムアウトの可能性があります`);
+    }
+    
+    const result = await callChatGPT(userPromptWithWebSearch, systemPrompt, 4096, "gpt-5.1");
     console.log(`[ChatGPT analyzeMarketPosition] Result length: ${result.length} characters`);
     return result;
   } catch (error) {
@@ -729,7 +791,7 @@ export async function generatePriceRecommendations(
     
     console.log(`[ChatGPT generatePriceRecommendations] Using Claude prompt format (converted), systemPrompt length: ${systemPrompt.length}, userPrompt length: ${userPromptWithWebSearch.length}`);
     
-    const result = await callChatGPT(userPromptWithWebSearch, systemPrompt, 4096);
+    const result = await callChatGPT(userPromptWithWebSearch, systemPrompt, 4096, "gpt-5.1");
     console.log(`[ChatGPT generatePriceRecommendations] Result length: ${result.length} characters`);
     return result;
   } catch (error) {
@@ -849,7 +911,7 @@ export async function generateCampaignProposals(
     
     console.log(`[ChatGPT generateCampaignProposals] Using Claude prompt format (converted), systemPrompt length: ${systemPrompt.length}, userPrompt length: ${userPromptWithWebSearch.length}`);
     
-    const result = await callChatGPT(userPromptWithWebSearch, systemPrompt, 4096);
+    const result = await callChatGPT(userPromptWithWebSearch, systemPrompt, 4096, "gpt-5.1");
     console.log(`[ChatGPT generateCampaignProposals] Result length: ${result.length} characters`);
     return result;
   } catch (error) {
@@ -998,7 +1060,7 @@ export async function suggestNewTreatments(
     
     let result: string;
     try {
-      result = await callChatGPT(userPromptWithWebSearch, systemPrompt, 4096);
+      result = await callChatGPT(userPromptWithWebSearch, systemPrompt, 4096, "gpt-5.1");
       console.log(`[ChatGPT suggestNewTreatments] Result length: ${result.length} characters`);
       console.log(`[ChatGPT suggestNewTreatments] Result preview (first 200 chars): ${result.substring(0, 200)}`);
     } catch (apiError) {
@@ -1100,7 +1162,7 @@ ${includeKeywords.length > 0 ? `- 以下のキーワードを自然に含めて�
 【出力形式】
 投稿文をそのまま出力してください（タイトルや説明は不要）。`;
 
-  const result = await callChatGPT(prompt);
+  const result = await callChatGPT(prompt, undefined, 2000, "gpt-5.1");
   
   // コンプライアンスチェック
   const { cleanTextForAdvertising } = await import("@/server/utils/advertising-guidelines");
@@ -1155,7 +1217,7 @@ ${includeKeywords.length > 0 ? `- 以下のキーワードを自然に含めて�
 【出力形式】
 広告文をそのまま出力してください。`;
 
-  const result = await callChatGPT(prompt);
+  const result = await callChatGPT(prompt, undefined, 2000, "gpt-5.1");
   
   // コンプライアンスチェック
   const { cleanTextForAdvertising } = await import("@/server/utils/advertising-guidelines");
@@ -1236,7 +1298,7 @@ ${includeKeywords.length > 0 ? `- 以下のキーワードを自然に含めて�
 【出力形式】
 タイトル、メタディスクリプション、見出し構造を含むブログ記事をMarkdown形式で出力してください。`;
 
-  const result = await callChatGPT(prompt);
+  const result = await callChatGPT(prompt, undefined, 2000, "gpt-5.1");
   
   // コンプライアンスチェック
   const { cleanTextForAdvertising } = await import("@/server/utils/advertising-guidelines");
@@ -1247,5 +1309,230 @@ ${includeKeywords.length > 0 ? `- 以下のキーワードを自然に含めて�
   }
   
   return cleanedText;
+}
+
+/**
+ * 市場調査: トレンド分析
+ */
+export async function researchTrendAnalysis(location: string): Promise<string> {
+  const currentDate = new Date();
+  const currentYear = currentDate.getFullYear();
+  const currentMonth = currentDate.getMonth() + 1;
+  const currentDateStr = `${currentYear}年${currentMonth}月`;
+
+  // Web検索を実行して最新情報を取得
+  let webSearchResults = "";
+  try {
+    const { performWebSearch, formatSearchResults, generateTrendSearchQuery } = await import("./web-search");
+    const searchQuery = generateTrendSearchQuery(location, currentYear, currentMonth);
+    console.log(`[ChatGPT Trend Analysis] Web検索実行: ${searchQuery}`);
+    const searchResults = await performWebSearch(searchQuery, 10);
+    webSearchResults = formatSearchResults(searchResults);
+    console.log(`[ChatGPT Trend Analysis] Web検索結果: ${searchResults.length}件取得`);
+  } catch (error) {
+    console.warn("[ChatGPT Trend Analysis] Web検索に失敗しましたが、続行します:", error);
+    webSearchResults = `【注意】Web検索APIが設定されていないため、最新情報の取得に制限があります。\n${error instanceof Error ? error.message : "Unknown error"}\n`;
+  }
+
+  const defaultPrompt = `あなたは美容皮膚科クリニックの市場調査専門家です。
+${location}で現在流行している美容施術・治療について調査してください。
+
+【重要】以下のWeb検索結果を基に、最新の情報を分析してください。
+現在の日付は${currentDateStr}です。${currentYear}年${currentMonth}月時点の最新情報を優先的に使用してください。
+
+${webSearchResults}
+
+【分析指示】
+以下の観点から、上記のWeb検索結果を基に分析してください：
+1. 人気の高い施術（ダーマペン、ボツリヌス注射、ヒアルロン酸注入など）
+2. 各施術の平均価格帯
+3. 新しく注目されている施術や技術
+4. 顧客ニーズの傾向
+
+【重要】
+- Web検索結果に含まれる最新の情報を優先的に使用してください
+- 2024年以前の古い情報は使用しないでください
+- 情報の出典（URL）を可能な限り明記してください
+- 調査結果のタイトルや冒頭には「${currentDateStr}時点のWeb情報に基づき実施」と記載してください
+
+わかりやすく読みやすい形式で調査結果をまとめてください。最後に、トレンド分析の総括を記載してください。`;
+
+  // プロンプトヘルパーを使わず、直接プロンプトを使用
+  // getPromptはaddWebResearchInstructionを自動追加するため、市場調査では直接プロンプトを使用
+  // defaultPromptは既にwebSearchResultsが展開された状態で作成されている
+  const prompt = defaultPrompt;
+  
+  console.log(`[ChatGPT Trend Analysis] プロンプト長: ${prompt.length}文字`);
+  console.log(`[ChatGPT Trend Analysis] Web検索結果の長さ: ${webSearchResults.length}文字`);
+  console.log(`[ChatGPT Trend Analysis] プロンプトの先頭500文字:`, prompt.substring(0, 500));
+  
+  try {
+    const result = await callChatGPT(prompt, undefined, 4096, "gpt-5.1");
+    
+    console.log(`[ChatGPT Trend Analysis] 結果の長さ: ${result.length}文字`);
+    if (result.length > 0) {
+      console.log(`[ChatGPT Trend Analysis] 結果の先頭200文字:`, result.substring(0, 200));
+    } else {
+      console.error(`[ChatGPT Trend Analysis] ⚠️ 空のレスポンスが返されました`);
+    }
+    
+    return result;
+  } catch (error) {
+    console.error(`[ChatGPT Trend Analysis] エラーが発生しました:`, error);
+    throw error;
+  }
+}
+
+/**
+ * 市場調査: 価格比較
+ */
+export async function researchPriceComparison(
+  treatments: string[],
+  cities: string[],
+): Promise<string> {
+  const currentDate = new Date();
+  const currentYear = currentDate.getFullYear();
+  const currentMonth = currentDate.getMonth() + 1;
+  const currentDateStr = `${currentYear}年${currentMonth}月`;
+
+  // Web検索を実行して最新情報を取得
+  let webSearchResults = "";
+  try {
+    const { performWebSearch, formatSearchResults, generatePriceSearchQuery } = await import("./web-search");
+    
+    console.log(`[ChatGPT Price Comparison] 入力パラメータ - 施術数: ${treatments.length}, 都市数: ${cities.length}`);
+    
+    // 複数の商品がある場合は、各商品ごとに検索を実行
+    const allSearchResults: Array<{ title: string; link: string; snippet: string; date?: string }> = [];
+    
+    if (treatments.length > 1) {
+      for (const treatment of treatments) {
+        try {
+          const searchQuery = generatePriceSearchQuery([treatment], cities, currentYear, currentMonth);
+          const searchResults = await performWebSearch(searchQuery, 10);
+          const enrichedResults = searchResults.map(result => ({
+            ...result,
+            snippet: `[商品: ${treatment}] ${result.snippet}`,
+          }));
+          allSearchResults.push(...enrichedResults);
+          await new Promise(resolve => setTimeout(resolve, 500));
+        } catch (error) {
+          console.warn(`[ChatGPT Price Comparison] 商品「${treatment}」のWeb検索に失敗しましたが、続行します:`, error);
+        }
+      }
+      
+      const uniqueResults = Array.from(
+        new Map(allSearchResults.map(result => [result.link, result])).values()
+      );
+      webSearchResults = formatSearchResults(uniqueResults);
+    } else {
+      const searchQuery = generatePriceSearchQuery(treatments, cities, currentYear, currentMonth);
+      const searchResults = await performWebSearch(searchQuery, 10);
+      webSearchResults = formatSearchResults(searchResults);
+    }
+  } catch (error) {
+    console.warn("[ChatGPT Price Comparison] Web検索に失敗しましたが、続行します:", error);
+    webSearchResults = `【注意】Web検索APIが設定されていないため、最新情報の取得に制限があります。\n${error instanceof Error ? error.message : "Unknown error"}\n`;
+  }
+
+  const defaultPrompt = `あなたは美容皮膚科クリニックの価格調査専門家です。
+以下の都市の美容クリニックでの施術価格を調査してください：
+
+都市: ${cities.join(", ")}
+施術: ${treatments.join(", ")}
+
+【重要】以下のWeb検索結果を基に、最新の価格情報を分析してください。
+現在の日付は${currentDateStr}です。${currentYear}年${currentMonth}月時点の最新情報を優先的に使用してください。
+
+${webSearchResults}
+
+【分析指示】
+各都市・各施術について、上記のWeb検索結果を基に以下の情報を含めてわかりやすくまとめてください：
+- 都市名
+- 施術名
+- 平均価格（数値）
+- 価格帯の説明
+- 調査件数（推定）
+- 情報の出典（URL）
+
+【重要】
+- Web検索結果に含まれる最新の価格情報を優先的に使用してください
+- 2024年以前の古い情報は使用しないでください
+- 情報の出典（URL）を可能な限り明記してください
+- 調査結果のタイトルや冒頭には「${currentDateStr}時点のWeb情報に基づき実施」と記載してください
+- 複数の施術が指定されている場合、各施術について個別に価格情報を調査・記載してください
+
+最後に、価格比較の総括を記載してください。`;
+
+  const { getPrompt, replacePlaceholders } = await import("./prompt-helper");
+  const template = await getPrompt("chatgpt_research_price_comparison", defaultPrompt);
+  const prompt = replacePlaceholders(template, { 
+    cities: cities.join(", "),
+    treatments: treatments.join(", "),
+    currentDate: currentDateStr,
+    webSearchResults: webSearchResults || "【注意】Web検索結果が取得できませんでした。"
+  });
+  
+  return callChatGPT(prompt, undefined, 4096, "gpt-5-mini");
+}
+
+/**
+ * 市場調査: 競合分析
+ */
+export async function researchCompetitorAnalysis(
+  location: string,
+  radius: number = 5,
+): Promise<string> {
+  const currentDate = new Date();
+  const currentYear = currentDate.getFullYear();
+  const currentMonth = currentDate.getMonth() + 1;
+  const currentDateStr = `${currentYear}年${currentMonth}月`;
+
+  // Web検索を実行して最新情報を取得
+  let webSearchResults = "";
+  try {
+    const { performWebSearch, formatSearchResults, generateCompetitorSearchQuery } = await import("./web-search");
+    const searchQuery = generateCompetitorSearchQuery(location, radius, currentYear, currentMonth);
+    console.log(`[ChatGPT Competitor Analysis] Web検索実行: ${searchQuery}`);
+    const searchResults = await performWebSearch(searchQuery, 10);
+    webSearchResults = formatSearchResults(searchResults);
+    console.log(`[ChatGPT Competitor Analysis] Web検索結果: ${searchResults.length}件取得`);
+  } catch (error) {
+    console.warn("[ChatGPT Competitor Analysis] Web検索に失敗しましたが、続行します:", error);
+    webSearchResults = `【注意】Web検索APIが設定されていないため、最新情報の取得に制限があります。\n${error instanceof Error ? error.message : "Unknown error"}\n`;
+  }
+
+  const defaultPrompt = `あなたは美容皮膚科クリニックの競合調査専門家です。
+${location}周辺${radius}km圏内の競合クリニックについて調査してください。
+
+【重要】以下のWeb検索結果を基に、最新の競合情報を分析してください。
+現在の日付は${currentDateStr}です。${currentYear}年${currentMonth}月時点の最新情報を優先的に使用してください。
+
+${webSearchResults}
+
+【分析指示】
+以下の情報を、上記のWeb検索結果を基に収集してください：
+1. 競合クリニックの名前と場所
+2. 提供している主要な施術・治療
+3. 各施術の価格設定
+4. 特徴や強み
+
+【重要】
+- Web検索結果に含まれる最新の情報を優先的に使用してください
+- 2024年以前の古い情報は使用しないでください
+- 情報の出典（URL）を可能な限り明記してください
+- 調査結果のタイトルや冒頭には「${currentDateStr}時点のWeb情報に基づき実施」と記載してください
+
+各競合クリニックについて、わかりやすく読みやすい形式でまとめてください。最後に、競合分析の総括を記載してください。`;
+
+  const { getPrompt, replacePlaceholders } = await import("./prompt-helper");
+  const template = await getPrompt("chatgpt_research_competitor_analysis", defaultPrompt);
+  const prompt = replacePlaceholders(template, { 
+    location,
+    radius: radius.toString(),
+    webSearchResults: webSearchResults || "【注意】Web検索結果が取得できませんでした。"
+  });
+  
+  return callChatGPT(prompt, undefined, 4096, "gpt-5-mini");
 }
 

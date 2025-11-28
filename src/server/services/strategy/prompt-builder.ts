@@ -143,6 +143,43 @@ function formatProducts(products: ProductData[]): string {
 
 function formatMarketData(data?: MarketResearchData): string {
   if (!data) return "データなし";
+  
+  // 複数データの場合（配列形式）の処理
+  if (Array.isArray(data.trends) || Array.isArray(data.priceRanges) || Array.isArray(data.competitors)) {
+    const multiData: any = {};
+    
+    if (Array.isArray(data.trends)) {
+      multiData.trends = data.trends.map((item: any) => ({
+        source: item.source,
+        date: item.date,
+        location: item.location,
+        data: item.data,
+      }));
+    }
+    
+    if (Array.isArray(data.priceRanges)) {
+      multiData.priceRanges = data.priceRanges.map((item: any) => ({
+        source: item.source,
+        date: item.date,
+        location: item.location,
+        data: item.data,
+      }));
+    }
+    
+    if (Array.isArray(data.competitors)) {
+      multiData.competitors = data.competitors.map((item: any) => ({
+        source: item.source,
+        date: item.date,
+        location: item.location,
+        data: item.data,
+      }));
+    }
+    
+    const jsonData = JSON.stringify(multiData, null, 2);
+    return `\`\`\`json\n${jsonData}\n\`\`\``;
+  }
+  
+  // 従来の単一データ形式
   const jsonData = JSON.stringify(
     {
       location: data.location,
@@ -176,12 +213,40 @@ function formatSNSData(data?: SNSResearchData): string {
 
 function formatMarketPricing(data?: MarketResearchData): string {
   if (!data) return "データなし";
+  
+  // 複数データの場合
+  if (Array.isArray(data.priceRanges)) {
+    const multiPricing = data.priceRanges.map((item: any) => ({
+      source: item.source,
+      date: item.date,
+      location: item.location,
+      data: item.data,
+    }));
+    const jsonData = JSON.stringify(multiPricing, null, 2);
+    return `\`\`\`json\n${jsonData}\n\`\`\``;
+  }
+  
+  // 従来の単一データ形式
   const jsonData = JSON.stringify(data.priceRanges, null, 2);
   return `\`\`\`json\n${jsonData}\n\`\`\``;
 }
 
 function formatTrends(data?: MarketResearchData): string {
   if (!data || !data.trends) return "データなし";
+  
+  // 複数データの場合
+  if (Array.isArray(data.trends)) {
+    const multiTrends = data.trends.map((item: any) => ({
+      source: item.source,
+      date: item.date,
+      location: item.location,
+      data: item.data,
+    }));
+    const jsonData = JSON.stringify(multiTrends, null, 2);
+    return `\`\`\`json\n${jsonData}\n\`\`\``;
+  }
+  
+  // 従来の単一データ形式
   const jsonData = JSON.stringify(data.trends, null, 2);
   return `\`\`\`json\n${jsonData}\n\`\`\``;
 }
