@@ -12,11 +12,10 @@ import EmptyState from "@atlaskit/empty-state";
 import { api } from "@/trpc/react";
 import { TRPCClientError } from "@trpc/client";
 import { useToastContext } from "@/components/ToastProvider";
+import { USER_ID_PLACEHOLDER } from "@/lib/constants";
 
 type SNSPlatform = "twitter" | "instagram" | "youtube" | "tiktok";
 type TimeRange = "last_week" | "last_month" | "last_3months";
-
-const USER_ID_PLACEHOLDER = 1;
 
 const platformOptions = [
   { label: "Twitter/X (Grok API)", value: "twitter" },

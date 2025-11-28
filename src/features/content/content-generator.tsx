@@ -13,8 +13,7 @@ import EmptyState from "@atlaskit/empty-state";
 import Checkbox from "@atlaskit/checkbox";
 import { api } from "@/trpc/react";
 import { TRPCClientError } from "@trpc/client";
-
-const USER_ID_PLACEHOLDER = 1;
+import { USER_ID_PLACEHOLDER } from "@/lib/constants";
 
 // コンテンツタイプオプション（要件定義書に基づく）
 const contentTypeOptions = [

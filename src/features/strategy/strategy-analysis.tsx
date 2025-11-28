@@ -14,8 +14,7 @@ import Link from "next/link";
 import { api } from "@/trpc/react";
 import { TRPCClientError } from "@trpc/client";
 import { useToastContext } from "@/components/ToastProvider";
-
-const USER_ID_PLACEHOLDER = 1;
+import { USER_ID_PLACEHOLDER } from "@/lib/constants";
 
 export function StrategyAnalysis() {
   const [location, setLocation] = useState("");

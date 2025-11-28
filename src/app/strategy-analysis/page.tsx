@@ -15,8 +15,7 @@ import DataStatusPanel from "@/components/strategy/DataStatusPanel";
 import type { CouncilConfig, CouncilModel, CouncilResult } from "@/types/ai-council";
 import { DEFAULT_COUNCIL_CONFIG } from "@/types/ai-council";
 import type { AnalysisMode, StrategyAnalysisType, AIProvider } from "@/types/strategy";
-
-const USER_ID_PLACEHOLDER = 1;
+import { USER_ID_PLACEHOLDER } from "@/lib/constants";
 
 // 分析タイプ選択肢
 const ANALYSIS_TYPE_OPTIONS = [

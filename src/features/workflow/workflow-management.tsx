@@ -9,8 +9,7 @@ import Spinner from "@atlaskit/spinner";
 import EmptyState from "@atlaskit/empty-state";
 import { api } from "@/trpc/react";
 import { TRPCClientError } from "@trpc/client";
-
-const USER_ID_PLACEHOLDER = 1;
+import { USER_ID_PLACEHOLDER } from "@/lib/constants";
 
 interface WorkflowStep {
   id: string;

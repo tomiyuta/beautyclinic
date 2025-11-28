@@ -12,10 +12,9 @@ import EmptyState from "@atlaskit/empty-state";
 import { api } from "@/trpc/react";
 import { TRPCClientError } from "@trpc/client";
 import { useToastContext } from "@/components/ToastProvider";
+import { USER_ID_PLACEHOLDER } from "@/lib/constants";
 
 type ResearchType = "trend_analysis" | "price_research" | "competitor_analysis";
-
-const USER_ID_PLACEHOLDER = 1;
 
 const researchTypeOptions = [
   { label: "トレンド分析", value: "trend_analysis" },

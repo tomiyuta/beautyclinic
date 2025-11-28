@@ -21,6 +21,7 @@ import {
   getArtifact,
   listArtifacts,
 } from "@/server/services/ai-context/storage-adapter";
+import { USER_ID_PLACEHOLDER } from "@/lib/constants";
 
 export const aiSessionRouter = router({
   /**
@@ -286,7 +287,6 @@ export const aiSessionRouter = router({
       })
     )
     .query(async ({ input }) => {
-      const USER_ID_PLACEHOLDER = 1;
       const startDate = new Date();
       startDate.setDate(startDate.getDate() - input.days);
 
@@ -325,7 +325,6 @@ export const aiSessionRouter = router({
       })
     )
     .query(async ({ input }) => {
-      const USER_ID_PLACEHOLDER = 1;
       // スペース指定の処理
       let spaceIds: string[] = [];
       if (input.spaceId) {

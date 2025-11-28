@@ -5,10 +5,9 @@ import {
   videoContentTypeOptions,
   getDefaultMaxLength,
 } from "../constants/content-type-options";
+import { USER_ID_PLACEHOLDER } from "@/lib/constants";
 
 type MutationsReturnType = ReturnType<typeof useContentMutations>;
-
-const USER_ID_PLACEHOLDER = 1;
 
 export function useContentSubmit(
   formState: ContentGenerationFormState,

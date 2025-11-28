@@ -17,6 +17,7 @@ import { useConfirmModal } from "@/components/ConfirmModal";
 import { SkeletonTable, SkeletonGrid } from "@/components/Skeleton";
 import { ProductCard } from "@/components/ProductCard";
 import { AnimatedTextField } from "@/components/AnimatedTextField";
+import { USER_ID_PLACEHOLDER } from "@/lib/constants";
 
 type FormState = {
   name: string;
@@ -35,8 +36,6 @@ const defaultFormState: FormState = {
   description: "",
   isActive: true,
 };
-
-const USER_ID_PLACEHOLDER = 1;
 
 export function ProductManagement() {
   const utils = api.useUtils();

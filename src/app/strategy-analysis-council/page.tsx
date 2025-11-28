@@ -14,8 +14,7 @@ import CouncilConfigPanel from "@/components/strategy/CouncilConfigPanel";
 import CouncilResultView from "@/components/strategy/CouncilResultView";
 import type { CouncilConfig, CouncilModel, CouncilResult } from "@/types/ai-council";
 import { DEFAULT_COUNCIL_CONFIG } from "@/types/ai-council";
-
-const USER_ID_PLACEHOLDER = 1;
+import { USER_ID_PLACEHOLDER } from "@/lib/constants";
 
 // 分析モード
 type AnalysisMode = "single" | "council";

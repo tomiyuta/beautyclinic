@@ -6,8 +6,7 @@ import { z } from "zod";
 import { publicProcedure, router } from "../trpc";
 import { db } from "@/server/db";
 import { searchSkills } from "@/server/services/ai-context/skill-search";
-
-const USER_ID_PLACEHOLDER = 1;
+import { USER_ID_PLACEHOLDER } from "@/lib/constants";
 
 export const aiSkillRouter = router({
   // スキル一覧

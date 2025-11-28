@@ -1,8 +1,7 @@
 import { useRef, useEffect } from "react";
 import type { ContentGenerationFormState } from "./useContentGenerationFormState";
 import { api } from "@/trpc/react";
-
-const USER_ID_PLACEHOLDER = 1;
+import { USER_ID_PLACEHOLDER } from "@/lib/constants";
 
 export function useContentFormHandlers(formState: ContentGenerationFormState) {
   const {

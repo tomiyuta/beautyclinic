@@ -1,8 +1,7 @@
 import { api } from "@/trpc/react";
 import { TRPCClientError } from "@trpc/client";
 import type { ContentGenerationFormState } from "./useContentGenerationFormState";
-
-const USER_ID_PLACEHOLDER = 1;
+import { USER_ID_PLACEHOLDER } from "@/lib/constants";
 
 export function useContentMutations(formState: ContentGenerationFormState) {
   const utils = api.useUtils();

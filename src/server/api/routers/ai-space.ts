@@ -5,8 +5,7 @@
 import { z } from "zod";
 import { publicProcedure, router } from "../trpc";
 import { db } from "@/server/db";
-
-const USER_ID_PLACEHOLDER = 1;
+import { USER_ID_PLACEHOLDER } from "@/lib/constants";
 
 export const aiSpaceRouter = router({
   // スペース作成
