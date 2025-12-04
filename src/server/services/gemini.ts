@@ -684,19 +684,13 @@ export async function researchTrendAnalysis(location: string): Promise<string> {
   const currentMonth = currentDate.getMonth() + 1; // 0-11なので+1
   const currentDateStr = `${currentYear}年${currentMonth}月`;
 
-  // Web検索を実行して最新情報を取得
-  let webSearchResults = "";
-  try {
-    const { performWebSearch, formatSearchResults, generateTrendSearchQuery } = await import("./web-search");
-    const searchQuery = generateTrendSearchQuery(location, currentYear, currentMonth);
-    console.log(`[Trend Analysis] Web検索実行: ${searchQuery}`);
-    const searchResults = await performWebSearch(searchQuery, 10);
-    webSearchResults = formatSearchResults(searchResults);
-    console.log(`[Trend Analysis] Web検索結果: ${searchResults.length}件取得`);
-  } catch (error) {
-    console.warn("[Trend Analysis] Web検索に失敗しましたが、続行します:", error);
-    webSearchResults = `【注意】Web検索APIが設定されていないため、最新情報の取得に制限があります。\n${error instanceof Error ? error.message : "Unknown error"}\n`;
-  }
+  // Web検索を実行して最新情報を取得（SerpAPI必須）
+  const { performWebSearchWithSerpAPIOnly, formatSearchResults, generateTrendSearchQuery } = await import("./web-search");
+  const searchQuery = generateTrendSearchQuery(location, currentYear, currentMonth);
+  console.log(`[Trend Analysis] Web検索実行: ${searchQuery}`);
+  const searchResults = await performWebSearchWithSerpAPIOnly(searchQuery, 10);
+  const webSearchResults = formatSearchResults(searchResults);
+  console.log(`[Trend Analysis] Web検索結果: ${searchResults.length}件取得`);
 
   const defaultPrompt = `あなたは美容皮膚科クリニックの市場調査専門家です。
 ${location}で現在流行している美容施術・治療について調査してください。
@@ -745,61 +739,52 @@ export async function researchPriceComparison(
 
   // Web検索を実行して最新情報を取得
   // 複数の商品がある場合は、各商品ごとに検索を実行して結果を統合
-  let webSearchResults = "";
-  try {
-    const { performWebSearch, formatSearchResults, generatePriceSearchQuery } = await import("./web-search");
+  // Web検索を実行して最新情報を取得（SerpAPI必須）
+  const { performWebSearchWithSerpAPIOnly, formatSearchResults, generatePriceSearchQuery } = await import("./web-search");
+  
+  console.log(`[Price Comparison] 入力パラメータ - 施術数: ${treatments.length}, 都市数: ${cities.length}`);
+  console.log(`[Price Comparison] 施術: ${treatments.join(", ")}`);
+  console.log(`[Price Comparison] 都市: ${cities.join(", ")}`);
+  
+  // 複数の商品がある場合は、各商品ごとに検索を実行
+  const allSearchResults: Array<{ title: string; link: string; snippet: string; date?: string }> = [];
+  
+  if (treatments.length > 1) {
+    // 複数の商品がある場合、各商品ごとに検索を実行
+    console.log(`[Price Comparison] 複数商品検出（${treatments.length}件）。各商品ごとに検索を実行します。`);
     
-    console.log(`[Price Comparison] 入力パラメータ - 施術数: ${treatments.length}, 都市数: ${cities.length}`);
-    console.log(`[Price Comparison] 施術: ${treatments.join(", ")}`);
-    console.log(`[Price Comparison] 都市: ${cities.join(", ")}`);
-    
-    // 複数の商品がある場合は、各商品ごとに検索を実行
-    const allSearchResults: Array<{ title: string; link: string; snippet: string; date?: string }> = [];
-    
-    if (treatments.length > 1) {
-      // 複数の商品がある場合、各商品ごとに検索を実行
-      console.log(`[Price Comparison] 複数商品検出（${treatments.length}件）。各商品ごとに検索を実行します。`);
+    for (const treatment of treatments) {
+      const searchQuery = generatePriceSearchQuery([treatment], cities, currentYear, currentMonth);
+      console.log(`[Price Comparison] 商品「${treatment}」のWeb検索実行: ${searchQuery}`);
+      const searchResults = await performWebSearchWithSerpAPIOnly(searchQuery, 10);
+      console.log(`[Price Comparison] 商品「${treatment}」のWeb検索結果: ${searchResults.length}件取得`);
       
-      for (const treatment of treatments) {
-        try {
-          const searchQuery = generatePriceSearchQuery([treatment], cities, currentYear, currentMonth);
-          console.log(`[Price Comparison] 商品「${treatment}」のWeb検索実行: ${searchQuery}`);
-          const searchResults = await performWebSearch(searchQuery, 10);
-          console.log(`[Price Comparison] 商品「${treatment}」のWeb検索結果: ${searchResults.length}件取得`);
-          
-          // 検索結果に商品名を追加して識別しやすくする
-          const enrichedResults = searchResults.map(result => ({
-            ...result,
-            snippet: `[商品: ${treatment}] ${result.snippet}`,
-          }));
-          
-          allSearchResults.push(...enrichedResults);
-          
-          // 検索間隔を設ける（APIレート制限対策）
-          await new Promise(resolve => setTimeout(resolve, 500));
-        } catch (error) {
-          console.warn(`[Price Comparison] 商品「${treatment}」のWeb検索に失敗しましたが、続行します:`, error);
-        }
-      }
+      // 検索結果に商品名を追加して識別しやすくする
+      const enrichedResults = searchResults.map(result => ({
+        ...result,
+        snippet: `[商品: ${treatment}] ${result.snippet}`,
+      }));
       
-      // 重複を除去（URLベース）
-      const uniqueResults = Array.from(
-        new Map(allSearchResults.map(result => [result.link, result])).values()
-      );
+      allSearchResults.push(...enrichedResults);
       
-      webSearchResults = formatSearchResults(uniqueResults);
-      console.log(`[Price Comparison] 統合されたWeb検索結果: ${uniqueResults.length}件（重複除去後）`);
-    } else {
-      // 単一商品の場合は従来通り1回の検索
-      const searchQuery = generatePriceSearchQuery(treatments, cities, currentYear, currentMonth);
-      console.log(`[Price Comparison] Web検索実行: ${searchQuery}`);
-      const searchResults = await performWebSearch(searchQuery, 10);
-      webSearchResults = formatSearchResults(searchResults);
-      console.log(`[Price Comparison] Web検索結果: ${searchResults.length}件取得`);
+      // 検索間隔を設ける（APIレート制限対策）
+      await new Promise(resolve => setTimeout(resolve, 500));
     }
-  } catch (error) {
-    console.warn("[Price Comparison] Web検索に失敗しましたが、続行します:", error);
-    webSearchResults = `【注意】Web検索APIが設定されていないため、最新情報の取得に制限があります。\n${error instanceof Error ? error.message : "Unknown error"}\n`;
+    
+    // 重複を除去（URLベース）
+    const uniqueResults = Array.from(
+      new Map(allSearchResults.map(result => [result.link, result])).values()
+    );
+    
+    var webSearchResults = formatSearchResults(uniqueResults);
+    console.log(`[Price Comparison] 統合されたWeb検索結果: ${uniqueResults.length}件（重複除去後）`);
+  } else {
+    // 単一商品の場合は従来通り1回の検索
+    const searchQuery = generatePriceSearchQuery(treatments, cities, currentYear, currentMonth);
+    console.log(`[Price Comparison] Web検索実行: ${searchQuery}`);
+    const searchResults = await performWebSearchWithSerpAPIOnly(searchQuery, 10);
+    var webSearchResults = formatSearchResults(searchResults);
+    console.log(`[Price Comparison] Web検索結果: ${searchResults.length}件取得`);
   }
 
   const defaultPrompt = `あなたは美容皮膚科クリニックの価格調査専門家です。
@@ -871,19 +856,13 @@ export async function analyzeInstagramTrends(
     last_3months: "過去3ヶ月",
   }[timeRange];
 
-  // Web検索を実行して最新情報を取得
-  let webSearchResults = "";
-  try {
-    const { performWebSearch, formatSearchResults, generateInstagramTrendSearchQuery } = await import("./web-search");
-    const searchQuery = generateInstagramTrendSearchQuery(keywords, currentYear, currentMonth);
-    console.log(`[Instagram Trends] Web検索実行: ${searchQuery}`);
-    const searchResults = await performWebSearch(searchQuery, 10);
-    webSearchResults = formatSearchResults(searchResults);
-    console.log(`[Instagram Trends] Web検索結果: ${searchResults.length}件取得`);
-  } catch (error) {
-    console.warn("[Instagram Trends] Web検索に失敗しましたが、続行します:", error);
-    webSearchResults = `【注意】Web検索APIが設定されていないため、最新情報の取得に制限があります。\n${error instanceof Error ? error.message : "Unknown error"}\n`;
-  }
+  // Web検索を実行して最新情報を取得（SerpAPI必須）
+  const { performWebSearchWithSerpAPIOnly, formatSearchResults, generateInstagramTrendSearchQuery } = await import("./web-search");
+  const searchQuery = generateInstagramTrendSearchQuery(keywords, currentYear, currentMonth);
+  console.log(`[Instagram Trends] Web検索実行: ${searchQuery}`);
+  const searchResults = await performWebSearchWithSerpAPIOnly(searchQuery, 10);
+  const webSearchResults = formatSearchResults(searchResults);
+  console.log(`[Instagram Trends] Web検索結果: ${searchResults.length}件取得`);
 
   const defaultPrompt = `<SYS>
 
@@ -1331,19 +1310,13 @@ export async function analyzeTikTokTrends(
     last_3months: "過去3ヶ月",
   }[timeRange];
 
-  // Web検索を実行して最新情報を取得
-  let webSearchResults = "";
-  try {
-    const { performWebSearch, formatSearchResults, generateTikTokTrendSearchQuery } = await import("./web-search");
-    const searchQuery = generateTikTokTrendSearchQuery(keywords, currentYear, currentMonth);
-    console.log(`[TikTok Trends] Web検索実行: ${searchQuery}`);
-    const searchResults = await performWebSearch(searchQuery, 10);
-    webSearchResults = formatSearchResults(searchResults);
-    console.log(`[TikTok Trends] Web検索結果: ${searchResults.length}件取得`);
-  } catch (error) {
-    console.warn("[TikTok Trends] Web検索に失敗しましたが、続行します:", error);
-    webSearchResults = `【注意】Web検索APIが設定されていないため、最新情報の取得に制限があります。\n${error instanceof Error ? error.message : "Unknown error"}\n`;
-  }
+  // Web検索を実行して最新情報を取得（SerpAPI必須）
+  const { performWebSearchWithSerpAPIOnly, formatSearchResults, generateTikTokTrendSearchQuery } = await import("./web-search");
+  const searchQuery = generateTikTokTrendSearchQuery(keywords, currentYear, currentMonth);
+  console.log(`[TikTok Trends] Web検索実行: ${searchQuery}`);
+  const searchResults = await performWebSearchWithSerpAPIOnly(searchQuery, 10);
+  const webSearchResults = formatSearchResults(searchResults);
+  console.log(`[TikTok Trends] Web検索結果: ${searchResults.length}件取得`);
 
   const defaultPrompt = `<SYS>
 
@@ -1713,19 +1686,13 @@ export async function analyzeYouTubeTrends(
     last_3months: "過去3ヶ月",
   }[timeRange];
 
-  // Web検索を実行して最新情報を取得
-  let webSearchResults = "";
-  try {
-    const { performWebSearch, formatSearchResults, generateYouTubeTrendSearchQuery } = await import("./web-search");
-    const searchQuery = generateYouTubeTrendSearchQuery(keywords, currentYear, currentMonth);
-    console.log(`[YouTube Trends] Web検索実行: ${searchQuery}`);
-    const searchResults = await performWebSearch(searchQuery, 10);
-    webSearchResults = formatSearchResults(searchResults);
-    console.log(`[YouTube Trends] Web検索結果: ${searchResults.length}件取得`);
-  } catch (error) {
-    console.warn("[YouTube Trends] Web検索に失敗しましたが、続行します:", error);
-    webSearchResults = `【注意】Web検索APIが設定されていないため、最新情報の取得に制限があります。\n${error instanceof Error ? error.message : "Unknown error"}\n`;
-  }
+  // Web検索を実行して最新情報を取得（SerpAPI必須）
+  const { performWebSearchWithSerpAPIOnly, formatSearchResults, generateYouTubeTrendSearchQuery } = await import("./web-search");
+  const searchQuery = generateYouTubeTrendSearchQuery(keywords, currentYear, currentMonth);
+  console.log(`[YouTube Trends] Web検索実行: ${searchQuery}`);
+  const searchResults = await performWebSearchWithSerpAPIOnly(searchQuery, 10);
+  const webSearchResults = formatSearchResults(searchResults);
+  console.log(`[YouTube Trends] Web検索結果: ${searchResults.length}件取得`);
 
   const defaultPrompt = `<SYS>
 
@@ -2201,27 +2168,39 @@ export async function researchCompetitorAnalysis(
   const currentMonth = currentDate.getMonth() + 1;
   const currentDateStr = `${currentYear}年${currentMonth}月`;
 
-  // Web検索を実行して最新情報を取得
-  let webSearchResults = "";
+  // Web検索を実行して最新情報を取得（SerpAPI必須）＋Google Maps Placesでの競合一覧取得
+  const { 
+    performWebSearchWithSerpAPIOnly, 
+    formatSearchResults, 
+    generateCompetitorSearchQuery,
+    searchCompetitorsWithGooglePlaces,
+    formatCompetitorPlacesForPrompt,
+  } = await import("./web-search");
+  const searchQuery = generateCompetitorSearchQuery(location, radius, currentYear, currentMonth);
+  console.log(`[Competitor Analysis] Web検索実行: ${searchQuery}`);
+  const searchResults = await performWebSearchWithSerpAPIOnly(searchQuery, 10);
+  const webSearchResults = formatSearchResults(searchResults);
+  console.log(`[Competitor Analysis] Web検索結果: ${searchResults.length}件取得`);
+
+  // Google Maps Places APIで競合クリニック一覧を取得（キー未設定やエラー時は空配列）
+  let googlePlacesSection = "";
   try {
-    const { performWebSearch, formatSearchResults, generateCompetitorSearchQuery } = await import("./web-search");
-    const searchQuery = generateCompetitorSearchQuery(location, radius, currentYear, currentMonth);
-    console.log(`[Competitor Analysis] Web検索実行: ${searchQuery}`);
-    const searchResults = await performWebSearch(searchQuery, 10);
-    webSearchResults = formatSearchResults(searchResults);
-    console.log(`[Competitor Analysis] Web検索結果: ${searchResults.length}件取得`);
+    const places = await searchCompetitorsWithGooglePlaces(location, radius, 20);
+    googlePlacesSection = formatCompetitorPlacesForPrompt(places);
+    console.log(`[Competitor Analysis] Google Maps競合件数: ${places.length}件`);
   } catch (error) {
-    console.warn("[Competitor Analysis] Web検索に失敗しましたが、続行します:", error);
-    webSearchResults = `【注意】Web検索APIが設定されていないため、最新情報の取得に制限があります。\n${error instanceof Error ? error.message : "Unknown error"}\n`;
+    console.warn("[Competitor Analysis] Google Mapsによる競合取得に失敗しましたが、続行します:", error);
   }
 
   const defaultPrompt = `あなたは美容皮膚科クリニックの競合調査専門家です。
 ${location}周辺${radius}km圏内の競合クリニックについて調査してください。
 
-【重要】以下のWeb検索結果を基に、最新の競合情報を分析してください。
+【重要】以下のWeb検索結果およびGoogle Mapsから取得した競合一覧を基に、最新の競合情報を分析してください。
 現在の日付は${currentDateStr}です。${currentYear}年${currentMonth}月時点の最新情報を優先的に使用してください。
 
 ${webSearchResults}
+
+${googlePlacesSection}
 
 【分析指示】
 以下の情報を、上記のWeb検索結果を基に収集してください：
@@ -2242,7 +2221,8 @@ ${webSearchResults}
   const template = await getPrompt("gemini_research_competitor_analysis", defaultPrompt);
   const prompt = replacePlaceholders(template, { 
     location,
-    radius: radius.toString()
+    radius: radius.toString(),
+    googlePlacesSection: googlePlacesSection || "【Google Maps競合一覧】\n\nGoogle Mapsから取得できる競合クリニック情報は見つかりませんでした。\n",
   });
   
   return callGemini(prompt);
@@ -2268,25 +2248,19 @@ export async function analyzeMarketPosition(
 ): Promise<string> {
   try {
     const { getPrompt, replacePlaceholders } = await import("./prompt-helper");
-    const { performWebSearch, formatSearchResults, generateTrendSearchQuery } = await import("./web-search");
+    const { performWebSearchWithSerpAPIOnly, formatSearchResults, generateTrendSearchQuery } = await import("./web-search");
     
     // 現在の日付を取得
     const currentDate = new Date();
     const currentYear = currentDate.getFullYear();
     const currentMonth = currentDate.getMonth() + 1;
     
-    // Web検索を実行して最新情報を取得
-    let webSearchResults = "";
-    try {
-      const searchQuery = generateTrendSearchQuery(location, currentYear, currentMonth);
-      console.log(`[Gemini analyzeMarketPosition] Web検索実行: ${searchQuery}`);
-      const searchResults = await performWebSearch(searchQuery, 10);
-      webSearchResults = formatSearchResults(searchResults);
-      console.log(`[Gemini analyzeMarketPosition] Web検索結果: ${searchResults.length}件取得`);
-    } catch (error) {
-      console.warn("[Gemini analyzeMarketPosition] Web検索に失敗しましたが、続行します:", error);
-      webSearchResults = `【注意】Web検索APIが設定されていないため、最新情報の取得に制限があります。\n${error instanceof Error ? error.message : "Unknown error"}\n`;
-    }
+    // Web検索を実行して最新情報を取得（SerpAPI必須）
+    const searchQuery = generateTrendSearchQuery(location, currentYear, currentMonth);
+    console.log(`[Gemini analyzeMarketPosition] Web検索実行: ${searchQuery}`);
+    const searchResults = await performWebSearchWithSerpAPIOnly(searchQuery, 10);
+    const webSearchResults = formatSearchResults(searchResults);
+    console.log(`[Gemini analyzeMarketPosition] Web検索結果: ${searchResults.length}件取得`);
     
     // Claude用プロンプト（正式版）を取得
     const template = await getPrompt("claude_analyze_market_position", "");
@@ -2415,7 +2389,7 @@ export async function generatePriceRecommendations(
 ): Promise<string> {
   try {
     const { getPrompt, replacePlaceholders } = await import("./prompt-helper");
-    const { performWebSearch, formatSearchResults, generatePriceSearchQuery } = await import("./web-search");
+    const { performWebSearchWithSerpAPIOnly, formatSearchResults, generatePriceSearchQuery } = await import("./web-search");
     
     // 現在の日付を取得
     const currentDate = new Date();
@@ -2454,18 +2428,12 @@ export async function generatePriceRecommendations(
       cities.push("東京", "大阪", "名古屋");
     }
     
-    // Web検索を実行して最新の価格情報を取得
-    let webSearchResults = "";
-    try {
-      const searchQuery = generatePriceSearchQuery(productNames, cities, currentYear, currentMonth);
-      console.log(`[Gemini generatePriceRecommendations] Web検索実行: ${searchQuery}`);
-      const searchResults = await performWebSearch(searchQuery, 10);
-      webSearchResults = formatSearchResults(searchResults);
-      console.log(`[Gemini generatePriceRecommendations] Web検索結果: ${searchResults.length}件取得`);
-    } catch (error) {
-      console.warn("[Gemini generatePriceRecommendations] Web検索に失敗しましたが、続行します:", error);
-      webSearchResults = `【注意】Web検索APIが設定されていないため、最新情報の取得に制限があります。\n${error instanceof Error ? error.message : "Unknown error"}\n`;
-    }
+    // Web検索を実行して最新の価格情報を取得（SerpAPI必須）
+    const searchQuery = generatePriceSearchQuery(productNames, cities, currentYear, currentMonth);
+    console.log(`[Gemini generatePriceRecommendations] Web検索実行: ${searchQuery}`);
+    const searchResults = await performWebSearchWithSerpAPIOnly(searchQuery, 10);
+    const webSearchResults = formatSearchResults(searchResults);
+    console.log(`[Gemini generatePriceRecommendations] Web検索結果: ${searchResults.length}件取得`);
     
     // Claude用プロンプト（正式版）を取得
     const template = await getPrompt("claude_generate_price_recommendations", "");
@@ -2532,7 +2500,7 @@ export async function generateCampaignProposals(
 ): Promise<string> {
   try {
     const { getPrompt, replacePlaceholders } = await import("./prompt-helper");
-    const { performWebSearch, formatSearchResults } = await import("./web-search");
+    const { performWebSearchWithSerpAPIOnly, formatSearchResults } = await import("./web-search");
     
     // 現在の日付を取得
     const currentDate = new Date();
@@ -2566,18 +2534,12 @@ export async function generateCampaignProposals(
       }
     });
     
-    // Web検索を実行して最新のキャンペーントレンドを取得
-    let webSearchResults = "";
-    try {
-      const searchQuery = `美容クリニック キャンペーン ${keywords.slice(0, 3).join(" ")} ${currentYear}年${currentMonth}月 トレンド`;
-      console.log(`[Gemini generateCampaignProposals] Web検索実行: ${searchQuery}`);
-      const searchResults = await performWebSearch(searchQuery, 10);
-      webSearchResults = formatSearchResults(searchResults);
-      console.log(`[Gemini generateCampaignProposals] Web検索結果: ${searchResults.length}件取得`);
-    } catch (error) {
-      console.warn("[Gemini generateCampaignProposals] Web検索に失敗しましたが、続行します:", error);
-      webSearchResults = `【注意】Web検索APIが設定されていないため、最新情報の取得に制限があります。\n${error instanceof Error ? error.message : "Unknown error"}\n`;
-    }
+    // Web検索を実行して最新のキャンペーントレンドを取得（SerpAPI必須）
+    const searchQuery = `美容クリニック キャンペーン ${keywords.slice(0, 3).join(" ")} ${currentYear}年${currentMonth}月 トレンド`;
+    console.log(`[Gemini generateCampaignProposals] Web検索実行: ${searchQuery}`);
+    const searchResults = await performWebSearchWithSerpAPIOnly(searchQuery, 10);
+    const webSearchResults = formatSearchResults(searchResults);
+    console.log(`[Gemini generateCampaignProposals] Web検索結果: ${searchResults.length}件取得`);
     
     // Claude用プロンプト（正式版）を取得
     const template = await getPrompt("claude_generate_campaign_proposals", "");
@@ -2653,7 +2615,7 @@ export async function suggestNewTreatments(
 ): Promise<string> {
   try {
     const { getPrompt, replacePlaceholders } = await import("./prompt-helper");
-    const { performWebSearch, formatSearchResults } = await import("./web-search");
+    const { performWebSearchWithSerpAPIOnly, formatSearchResults } = await import("./web-search");
     
     // 現在の日付を取得
     const currentDate = new Date();
@@ -2687,18 +2649,12 @@ export async function suggestNewTreatments(
       }
     });
     
-    // Web検索を実行して最新の施術トレンドを取得
-    let webSearchResults = "";
-    try {
-      const searchQuery = `美容クリニック 新施術 ${keywords.slice(0, 3).join(" ")} ${currentYear}年${currentMonth}月 トレンド`;
-      console.log(`[Gemini suggestNewTreatments] Web検索実行: ${searchQuery}`);
-      const searchResults = await performWebSearch(searchQuery, 10);
-      webSearchResults = formatSearchResults(searchResults);
-      console.log(`[Gemini suggestNewTreatments] Web検索結果: ${searchResults.length}件取得`);
-    } catch (error) {
-      console.warn("[Gemini suggestNewTreatments] Web検索に失敗しましたが、続行します:", error);
-      webSearchResults = `【注意】Web検索APIが設定されていないため、最新情報の取得に制限があります。\n${error instanceof Error ? error.message : "Unknown error"}\n`;
-    }
+    // Web検索を実行して最新の施術トレンドを取得（SerpAPI必須）
+    const searchQuery = `美容クリニック 新施術 ${keywords.slice(0, 3).join(" ")} ${currentYear}年${currentMonth}月 トレンド`;
+    console.log(`[Gemini suggestNewTreatments] Web検索実行: ${searchQuery}`);
+    const searchResults = await performWebSearchWithSerpAPIOnly(searchQuery, 10);
+    const webSearchResults = formatSearchResults(searchResults);
+    console.log(`[Gemini suggestNewTreatments] Web検索結果: ${searchResults.length}件取得`);
     
     // Claude用プロンプト（正式版）を取得
     const template = await getPrompt("claude_suggest_new_treatments", "");

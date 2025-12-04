@@ -47,7 +47,15 @@ export function ProductManagement() {
   const [viewMode, setViewMode] = useState<"table" | "card">("card");
   const [errors, setErrors] = useState<Partial<Record<keyof FormState, string>>>({});
 
-  const productsQuery = api.product.list.useQuery({ userId: USER_ID_PLACEHOLDER });
+  const productsQuery = api.product.list.useQuery(
+    { userId: USER_ID_PLACEHOLDER },
+    {
+      retry: 1,
+      onError: (error) => {
+        console.error("商品データ取得エラー:", error);
+      },
+    }
+  );
 
   const createMutation = api.product.create.useMutation({
     onSuccess: async () => {
@@ -294,7 +302,23 @@ export function ProductManagement() {
 
         {productsQuery.error && (
           <Banner appearance="error">
-            データの取得に失敗しました。リロードして再度お試しください。
+            <div>
+              <div style={{ marginBottom: "8px", fontWeight: 600 }}>
+                データの取得に失敗しました
+              </div>
+              <div style={{ fontSize: "12px", color: "#6B778C" }}>
+                {productsQuery.error.message || "不明なエラーが発生しました"}
+              </div>
+              <div style={{ marginTop: "8px" }}>
+                <Button
+                  appearance="subtle"
+                  onClick={() => productsQuery.refetch()}
+                  size="small"
+                >
+                  再試行
+                </Button>
+              </div>
+            </div>
           </Banner>
         )}
 

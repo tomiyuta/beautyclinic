@@ -183,25 +183,19 @@ export async function analyzeMarketPosition(
   location: string,
 ): Promise<string> {
   try {
-    const { performWebSearch, formatSearchResults, generateTrendSearchQuery } = await import("./web-search");
+    const { performWebSearchWithSerpAPIOnly, formatSearchResults, generateTrendSearchQuery } = await import("./web-search");
     
     // 現在の日付を取得
     const currentDate = new Date();
     const currentYear = currentDate.getFullYear();
     const currentMonth = currentDate.getMonth() + 1;
     
-    // Web検索を実行して最新情報を取得
-    let webSearchResults = "";
-    try {
-      const searchQuery = generateTrendSearchQuery(location, currentYear, currentMonth);
-      console.log(`[Claude analyzeMarketPosition] Web検索実行: ${searchQuery}`);
-      const searchResults = await performWebSearch(searchQuery, 10);
-      webSearchResults = formatSearchResults(searchResults);
-      console.log(`[Claude analyzeMarketPosition] Web検索結果: ${searchResults.length}件取得`);
-    } catch (error) {
-      console.warn("[Claude analyzeMarketPosition] Web検索に失敗しましたが、続行します:", error);
-      webSearchResults = `【注意】Web検索APIが設定されていないため、最新情報の取得に制限があります。\n${error instanceof Error ? error.message : "Unknown error"}\n`;
-    }
+    // Web検索を実行して最新情報を取得（SerpAPI必須）
+    const searchQuery = generateTrendSearchQuery(location, currentYear, currentMonth);
+    console.log(`[Claude analyzeMarketPosition] Web検索実行: ${searchQuery}`);
+    const searchResults = await performWebSearchWithSerpAPIOnly(searchQuery, 10);
+    const webSearchResults = formatSearchResults(searchResults);
+    console.log(`[Claude analyzeMarketPosition] Web検索結果: ${searchResults.length}件取得`);
 
     const defaultPrompt = `あなたは美容クリニックの経営戦略コンサルタントです。
 以下のデータを総合的に分析し、戦略的な提案を行ってください。
@@ -370,7 +364,7 @@ export async function generatePriceRecommendations(
   marketPricing: Record<string, unknown>,
 ): Promise<string> {
   try {
-    const { performWebSearch, formatSearchResults, generatePriceSearchQuery } = await import("./web-search");
+    const { performWebSearchWithSerpAPIOnly, formatSearchResults, generatePriceSearchQuery } = await import("./web-search");
     
     // 現在の日付を取得
     const currentDate = new Date();
@@ -409,18 +403,12 @@ export async function generatePriceRecommendations(
       cities.push("東京", "大阪", "名古屋");
     }
     
-    // Web検索を実行して最新の価格情報を取得
-    let webSearchResults = "";
-    try {
-      const searchQuery = generatePriceSearchQuery(productNames, cities, currentYear, currentMonth);
-      console.log(`[Claude generatePriceRecommendations] Web検索実行: ${searchQuery}`);
-      const searchResults = await performWebSearch(searchQuery, 10);
-      webSearchResults = formatSearchResults(searchResults);
-      console.log(`[Claude generatePriceRecommendations] Web検索結果: ${searchResults.length}件取得`);
-    } catch (error) {
-      console.warn("[Claude generatePriceRecommendations] Web検索に失敗しましたが、続行します:", error);
-      webSearchResults = `【注意】Web検索APIが設定されていないため、最新情報の取得に制限があります。\n${error instanceof Error ? error.message : "Unknown error"}\n`;
-    }
+    // Web検索を実行して最新の価格情報を取得（SerpAPI必須）
+    const searchQuery = generatePriceSearchQuery(productNames, cities, currentYear, currentMonth);
+    console.log(`[Claude generatePriceRecommendations] Web検索実行: ${searchQuery}`);
+    const searchResults = await performWebSearchWithSerpAPIOnly(searchQuery, 10);
+    const webSearchResults = formatSearchResults(searchResults);
+    console.log(`[Claude generatePriceRecommendations] Web検索結果: ${searchResults.length}件取得`);
 
     const defaultPrompt = `あなたは美容クリニックの価格戦略専門家です。
 以下の商品情報と市場価格データを基に、価格設定の提案を行ってください。
@@ -498,7 +486,7 @@ export async function generateCampaignProposals(
   snsData: Array<Record<string, unknown>>,
 ): Promise<string> {
   try {
-    const { performWebSearch, formatSearchResults } = await import("./web-search");
+    const { performWebSearchWithSerpAPIOnly, formatSearchResults } = await import("./web-search");
     
     // 現在の日付を取得
     const currentDate = new Date();
@@ -532,18 +520,12 @@ export async function generateCampaignProposals(
       }
     });
     
-    // Web検索を実行して最新のキャンペーントレンドを取得
-    let webSearchResults = "";
-    try {
-      const searchQuery = `美容クリニック キャンペーン ${keywords.slice(0, 3).join(" ")} ${currentYear}年${currentMonth}月 トレンド`;
-      console.log(`[Claude generateCampaignProposals] Web検索実行: ${searchQuery}`);
-      const searchResults = await performWebSearch(searchQuery, 10);
-      webSearchResults = formatSearchResults(searchResults);
-      console.log(`[Claude generateCampaignProposals] Web検索結果: ${searchResults.length}件取得`);
-    } catch (error) {
-      console.warn("[Claude generateCampaignProposals] Web検索に失敗しましたが、続行します:", error);
-      webSearchResults = `【注意】Web検索APIが設定されていないため、最新情報の取得に制限があります。\n${error instanceof Error ? error.message : "Unknown error"}\n`;
-    }
+    // Web検索を実行して最新のキャンペーントレンドを取得（SerpAPI必須）
+    const searchQuery = `美容クリニック キャンペーン ${keywords.slice(0, 3).join(" ")} ${currentYear}年${currentMonth}月 トレンド`;
+    console.log(`[Claude generateCampaignProposals] Web検索実行: ${searchQuery}`);
+    const searchResults = await performWebSearchWithSerpAPIOnly(searchQuery, 10);
+    const webSearchResults = formatSearchResults(searchResults);
+    console.log(`[Claude generateCampaignProposals] Web検索結果: ${searchResults.length}件取得`);
 
     const defaultPrompt = `あなたは美容クリニックのマーケティングキャンペーン企画専門家です。
 以下のトレンドデータとSNSデータを基に、効果的な月次キャンペーン案を2つ以上提案してください。
@@ -635,7 +617,7 @@ export async function suggestNewTreatments(
   snsTrends: Array<Record<string, unknown>>,
 ): Promise<string> {
   try {
-    const { performWebSearch, formatSearchResults } = await import("./web-search");
+    const { performWebSearchWithSerpAPIOnly, formatSearchResults } = await import("./web-search");
     
     // 現在の日付を取得
     const currentDate = new Date();
@@ -669,18 +651,12 @@ export async function suggestNewTreatments(
       }
     });
     
-    // Web検索を実行して最新の施術トレンドを取得
-    let webSearchResults = "";
-    try {
-      const searchQuery = `美容クリニック 新施術 ${keywords.slice(0, 3).join(" ")} ${currentYear}年${currentMonth}月 トレンド`;
-      console.log(`[Claude suggestNewTreatments] Web検索実行: ${searchQuery}`);
-      const searchResults = await performWebSearch(searchQuery, 10);
-      webSearchResults = formatSearchResults(searchResults);
-      console.log(`[Claude suggestNewTreatments] Web検索結果: ${searchResults.length}件取得`);
-    } catch (error) {
-      console.warn("[Claude suggestNewTreatments] Web検索に失敗しましたが、続行します:", error);
-      webSearchResults = `【注意】Web検索APIが設定されていないため、最新情報の取得に制限があります。\n${error instanceof Error ? error.message : "Unknown error"}\n`;
-    }
+    // Web検索を実行して最新の施術トレンドを取得（SerpAPI必須）
+    const searchQuery = `美容クリニック 新施術 ${keywords.slice(0, 3).join(" ")} ${currentYear}年${currentMonth}月 トレンド`;
+    console.log(`[Claude suggestNewTreatments] Web検索実行: ${searchQuery}`);
+    const searchResults = await performWebSearchWithSerpAPIOnly(searchQuery, 10);
+    const webSearchResults = formatSearchResults(searchResults);
+    console.log(`[Claude suggestNewTreatments] Web検索結果: ${searchResults.length}件取得`);
 
     const defaultPrompt = `あなたは美容クリニックの施術開発コンサルタントです。
 以下の情報を基に、未導入の有望な施術・治療の導入提案を行ってください。

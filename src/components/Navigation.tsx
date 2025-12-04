@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import Button from "@atlaskit/button";
@@ -181,11 +181,16 @@ export function Navigation() {
       position: "sticky",
       top: 0,
       zIndex: 100,
-      boxShadow: "0 2px 4px rgba(0,0,0,0.05)"
+      boxShadow: "0 2px 8px rgba(0, 0, 0, 0.08)",
+      minHeight: isMobile ? "auto" : "64px",
+      display: "flex",
+      flexDirection: isMobile ? "column" : "row",
+      alignItems: isMobile ? "stretch" : "center",
     }}>
       <div style={{ 
         maxWidth: "1400px", 
         margin: "0 auto", 
+        width: "100%",
         display: "flex", 
         flexDirection: "column",
         gap: "10px"
@@ -195,7 +200,8 @@ export function Navigation() {
           display: "flex", 
           alignItems: "center", 
           justifyContent: "space-between",
-          width: "100%"
+          width: "100%",
+          minHeight: isMobile ? "auto" : "64px",
         }}>
           <Link href="/" style={{ textDecoration: "none" }}>
             <h1 style={{ 
@@ -214,6 +220,22 @@ export function Navigation() {
           </h1>
           </Link>
           
+          {/* デスクトップナビゲーション */}
+          {!isMobile && (
+            <div style={{ 
+              display: "flex", 
+              alignItems: "center",
+              gap: "4px",
+              flex: 1,
+              justifyContent: "center",
+              height: "100%",
+            }}>
+              {navigationCategories.map((category) => (
+                <DesktopCategoryNav key={category.title} category={category} />
+              ))}
+            </div>
+          )}
+
           {/* モバイルメニューボタン */}
           {isMobile && (
             <Button

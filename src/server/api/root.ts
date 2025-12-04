@@ -4,7 +4,6 @@ import { marketResearchRouter } from "./routers/market-research";
 import { productRouter } from "./routers/product";
 import { promptRouter } from "./routers/prompt";
 import { snsResearchRouter } from "./routers/sns-research";
-import { strategyManagementRouter } from "./routers/strategy-management";
 import { strategyRouter } from "./routers/strategy";
 import { workflowRouter } from "./routers/workflow";
 import { aiSessionRouter } from "./routers/ai-session";
@@ -19,7 +18,6 @@ export const appRouter = router({
   strategy: strategyRouter,
   content: contentRouter,
   workflow: workflowRouter,
-  strategyManagement: strategyManagementRouter,
   apiKey: apiKeyRouter,
   prompt: promptRouter,
   aiSession: aiSessionRouter,
