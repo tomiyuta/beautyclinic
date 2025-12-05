@@ -1234,6 +1234,60 @@ export const strategyRouter = router({
         tokenCount: result.processedData ? Math.ceil(result.processedData.length / 4) : 0,
       }));
     }),
+
+  getHistory: publicProcedure
+    .input(
+      z.object({
+        userId: z.number().int().positive(),
+        implementationStatus: z
+          .enum(["pending", "in_progress", "completed"])
+          .optional(),
+      }),
+    )
+    .query(async ({ input }) => {
+      const where = {
+        userId: input.userId,
+        ...(input.implementationStatus && {
+          implementationStatus: input.implementationStatus,
+        }),
+      };
+
+      const strategies = await db.strategyRecommendation.findMany({
+        where,
+        orderBy: { createdAt: "desc" },
+      });
+
+      // 各戦略に関連する生成コンテンツを取得
+      const strategiesWithContents = await Promise.all(
+        strategies.map(async (strategy) => {
+          const relatedContents = await db.generatedContent.findMany({
+            where: {
+              userId: input.userId,
+              strategyId: strategy.id,
+            },
+            orderBy: { createdAt: "desc" },
+          });
+
+          // 提案内容の要約を生成（テキスト形式として扱う）
+          let priceRecommendationsCount = strategy.priceRecommendations ? 1 : 0;
+          let campaignProposalsCount = strategy.campaignProposals ? 1 : 0;
+          let newTreatmentSuggestionsCount = strategy.newTreatmentSuggestions ? 1 : 0;
+
+          return {
+            ...strategy,
+            relatedContents,
+            summary: {
+              priceRecommendationsCount,
+              campaignProposalsCount,
+              newTreatmentSuggestionsCount,
+              totalContents: relatedContents.length,
+            },
+          };
+        }),
+      );
+
+      return strategiesWithContents;
+    }),
 });
 
 // ============================================================

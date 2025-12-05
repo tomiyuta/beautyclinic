@@ -55,7 +55,7 @@ export function useResearchHistory(type: ResearchHistoryType): UseResearchHistor
     },
   );
 
-  const strategyQuery = api.strategyManagement.getHistory.useQuery(
+  const strategyQuery = api.strategy.getHistory.useQuery(
     {
       userId: USER_ID_PLACEHOLDER,
     },
