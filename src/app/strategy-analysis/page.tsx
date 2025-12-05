@@ -12,6 +12,8 @@ import CouncilResultView from "@/components/strategy/CouncilResultView";
 import SingleResultView from "@/components/strategy/SingleResultView";
 import DataStatusPanel from "@/components/strategy/DataStatusPanel";
 import MarketDataSelectionDrawer from "@/components/strategy/MarketDataSelectionDrawer";
+import HistoryTrigger from "@/components/research/history/HistoryTrigger";
+import ResearchHistoryDrawer from "@/components/research/history/ResearchHistoryDrawer";
 
 import type { CouncilConfig, CouncilModel, CouncilResult } from "@/types/ai-council";
 import { DEFAULT_COUNCIL_CONFIG } from "@/types/ai-council";
@@ -56,6 +58,10 @@ export default function StrategyAnalysisPage() {
     competitorIds: [],
   });
   const [useCustomSelection, setUseCustomSelection] = useState(false);
+
+  // 履歴管理
+  const [isHistoryOpen, setIsHistoryOpen] = useState(false);
+  const [selectedHistory, setSelectedHistory] = useState<ResearchHistoryItem | null>(null);
 
   // 結果
   const [singleResult, setSingleResult] = useState<{
