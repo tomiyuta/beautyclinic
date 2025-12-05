@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Button from "@atlaskit/button";
 import TextField from "@atlaskit/textfield";
 import Textarea from "@atlaskit/textarea";
@@ -51,11 +51,15 @@ export function ProductManagement() {
     { userId: USER_ID_PLACEHOLDER },
     {
       retry: 1,
-      onError: (error) => {
-        console.error("商品データ取得エラー:", error);
-      },
     }
   );
+
+  // エラーハンドリング
+  useEffect(() => {
+    if (productsQuery.error) {
+      console.error("商品データ取得エラー:", productsQuery.error);
+    }
+  }, [productsQuery.error]);
 
   const createMutation = api.product.create.useMutation({
     onSuccess: async () => {
