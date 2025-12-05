@@ -15,8 +15,7 @@
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
+  /* Tailwindクラスが優先されるように、背景色とテキスト色を削除 */
   font-family: Arial, Helvetica, sans-serif;
 }
 
