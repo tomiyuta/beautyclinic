@@ -1,10 +1,19 @@
 import type { Metadata } from "next";
 import { Inter, JetBrains_Mono } from "next/font/google";
+import dynamic from "next/dynamic";
 
 import { TRPCReactProvider } from "@/trpc/provider";
-import { AtlassianProvider } from "@/components/AtlassianProvider";
 import { Navigation } from "@/components/Navigation";
 import { ToastProvider } from "@/components/ToastProvider";
+
+// AtlassianProviderを動的インポートしてSSRを無効化（Vercelでのfeature gateエラーを回避）
+const AtlassianProvider = dynamic(
+  () => import("@/components/AtlassianProvider").then((mod) => ({ default: mod.AtlassianProvider })),
+  { 
+    ssr: false,
+    loading: () => null, // ローディング中は何も表示しない
+  }
+);
 
 import "./globals.css";
 
