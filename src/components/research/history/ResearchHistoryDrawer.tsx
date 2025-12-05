@@ -181,7 +181,7 @@ export function ResearchHistoryDrawer({
             >
               <TextField
                 value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
+                onChange={(e) => setSearchQuery((e.target as HTMLInputElement).value)}
                 placeholder="キーワードで履歴を検索"
                 elemBeforeInput={<span style={{ marginRight: 4 }}>🔍</span>}
               />
