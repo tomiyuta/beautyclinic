@@ -317,7 +317,6 @@ export function ProductManagement() {
                 <Button
                   appearance="subtle"
                   onClick={() => productsQuery.refetch()}
-                  size="small"
                 >
                   再試行
                 </Button>
