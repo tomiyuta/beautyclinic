@@ -23,10 +23,18 @@ export const productRouter = router({
   list: publicProcedure
     .input(z.object({ userId: z.number().int().positive() }))
     .query(async ({ input }) => {
-      return db.clinicProduct.findMany({
-        where: { userId: input.userId },
-        orderBy: { createdAt: "desc" },
-      });
+      try {
+        return await db.clinicProduct.findMany({
+          where: { userId: input.userId },
+          orderBy: { createdAt: "desc" },
+        });
+      } catch (error) {
+        console.error("商品データ取得エラー:", error);
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: error instanceof Error ? error.message : "データベースエラーが発生しました",
+        });
+      }
     }),
   create: publicProcedure.input(productInput).mutation(async ({ input }) => {
     const { userId, isActive = true, ...data } = input;

@@ -3,12 +3,25 @@ import axios from "axios";
 const SERP_API_KEY = process.env.SERP_API_KEY;
 const GOOGLE_CUSTOM_SEARCH_API_KEY = process.env.GOOGLE_CUSTOM_SEARCH_API_KEY;
 const GOOGLE_CUSTOM_SEARCH_ENGINE_ID = process.env.GOOGLE_CUSTOM_SEARCH_ENGINE_ID;
+const GOOGLE_MAPS_API_KEY = process.env.GOOGLE_MAPS_API_KEY;
 
 interface SearchResult {
   title: string;
   link: string;
   snippet: string;
   date?: string;
+}
+
+interface CompetitorPlace {
+  name: string;
+  address: string;
+  lat: number;
+  lng: number;
+  rating?: number;
+  userRatingsTotal?: number;
+  placeId: string;
+  businessStatus?: string;
+  types?: string[];
 }
 
 /**
@@ -94,6 +107,7 @@ async function searchWithGoogleCustomSearch(
 
 /**
  * Web検索を実行（利用可能なAPIを自動選択）
+ * コンテンツ生成など、フォールバックが必要な場合に使用
  */
 export async function performWebSearch(query: string, numResults: number = 10): Promise<SearchResult[]> {
   // SerpAPIが設定されている場合は優先
@@ -115,6 +129,23 @@ export async function performWebSearch(query: string, numResults: number = 10): 
   }
 
   throw new Error("Web検索APIが設定されていません。SERP_API_KEYまたはGOOGLE_CUSTOM_SEARCH_API_KEYを設定してください。");
+}
+
+/**
+ * Web検索を実行（SerpAPIのみ、フォールバックなし）
+ * リサーチ&戦略提案部分で使用。SerpAPIが設定されていない、または失敗した場合はエラーを投げる
+ */
+export async function performWebSearchWithSerpAPIOnly(query: string, numResults: number = 10): Promise<SearchResult[]> {
+  if (!SERP_API_KEY) {
+    throw new Error("リサーチ&戦略提案ではSerpAPIが必須です。SERP_API_KEYが設定されていません。");
+  }
+
+  try {
+    return await searchWithSerpAPI(query, numResults);
+  } catch (error) {
+    console.error("SerpAPI search failed:", error);
+    throw new Error(`SerpAPIによるWeb検索に失敗しました: ${error instanceof Error ? error.message : "Unknown error"}`);
+  }
 }
 
 /**
@@ -240,5 +271,146 @@ export function generateCampaignCopySearchQuery(
   currentMonth: number,
 ): string {
   return `美容 キャンペーン ${campaignTitle} ${currentYear}年${currentMonth}月 トレンド コピー`;
+}
+
+/**
+ * Google Maps Geocoding API を使ってlocation文字列から緯度経度を取得
+ */
+async function geocodeLocation(location: string): Promise<{ lat: number; lng: number } | null> {
+  if (!GOOGLE_MAPS_API_KEY) {
+    console.warn("GOOGLE_MAPS_API_KEYが設定されていないため、Google Mapsによるジオコーディングはスキップされます。");
+    return null;
+  }
+
+  try {
+    const response = await axios.get("https://maps.googleapis.com/maps/api/geocode/json", {
+      params: {
+        address: location,
+        key: GOOGLE_MAPS_API_KEY,
+        language: "ja",
+        region: "jp",
+      },
+      timeout: 10000,
+    });
+
+    if (response.data.status !== "OK" || !response.data.results?.length) {
+      console.warn("Geocoding結果が見つかりませんでした:", response.data.status, response.data.error_message);
+      return null;
+    }
+
+    const result = response.data.results[0];
+    const loc = result.geometry?.location;
+    if (!loc) return null;
+
+    return {
+      lat: loc.lat,
+      lng: loc.lng,
+    };
+  } catch (error) {
+    console.error("Geocoding API error:", error);
+    return null;
+  }
+}
+
+/**
+ * Google Maps Places API（Nearby Search）を使って周辺の競合クリニックを検索
+ */
+async function searchCompetitorsWithGooglePlacesInternal(
+  lat: number,
+  lng: number,
+  radiusKm: number,
+  maxResults: number = 20,
+): Promise<CompetitorPlace[]> {
+  if (!GOOGLE_MAPS_API_KEY) {
+    console.warn("GOOGLE_MAPS_API_KEYが設定されていないため、Google Maps Places検索はスキップされます。");
+    return [];
+  }
+
+  const radiusMeters = Math.max(500, Math.min(radiusKm * 1000, 20000)); // 0.5km〜20kmの範囲に制限
+
+  try {
+    const response = await axios.get("https://maps.googleapis.com/maps/api/place/nearbysearch/json", {
+      params: {
+        key: GOOGLE_MAPS_API_KEY,
+        location: `${lat},${lng}`,
+        radius: radiusMeters,
+        keyword: "美容皮膚科 美容クリニック",
+        type: "doctor",
+        language: "ja",
+      },
+      timeout: 10000,
+    });
+
+    if (response.data.status !== "OK" && response.data.status !== "ZERO_RESULTS") {
+      console.warn("Places API status:", response.data.status, response.data.error_message);
+      return [];
+    }
+
+    const results: CompetitorPlace[] = [];
+    if (response.data.results?.length) {
+      for (const place of response.data.results.slice(0, maxResults)) {
+        results.push({
+          name: place.name || "",
+          address: place.vicinity || place.formatted_address || "",
+          lat: place.geometry?.location?.lat ?? 0,
+          lng: place.geometry?.location?.lng ?? 0,
+          rating: place.rating,
+          userRatingsTotal: place.user_ratings_total,
+          placeId: place.place_id,
+          businessStatus: place.business_status,
+          types: place.types || [],
+        });
+      }
+    }
+
+    return results;
+  } catch (error) {
+    console.error("Places API error:", error);
+    return [];
+  }
+}
+
+/**
+ * 競合分析用にlocationとradiusからGoogle Maps Placesを使って競合一覧を取得
+ */
+export async function searchCompetitorsWithGooglePlaces(
+  location: string,
+  radiusKm: number,
+  maxResults: number = 20,
+): Promise<CompetitorPlace[]> {
+  if (!GOOGLE_MAPS_API_KEY) {
+    // 環境変数がない場合は静かに空配列を返す（フォールバックは呼び出し元でSerpAPIが担う）
+    return [];
+  }
+
+  const geo = await geocodeLocation(location);
+  if (!geo) {
+    return [];
+  }
+
+  return searchCompetitorsWithGooglePlacesInternal(geo.lat, geo.lng, radiusKm, maxResults);
+}
+
+/**
+ * Google Maps Placesから取得した競合リストをLLM用のテキストにフォーマット
+ */
+export function formatCompetitorPlacesForPrompt(places: CompetitorPlace[]): string {
+  if (!places.length) {
+    return "【Google Maps競合一覧】\n\nGoogle Mapsから取得できる競合クリニック情報は見つかりませんでした。\n";
+  }
+
+  let formatted = "【Google Maps競合一覧】\n\n";
+  places.forEach((place, index) => {
+    formatted += `${index + 1}. ${place.name}\n`;
+    if (place.address) {
+      formatted += `   住所: ${place.address}\n`;
+    }
+    if (typeof place.rating === "number") {
+      formatted += `   評価: ${place.rating} (${place.userRatingsTotal ?? 0}件の口コミ)\n`;
+    }
+    formatted += `   Map Place ID: ${place.placeId}\n\n`;
+  });
+
+  return formatted;
 }
 

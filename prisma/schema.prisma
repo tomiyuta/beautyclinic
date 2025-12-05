@@ -1,16 +1,8 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
-// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
-// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
-
 generator client {
   provider      = "prisma-client"
   output        = "../src/generated/prisma"
-  binaryTargets = ["native", "debian-openssl-3.0.x", "rhel-openssl-3.0.x", "linux-musl-openssl-3.0.x"]
-
-  // Vercel環境でのバイナリ検出を確実にする
-  engineType = "library"
+  binaryTargets = ["native", "darwin-arm64", "darwin", "debian-openssl-3.0.x", "rhel-openssl-3.0.x", "linux-musl-openssl-3.0.x"]
+  engineType    = "library"
 }
 
 datasource db {
@@ -127,7 +119,7 @@ model ClinicProduct {
 model MarketResearchResult {
   id            Int          @id @default(autoincrement())
   userId        Int
-  location      String       @db.VarChar(500) // 複数の都市名を結合する場合に対応
+  location      String       @db.VarChar(500)
   researchType  ResearchType
   aiAgent       AiAgent
   rawData       String       @db.Text
@@ -166,26 +158,24 @@ model StrategyRecommendation {
 }
 
 model GeneratedContent {
-  id          Int           @id @default(autoincrement())
-  userId      Int
-  strategyId  Int
-  contentType ContentType
-  title       String        @db.VarChar(255)
-  content     String        @db.LongText
-  metadata    String?       @db.Text
-  aiAgent     AiAgent
-  status      ContentStatus @default(draft)
-  createdAt   DateTime      @default(now())
-  updatedAt   DateTime      @updatedAt
-
-  // 新規追加フィールド（要件定義書に基づく）
-  fileUrl          String? @db.LongText // 画像・動画の外部ストレージURL（Base64データURI対応）
-  fileSize         Int? // ファイルサイズ（bytes）
-  mimeType         String? @db.VarChar(100) // MIME type
-  complianceStatus String? @db.VarChar(20) // "compliant" | "warning" | "violation"
-  complianceReport String? @db.Text // コンプライアンスチェック結果（JSON）
-  templateId       Int? // 使用したテンプレートID
-  variations       String? @db.Text // バリエーション情報（JSON）
+  id               Int           @id @default(autoincrement())
+  userId           Int
+  strategyId       Int
+  contentType      ContentType
+  title            String        @db.VarChar(255)
+  content          String        @db.LongText
+  metadata         String?       @db.Text
+  aiAgent          AiAgent
+  status           ContentStatus @default(draft)
+  createdAt        DateTime      @default(now())
+  updatedAt        DateTime      @updatedAt
+  complianceReport String?       @db.Text
+  complianceStatus String?       @db.VarChar(20)
+  fileSize         Int?
+  fileUrl          String?       @db.LongText
+  mimeType         String?       @db.VarChar(100)
+  templateId       Int?
+  variations       String?       @db.Text
 
   @@map("generatedContents")
 }
@@ -223,15 +213,15 @@ model ErrorLog {
 }
 
 model PromptTemplate {
-  id          Int        @id @default(autoincrement())
-  promptType  PromptType @unique
+  id          Int                        @id @default(autoincrement())
+  promptType  promptTemplates_promptType @unique
   aiAgent     AiAgent
-  name        String     @db.VarChar(255)
-  description String?    @db.Text
-  prompt      String     @db.Text
-  isActive    Boolean    @default(true)
-  createdAt   DateTime   @default(now())
-  updatedAt   DateTime   @updatedAt
+  name        String                     @db.VarChar(255)
+  description String?                    @db.Text
+  prompt      String                     @db.Text
+  isActive    Boolean                    @default(true)
+  createdAt   DateTime                   @default(now())
+  updatedAt   DateTime                   @updatedAt
 
   @@map("promptTemplates")
 }
@@ -247,13 +237,12 @@ model UserSettings {
   @@map("userSettings")
 }
 
-// 新規テーブル（要件定義書に基づく）
 model ContentTemplate {
   id          Int         @id @default(autoincrement())
   userId      Int
   name        String      @db.VarChar(255)
   contentType ContentType
-  settings    String      @db.Text // JSON形式の設定
+  settings    String      @db.Text
   isDefault   Boolean     @default(false)
   createdAt   DateTime    @default(now())
   updatedAt   DateTime    @updatedAt
@@ -264,18 +253,215 @@ model ContentTemplate {
 model ComplianceCheckLog {
   id         Int      @id @default(autoincrement())
   contentId  Int
-  checkType  String   @db.VarChar(20) // "text" | "image" | "video"
-  violations String?  @db.Text // JSON形式
-  warnings   String?  @db.Text // JSON形式
-  status     String   @db.VarChar(20) // "compliant" | "warning" | "violation"
+  checkType  String   @db.VarChar(20)
+  violations String?  @db.Text
+  warnings   String?  @db.Text
+  status     String   @db.VarChar(20)
   checkedAt  DateTime @default(now())
 
   @@map("complianceCheckLogs")
 }
 
-// ============================================
-// Acontext関連モデル（要件定義書に基づく）
-// ============================================
+model AiSpace {
+  id          String      @id @default(uuid())
+  userId      Int
+  name        String      @db.VarChar(255)
+  description String?     @db.Text
+  metadata    Json?
+  createdAt   DateTime    @default(now()) @map("created_at")
+  updatedAt   DateTime    @updatedAt @map("updated_at")
+  sessions    AiSession[]
+  skills      AiSkill[]
+
+  @@index([userId])
+  @@map("ai_spaces")
+}
+
+model AiSession {
+  id               String             @id @default(uuid())
+  spaceId          String?            @map("space_id")
+  title            String?
+  status           AiSessionStatus    @default(active)
+  context          Json?
+  experienceStatus AiExperienceStatus @default(pending) @map("experience_status")
+  createdAt        DateTime           @default(now()) @map("created_at")
+  updatedAt        DateTime           @updatedAt @map("updated_at")
+  completedAt      DateTime?          @map("completed_at")
+  experienceJobs   AiExperienceJob[]
+  messages         AiMessage[]
+  space            AiSpace?           @relation(fields: [spaceId], references: [id])
+  tasks            AiTask[]
+
+  @@index([spaceId])
+  @@index([status])
+  @@index([experienceStatus])
+  @@index([createdAt])
+  @@map("ai_sessions")
+}
+
+model AiMessage {
+  id        String    @id @default(uuid())
+  sessionId String    @map("session_id")
+  role      String    @db.VarChar(20)
+  content   String    @db.LongText
+  metadata  Json?
+  createdAt DateTime  @default(now()) @map("created_at")
+  session   AiSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@index([sessionId])
+  @@index([createdAt])
+  @@map("ai_messages")
+}
+
+model AiTask {
+  id              String       @id @default(uuid())
+  sessionId       String       @map("session_id")
+  order           Int
+  description     String       @db.Text
+  status          AiTaskStatus @default(pending)
+  progresses      Json?
+  userPreferences Json?
+  createdAt       DateTime     @default(now()) @map("created_at")
+  updatedAt       DateTime     @updatedAt @map("updated_at")
+  completedAt     DateTime?    @map("completed_at")
+  session         AiSession    @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@index([sessionId])
+  @@index([status])
+  @@index([createdAt])
+  @@map("ai_tasks")
+}
+
+model AiSkill {
+  id          String            @id @default(uuid())
+  spaceId     String?           @map("space_id")
+  name        String            @db.VarChar(255)
+  description String            @db.Text
+  steps       Json
+  complexity  AiSkillComplexity @default(simple)
+  tags        Json?
+  usageCount  Int               @default(0) @map("usage_count")
+  successRate Float?            @default(0) @map("success_rate")
+  createdAt   DateTime          @default(now()) @map("created_at")
+  updatedAt   DateTime          @updatedAt @map("updated_at")
+  space       AiSpace?          @relation(fields: [spaceId], references: [id])
+
+  @@index([spaceId])
+  @@index([name])
+  @@fulltext([name, description])
+  @@map("ai_skills")
+}
+
+model AiExperienceJob {
+  id          String             @id @default(uuid())
+  sessionId   String             @map("session_id")
+  jobType     String             @db.VarChar(50)
+  status      AiExperienceStatus @default(pending)
+  input       Json?
+  output      Json?
+  error       String?            @db.Text
+  createdAt   DateTime           @default(now()) @map("created_at")
+  updatedAt   DateTime           @updatedAt @map("updated_at")
+  completedAt DateTime?          @map("completed_at")
+  session     AiSession          @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@index([sessionId])
+  @@index([status])
+  @@index([jobType])
+  @@index([createdAt])
+  @@map("ai_experience_jobs")
+}
+
+model AiArtifact {
+  id          String        @id @default(uuid())
+  sessionId   String?       @map("session_id")
+  name        String        @db.VarChar(255)
+  storageType AiStorageType @map("storage_type")
+  path        String        @db.VarChar(500)
+  size        Int
+  mimeType    String?       @map("mime_type") @db.VarChar(100)
+  metadata    Json?
+  createdAt   DateTime      @default(now()) @map("created_at")
+  updatedAt   DateTime      @updatedAt @map("updated_at")
+
+  @@index([sessionId])
+  @@index([storageType])
+  @@index([createdAt])
+  @@map("ai_artifacts")
+}
+
+model AiMetric {
+  id         Int      @id @default(autoincrement())
+  spaceId    String?  @map("space_id")
+  metricType String   @map("metric_type") @db.VarChar(50)
+  date       DateTime @db.Date
+  data       Json
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  @@unique([spaceId, metricType, date])
+  @@index([spaceId])
+  @@index([metricType])
+  @@index([date])
+  @@map("ai_metrics")
+}
+
+enum ResearchType {
+  trend_analysis
+  competitor_analysis
+  price_research
+}
+
+enum AiAgent {
+  gemini
+  grok
+  claude
+  chatgpt
+  pika
+  synthesia
+}
+
+enum SNSPlatform {
+  twitter
+  instagram
+  youtube
+  tiktok
+}
+
+enum ImplementationStatus {
+  pending
+  in_progress
+  completed
+}
+
+enum ContentType {
+  instagram_lp
+  website_article
+  campaign_copy
+  instagram_post_text
+  instagram_post_image
+  instagram_story
+  ad_banner
+  lp_visual
+  instagram_reels
+  tiktok_video
+  youtube_shorts
+  treatment_explanation_video
+  pre_care_video
+  post_care_video
+  faq_video
+}
+
+enum ContentStatus {
+  draft
+  approved
+  published
+}
+
+enum WorkflowStatus {
+  running
+  completed
+  failed
+}
 
 enum AiSessionStatus {
   active
@@ -309,155 +495,20 @@ enum AiSkillComplexity {
   complex
 }
 
-// スペース（プロジェクト/ワークスペース）
-model AiSpace {
-  id          String       @id @default(uuid())
-  userId      Int
-  name        String       @db.VarChar(255)
-  description String?      @db.Text
-  metadata    Json?        // 追加メタデータ
-  createdAt   DateTime     @default(now()) @map("created_at")
-  updatedAt   DateTime     @updatedAt @map("updated_at")
-  
-  sessions    AiSession[]
-  skills       AiSkill[]
-  
-  @@index([userId])
-  @@map("ai_spaces")
-}
-
-// セッション（会話セッション）
-model AiSession {
-  id          String    @id @default(uuid())
-  spaceId     String?   @map("space_id")
-  space       AiSpace?  @relation(fields: [spaceId], references: [id], onDelete: SetNull)
-  title       String?
-  status      AiSessionStatus @default(active)
-  context     Json?     // セッションコンテキスト
-  experienceStatus AiExperienceStatus @default(pending) @map("experience_status")
-  createdAt   DateTime  @default(now()) @map("created_at")
-  updatedAt   DateTime  @updatedAt @map("updated_at")
-  completedAt DateTime? @map("completed_at")
-  
-  messages    AiMessage[]
-  tasks       AiTask[]
-  experienceJobs AiExperienceJob[]
-  
-  @@index([spaceId])
-  @@index([status])
-  @@index([experienceStatus])
-  @@index([createdAt])
-  @@map("ai_sessions")
-}
-
-// メッセージ（会話メッセージ）
-model AiMessage {
-  id        String   @id @default(uuid())
-  sessionId String   @map("session_id")
-  session   AiSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
-  role      String   @db.VarChar(20) // "user" | "assistant" | "system"
-  content   String   @db.LongText
-  metadata  Json?    // 追加メタデータ（OpenAI/Anthropic形式対応）
-  createdAt DateTime @default(now()) @map("created_at")
-  
-  @@index([sessionId])
-  @@index([createdAt])
-  @@map("ai_messages")
-}
-
-// タスク（抽出されたタスク）
-model AiTask {
-  id              String        @id @default(uuid())
-  sessionId       String        @map("session_id")
-  session         AiSession     @relation(fields: [sessionId], references: [id], onDelete: Cascade)
-  order           Int           // タスクの順序
-  description     String        @db.Text
-  status          AiTaskStatus @default(pending)
-  progresses      Json?        // 進捗履歴（配列）
-  userPreferences Json?        // ユーザーの好みや制約（配列）
-  createdAt       DateTime      @default(now()) @map("created_at")
-  updatedAt       DateTime      @updatedAt @map("updated_at")
-  completedAt     DateTime?     @map("completed_at")
-  
-  @@index([sessionId])
-  @@index([status])
-  @@index([createdAt])
-  @@map("ai_tasks")
-}
-
-// スキル（学習されたSOP）
-model AiSkill {
-  id          String            @id @default(uuid())
-  spaceId     String?           @map("space_id")
-  space       AiSpace?          @relation(fields: [spaceId], references: [id], onDelete: SetNull)
-  name        String            @db.VarChar(255)
-  description String            @db.Text
-  steps       Json              // ステップ（配列）
-  complexity  AiSkillComplexity @default(simple)
-  tags        Json?             // タグ（配列）
-  usageCount  Int               @default(0) @map("usage_count")
-  successRate Float?            @default(0) @map("success_rate") // 0.0-1.0
-  createdAt   DateTime          @default(now()) @map("created_at")
-  updatedAt   DateTime          @updatedAt @map("updated_at")
-  
-  @@index([spaceId])
-  @@index([name])
-  @@fulltext([name, description])
-  @@map("ai_skills")
-}
-
-// バックグラウンドジョブ（Experience Agent）
-model AiExperienceJob {
-  id          String              @id @default(uuid())
-  sessionId   String              @map("session_id")
-  session     AiSession           @relation(fields: [sessionId], references: [id], onDelete: Cascade)
-  jobType     String              @db.VarChar(50) // "task_extraction" | "skill_learning"
-  status      AiExperienceStatus  @default(pending)
-  input       Json?               // 入力データ
-  output      Json?               // 出力データ
-  error       String?             @db.Text
-  createdAt   DateTime            @default(now()) @map("created_at")
-  updatedAt   DateTime            @updatedAt @map("updated_at")
-  completedAt DateTime?           @map("completed_at")
-  
-  @@index([sessionId])
-  @@index([status])
-  @@index([jobType])
-  @@index([createdAt])
-  @@map("ai_experience_jobs")
-}
-
-// アーティファクト（Disk管理）
-model AiArtifact {
-  id          String          @id @default(uuid())
-  sessionId   String?         @map("session_id")
-  name        String          @db.VarChar(255)
-  storageType AiStorageType   @map("storage_type")
-  path        String          @db.VarChar(500) // ストレージパス
-  size        Int             // ファイルサイズ（bytes）
-  mimeType    String?         @db.VarChar(100) @map("mime_type")
-  metadata    Json?           // 追加メタデータ
-  createdAt   DateTime        @default(now()) @map("created_at")
-  updatedAt   DateTime        @updatedAt @map("updated_at")
-  
-  @@index([sessionId])
-  @@index([storageType])
-  @@index([createdAt])
-  @@map("ai_artifacts")
-}
-
-// メトリクス（集計データ）
-model AiMetric {
-  id          Int      @id @default(autoincrement())
-  spaceId     String?  @map("space_id")
-  metricType  String   @db.VarChar(50) @map("metric_type") // "daily" | "weekly" | "monthly"
-  date        DateTime  @db.Date
-  data        Json      // メトリクスデータ
-  createdAt   DateTime  @default(now()) @map("created_at")
-  
-  @@unique([spaceId, metricType, date])
-  @@index([spaceId])
-  @@index([metricType])
-  @@index([date])
-  @@map("ai_metrics")
+enum promptTemplates_promptType {
+  claude_analyze_market_position
+  claude_generate_price_recommendations
+  claude_generate_campaign_proposals
+  claude_suggest_new_treatments
+  gemini_research_trend_analysis
+  gemini_research_price_comparison
+  gemini_analyze_instagram_trends
+  gemini_analyze_youtube_trends
+  gemini_analyze_tiktok_trends
+  gemini_research_competitor_analysis
+  grok_analyze_twitter_trends
+  chatgpt_system_prompt
+  chatgpt_generate_instagram_lp
+  chatgpt_generate_website_article
+  chatgpt_generate_campaign_copy
 }

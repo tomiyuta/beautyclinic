@@ -1,6 +1,8 @@
 "use client";
 
 import Spinner from "@atlaskit/spinner";
+import Button from "@atlaskit/button";
+import { useToastContext } from "@/components/ToastProvider";
 import ReactMarkdown from "react-markdown";
 import type { AIProvider } from "@/types/strategy";
 import DownloadButton from "./DownloadButton";
@@ -44,6 +46,7 @@ export default function SingleResultView({
   metadata,
   inputData,
 }: SingleResultViewProps) {
+  const toast = useToastContext();
   if (isLoading) {
     return (
       <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "48px 0" }}>
@@ -77,10 +80,27 @@ export default function SingleResultView({
 
   return (
     <div style={{ borderRadius: "8px", border: "1px solid #DFE1E6", background: "#FFFFFF", padding: "24px" }}>
-      <div style={{ marginBottom: "16px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+      <div style={{ marginBottom: "16px", display: "flex", alignItems: "center", justifyContent: "space-between", gap: "12px" }}>
         <h3 style={{ fontSize: "18px", fontWeight: 600, color: "#172B4D" }}>分析結果</h3>
-        <div style={{ fontSize: "14px", color: "#6B778C" }}>
-          {PROVIDER_LABELS[result.aiProvider]} / {(result.durationMs / 1000).toFixed(1)}秒
+        <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+          <div style={{ fontSize: "14px", color: "#6B778C" }}>
+            {PROVIDER_LABELS[result.aiProvider]} / {(result.durationMs / 1000).toFixed(1)}秒
+          </div>
+          <Button
+            appearance="subtle"
+            onClick={handleCopy}
+            style={{
+              fontSize: "12px",
+              display: "inline-flex",
+              alignItems: "center",
+              gap: "6px",
+              padding: "4px 10px",
+              borderRadius: "999px",
+            }}
+          >
+            <span style={{ fontSize: "14px" }}>📋</span>
+            <span>テキストをコピー</span>
+          </Button>
         </div>
       </div>
       <div style={{ fontSize: "14px", lineHeight: "1.6", color: "#172B4D" }}>

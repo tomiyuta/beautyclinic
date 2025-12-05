@@ -5,6 +5,8 @@ import Badge from "@atlaskit/badge";
 import Tabs, { Tab, TabList, TabPanel } from "@atlaskit/tabs";
 import Spinner from "@atlaskit/spinner";
 import ReactMarkdown from "react-markdown";
+import Button from "@atlaskit/button";
+import { useToastContext } from "@/components/ToastProvider";
 import type { CouncilResult, CouncilModel } from "@/types/ai-council";
 import DownloadButton from "./DownloadButton";
 import type { AnalysisResultData } from "./DownloadUtils";
@@ -44,6 +46,7 @@ export default function CouncilResultView({
   inputData,
 }: CouncilResultViewProps) {
   const [selectedTab, setSelectedTab] = useState(0);
+  const toast = useToastContext();
 
   if (isLoading) {
     return (
@@ -80,12 +83,29 @@ export default function CouncilResultView({
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "24px" }}>
       {/* ヘッダー情報 */}
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "12px" }}>
         <h3 style={{ fontSize: "16px", fontWeight: 600, color: "#172B4D" }}>
           📊 Council分析結果
         </h3>
-        <div style={{ fontSize: "12px", color: "#6B778C" }}>
-          総処理時間: {(result.totalDurationMs / 1000).toFixed(1)}秒
+        <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+          <div style={{ fontSize: "12px", color: "#6B778C" }}>
+            総処理時間: {(result.totalDurationMs / 1000).toFixed(1)}秒
+          </div>
+          <Button
+            appearance="subtle"
+            onClick={handleCopy}
+            style={{
+              fontSize: "12px",
+              display: "inline-flex",
+              alignItems: "center",
+              gap: "6px",
+              padding: "4px 10px",
+              borderRadius: "999px",
+            }}
+          >
+            <span style={{ fontSize: "14px" }}>📋</span>
+            <span>テキストをコピー</span>
+          </Button>
         </div>
       </div>
 

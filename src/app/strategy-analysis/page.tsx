@@ -158,6 +158,12 @@ export default function StrategyAnalysisPage() {
       !dataStatus.marketData.available ||
       !dataStatus.snsData.available);
 
+  const handleSelectHistoryItem = (item: ResearchHistoryItem) => {
+    if (item.type !== "strategy") return;
+    setSelectedHistory(item);
+    setIsHistoryOpen(false);
+  };
+
   return (
     <main style={{ minHeight: "100vh", background: "#F4F5F7", padding: "16px" }}>
       <div style={{ maxWidth: "1200px", margin: "0 auto", padding: "48px 16px" }}>
@@ -379,6 +385,15 @@ export default function StrategyAnalysisPage() {
           onSelectionChange={setMarketDataSelection}
         />
       </div>
+
+      {/* 戦略分析履歴ドロワー */}
+      <HistoryTrigger onClick={() => setIsHistoryOpen(true)} />
+      <ResearchHistoryDrawer
+        isOpen={isHistoryOpen}
+        onClose={() => setIsHistoryOpen(false)}
+        type="strategy"
+        onSelectItem={handleSelectHistoryItem}
+      />
     </main>
   );
 }

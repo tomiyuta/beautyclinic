@@ -11,6 +11,7 @@ const apiKeyInput = z.object({
   serpApiKey: z.string().optional(),
   googleCustomSearchApiKey: z.string().optional(),
   googleCustomSearchEngineId: z.string().optional(),
+  googleMapsApiKey: z.string().optional(),
   pikaLabsApiKey: z.string().optional(), // PIKA_LABS_API_KEY or FAL_KEY (fal-ai経由でPika Labsにアクセス)
   synthesiaApiKey: z.string().optional(),
 });
@@ -71,6 +72,9 @@ export const apiKeyRouter = router({
       if (input.googleCustomSearchEngineId !== undefined) {
         envMap.set("GOOGLE_CUSTOM_SEARCH_ENGINE_ID", input.googleCustomSearchEngineId);
       }
+      if (input.googleMapsApiKey !== undefined) {
+        envMap.set("GOOGLE_MAPS_API_KEY", input.googleMapsApiKey);
+      }
       if (input.pikaLabsApiKey !== undefined) {
         // Pika Labsはfal-ai経由でアクセスするため、FAL_KEYとして設定
         // 後方互換性のためPIKA_LABS_API_KEYも設定
@@ -114,6 +118,9 @@ export const apiKeyRouter = router({
       }
       if (envMap.has("GOOGLE_CUSTOM_SEARCH_ENGINE_ID")) {
         newEnvContent += `GOOGLE_CUSTOM_SEARCH_ENGINE_ID="${envMap.get("GOOGLE_CUSTOM_SEARCH_ENGINE_ID")}"\n`;
+      }
+      if (envMap.has("GOOGLE_MAPS_API_KEY")) {
+        newEnvContent += `GOOGLE_MAPS_API_KEY="${envMap.get("GOOGLE_MAPS_API_KEY")}"\n`;
       }
       newEnvContent += "\n";
       newEnvContent += "# Video Generation API Keys\n";
@@ -170,6 +177,7 @@ export const apiKeyRouter = router({
           openai: false,
           serp: false,
           googleCustomSearch: false,
+          googleMaps: false,
           pikaLabs: false,
           synthesia: false,
         };
@@ -182,6 +190,7 @@ export const apiKeyRouter = router({
       const serpSet = /SERP_API_KEY=["']([^"']+)["']/.test(envContent);
       const googleCustomSearchSet = /GOOGLE_CUSTOM_SEARCH_API_KEY=["']([^"']+)["']/.test(envContent) && 
                                     /GOOGLE_CUSTOM_SEARCH_ENGINE_ID=["']([^"']+)["']/.test(envContent);
+      const googleMapsSet = /GOOGLE_MAPS_API_KEY=["']([^"']+)["']/.test(envContent);
       const pikaLabsSet = /FAL_KEY=["']([^"']+)["']/.test(envContent) || /PIKA_LABS_API_KEY=["']([^"']+)["']/.test(envContent);
       const synthesiaSet = /SYNTHESIA_API_KEY=["']([^"']+)["']/.test(envContent);
 
@@ -192,6 +201,7 @@ export const apiKeyRouter = router({
         openai: openaiSet,
         serp: serpSet,
         googleCustomSearch: googleCustomSearchSet,
+        googleMaps: googleMapsSet,
         pikaLabs: pikaLabsSet,
         synthesia: synthesiaSet,
       };
@@ -204,6 +214,7 @@ export const apiKeyRouter = router({
         openai: false,
         serp: false,
         googleCustomSearch: false,
+        googleMaps: false,
       };
     }
   }),

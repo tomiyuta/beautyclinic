@@ -268,6 +268,42 @@ export async function callChatGPT(
   }
 }
 
+/**
+ * OpenAI Responses API を使って深堀りリサーチ専用モデルを呼び出すヘルパー
+ * - o4-mini-deep-research など、chat/completions では使えないモデル向け
+ */
+async function callDeepResearchModel(prompt: string): Promise<string> {
+  if (!openai) {
+    throw new Error(
+      "OpenAI API key is not configured. Please set OPENAI_API_KEY environment variable.",
+    );
+  }
+
+  try {
+    const response = await openai.responses.create({
+      model: "o4-mini-deep-research",
+      input: prompt,
+      max_output_tokens: 4096,
+    } as any);
+
+    const output =
+      (response as any).output?.[0]?.content?.[0]?.text?.value?.trim?.() || "";
+
+    if (!output) {
+      throw new Error("Deep research model returned empty response");
+    }
+
+    const modelInfo = "【使用AIモデル: ChatGPT o4-mini-deep-research】\n\n";
+    return modelInfo + output;
+  } catch (error) {
+    console.error("[DeepResearch] OpenAI Responses API error:", error);
+    const message = error instanceof Error ? error.message : String(error);
+    throw new Error(
+      `Deep research API呼び出し中にエラーが発生しました: ${message}`,
+    );
+  }
+}
+
 export async function generateInstagramLP(
   campaign: {
     title: string;
@@ -532,25 +568,19 @@ export async function analyzeMarketPosition(
 ): Promise<string> {
   try {
     const { getPrompt, replacePlaceholders } = await import("./prompt-helper");
-    const { performWebSearch, formatSearchResults, generateTrendSearchQuery } = await import("./web-search");
+    const { performWebSearchWithSerpAPIOnly, formatSearchResults, generateTrendSearchQuery } = await import("./web-search");
     
     // 現在の日付を取得
     const currentDate = new Date();
     const currentYear = currentDate.getFullYear();
     const currentMonth = currentDate.getMonth() + 1;
     
-    // Web検索を実行して最新情報を取得
-    let webSearchResults = "";
-    try {
-      const searchQuery = generateTrendSearchQuery(location, currentYear, currentMonth);
-      console.log(`[ChatGPT analyzeMarketPosition] Web検索実行: ${searchQuery}`);
-      const searchResults = await performWebSearch(searchQuery, 10);
-      webSearchResults = formatSearchResults(searchResults);
-      console.log(`[ChatGPT analyzeMarketPosition] Web検索結果: ${searchResults.length}件取得`);
-    } catch (error) {
-      console.warn("[ChatGPT analyzeMarketPosition] Web検索に失敗しましたが、続行します:", error);
-      webSearchResults = `【注意】Web検索APIが設定されていないため、最新情報の取得に制限があります。\n${error instanceof Error ? error.message : "Unknown error"}\n`;
-    }
+    // Web検索を実行して最新情報を取得（SerpAPI必須）
+    const searchQuery = generateTrendSearchQuery(location, currentYear, currentMonth);
+    console.log(`[ChatGPT analyzeMarketPosition] Web検索実行: ${searchQuery}`);
+    const searchResults = await performWebSearchWithSerpAPIOnly(searchQuery, 10);
+    const webSearchResults = formatSearchResults(searchResults);
+    console.log(`[ChatGPT analyzeMarketPosition] Web検索結果: ${searchResults.length}件取得`);
     
     // Claude用プロンプト（正式版）を取得
     const template = await getPrompt("claude_analyze_market_position", "");
@@ -689,7 +719,7 @@ export async function generatePriceRecommendations(
 ): Promise<string> {
   try {
     const { getPrompt, replacePlaceholders } = await import("./prompt-helper");
-    const { performWebSearch, formatSearchResults, generatePriceSearchQuery } = await import("./web-search");
+    const { performWebSearchWithSerpAPIOnly, formatSearchResults, generatePriceSearchQuery } = await import("./web-search");
     
     // 現在の日付を取得
     const currentDate = new Date();
@@ -728,18 +758,12 @@ export async function generatePriceRecommendations(
       cities.push("東京", "大阪", "名古屋");
     }
     
-    // Web検索を実行して最新の価格情報を取得
-    let webSearchResults = "";
-    try {
-      const searchQuery = generatePriceSearchQuery(productNames, cities, currentYear, currentMonth);
-      console.log(`[ChatGPT generatePriceRecommendations] Web検索実行: ${searchQuery}`);
-      const searchResults = await performWebSearch(searchQuery, 10);
-      webSearchResults = formatSearchResults(searchResults);
-      console.log(`[ChatGPT generatePriceRecommendations] Web検索結果: ${searchResults.length}件取得`);
-    } catch (error) {
-      console.warn("[ChatGPT generatePriceRecommendations] Web検索に失敗しましたが、続行します:", error);
-      webSearchResults = `【注意】Web検索APIが設定されていないため、最新情報の取得に制限があります。\n${error instanceof Error ? error.message : "Unknown error"}\n`;
-    }
+    // Web検索を実行して最新の価格情報を取得（SerpAPI必須）
+    const searchQuery = generatePriceSearchQuery(productNames, cities, currentYear, currentMonth);
+    console.log(`[ChatGPT generatePriceRecommendations] Web検索実行: ${searchQuery}`);
+    const searchResults = await performWebSearchWithSerpAPIOnly(searchQuery, 10);
+    const webSearchResults = formatSearchResults(searchResults);
+    console.log(`[ChatGPT generatePriceRecommendations] Web検索結果: ${searchResults.length}件取得`);
     
     // Claude用プロンプト（正式版）を取得
     const template = await getPrompt("claude_generate_price_recommendations", "");
@@ -809,7 +833,7 @@ export async function generateCampaignProposals(
 ): Promise<string> {
   try {
     const { getPrompt, replacePlaceholders } = await import("./prompt-helper");
-    const { performWebSearch, formatSearchResults } = await import("./web-search");
+    const { performWebSearchWithSerpAPIOnly, formatSearchResults } = await import("./web-search");
     
     // 現在の日付を取得
     const currentDate = new Date();
@@ -843,18 +867,12 @@ export async function generateCampaignProposals(
       }
     });
     
-    // Web検索を実行して最新のキャンペーントレンドを取得
-    let webSearchResults = "";
-    try {
-      const searchQuery = `美容クリニック キャンペーン ${keywords.slice(0, 3).join(" ")} ${currentYear}年${currentMonth}月 トレンド`;
-      console.log(`[ChatGPT generateCampaignProposals] Web検索実行: ${searchQuery}`);
-      const searchResults = await performWebSearch(searchQuery, 10);
-      webSearchResults = formatSearchResults(searchResults);
-      console.log(`[ChatGPT generateCampaignProposals] Web検索結果: ${searchResults.length}件取得`);
-    } catch (error) {
-      console.warn("[ChatGPT generateCampaignProposals] Web検索に失敗しましたが、続行します:", error);
-      webSearchResults = `【注意】Web検索APIが設定されていないため、最新情報の取得に制限があります。\n${error instanceof Error ? error.message : "Unknown error"}\n`;
-    }
+    // Web検索を実行して最新のキャンペーントレンドを取得（SerpAPI必須）
+    const searchQuery = `美容クリニック キャンペーン ${keywords.slice(0, 3).join(" ")} ${currentYear}年${currentMonth}月 トレンド`;
+    console.log(`[ChatGPT generateCampaignProposals] Web検索実行: ${searchQuery}`);
+    const searchResults = await performWebSearchWithSerpAPIOnly(searchQuery, 10);
+    const webSearchResults = formatSearchResults(searchResults);
+    console.log(`[ChatGPT generateCampaignProposals] Web検索結果: ${searchResults.length}件取得`);
     
     // Claude用プロンプト（正式版）を取得
     const template = await getPrompt("claude_generate_campaign_proposals", "");
@@ -933,7 +951,7 @@ export async function suggestNewTreatments(
 ): Promise<string> {
   try {
     const { getPrompt, replacePlaceholders } = await import("./prompt-helper");
-    const { performWebSearch, formatSearchResults } = await import("./web-search");
+    const { performWebSearchWithSerpAPIOnly, formatSearchResults } = await import("./web-search");
     
     // 現在の日付を取得
     const currentDate = new Date();
@@ -967,18 +985,12 @@ export async function suggestNewTreatments(
       }
     });
     
-    // Web検索を実行して最新の施術トレンドを取得
-    let webSearchResults = "";
-    try {
-      const searchQuery = `美容クリニック 新施術 ${keywords.slice(0, 3).join(" ")} ${currentYear}年${currentMonth}月 トレンド`;
-      console.log(`[ChatGPT suggestNewTreatments] Web検索実行: ${searchQuery}`);
-      const searchResults = await performWebSearch(searchQuery, 10);
-      webSearchResults = formatSearchResults(searchResults);
-      console.log(`[ChatGPT suggestNewTreatments] Web検索結果: ${searchResults.length}件取得`);
-    } catch (error) {
-      console.warn("[ChatGPT suggestNewTreatments] Web検索に失敗しましたが、続行します:", error);
-      webSearchResults = `【注意】Web検索APIが設定されていないため、最新情報の取得に制限があります。\n${error instanceof Error ? error.message : "Unknown error"}\n`;
-    }
+    // Web検索を実行して最新の施術トレンドを取得（SerpAPI必須）
+    const searchQuery = `美容クリニック 新施術 ${keywords.slice(0, 3).join(" ")} ${currentYear}年${currentMonth}月 トレンド`;
+    console.log(`[ChatGPT suggestNewTreatments] Web検索実行: ${searchQuery}`);
+    const searchResults = await performWebSearchWithSerpAPIOnly(searchQuery, 10);
+    const webSearchResults = formatSearchResults(searchResults);
+    console.log(`[ChatGPT suggestNewTreatments] Web検索結果: ${searchResults.length}件取得`);
     
     // Claude用プロンプト（正式版）を取得
     const template = await getPrompt("claude_suggest_new_treatments", "");
