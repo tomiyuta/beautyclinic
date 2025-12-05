@@ -263,7 +263,7 @@ export function ResearchHistoryDrawer({
                 </div>
               )}
 
-              {!isLoading && error && (
+              {!isLoading && error != null && (
                 <div
                   style={{
                     fontSize: "13px",
@@ -274,10 +274,15 @@ export function ResearchHistoryDrawer({
                   }}
                 >
                   履歴の取得中にエラーが発生しました。
+                  {error instanceof Error && (
+                    <div style={{ marginTop: "4px", fontSize: "12px" }}>
+                      {error.message}
+                    </div>
+                  )}
                 </div>
               )}
 
-              {!isLoading && !error && filteredItems.length === 0 && (
+              {!isLoading && error == null && filteredItems.length === 0 && (
                 <div
                   style={{
                     textAlign: "center",
@@ -301,7 +306,7 @@ export function ResearchHistoryDrawer({
               )}
 
               {!isLoading &&
-                !error &&
+                error == null &&
                 filteredItems.map((item) => (
                   <HistoryCard
                     key={`${item.type}-${item.id}`}
@@ -328,7 +333,7 @@ export function ResearchHistoryDrawer({
             </div>
 
             {/* フッター: もっと見る */}
-            {!isLoading && !error && items.length > filteredItems.length && (
+            {!isLoading && error == null && items.length > filteredItems.length && (
               <div
                 style={{
                   padding: "8px 16px 16px",
