@@ -312,7 +312,7 @@ async function main() {
   for (const promptData of updatedPrompts) {
     try {
       await prisma.promptTemplate.update({
-        where: { promptType: promptData.promptType as PromptType },
+        where: { promptType: promptData.promptType as any },
         data: {
           prompt: promptData.prompt,
         },
