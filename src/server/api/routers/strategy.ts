@@ -1050,7 +1050,7 @@ export const strategyRouter = router({
       let data;
       if (products || marketData || snsData) {
         // 手動指定されたデータを使用
-        const dbData = await fetchStrategyData(userId, input.marketDataSelection);
+        const dbData = await fetchStrategyData(userId);
         data = {
           products: products?.map((p: any) => ({
             id: p.id ?? 0,
@@ -1080,7 +1080,7 @@ export const strategyRouter = router({
         };
       } else {
         // DBから取得
-        data = await fetchStrategyData(userId, input.marketDataSelection);
+        data = await fetchStrategyData(userId);
       }
 
       // 2. プロンプト生成（既存の詳細プロンプト）
@@ -1142,7 +1142,7 @@ export const strategyRouter = router({
       let data;
       if (products || marketData || snsData) {
         // 手動指定されたデータを使用
-        const dbData = await fetchStrategyData(userId, input.marketDataSelection);
+        const dbData = await fetchStrategyData(userId);
         data = {
           products: products?.map((p: any) => ({
             id: p.id ?? 0,
@@ -1172,7 +1172,7 @@ export const strategyRouter = router({
         };
       } else {
         // DBから取得
-        data = await fetchStrategyData(userId, input.marketDataSelection);
+        data = await fetchStrategyData(userId);
       }
 
       // 2. プロンプト生成（既存の詳細プロンプト）
