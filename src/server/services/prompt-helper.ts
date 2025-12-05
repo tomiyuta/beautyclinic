@@ -1744,7 +1744,7 @@ export async function getPrompt(
 ): Promise<string> {
   try {
     const promptTemplate = await db.promptTemplate.findUnique({
-      where: { promptType },
+      where: { promptType: promptType as any },
     });
 
     if (promptTemplate && promptTemplate.isActive) {
