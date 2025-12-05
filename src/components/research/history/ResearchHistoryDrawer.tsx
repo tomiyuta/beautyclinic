@@ -310,7 +310,7 @@ export function ResearchHistoryDrawer({
                 filteredItems.map((item) => (
                   <HistoryCard
                     key={`${item.type}-${item.id}`}
-                    type={item.type === "strategy" ? "strategy" : item.type}
+                    type={item.type}
                     platform={item.platform}
                     query={item.query}
                     summary={item.summary}

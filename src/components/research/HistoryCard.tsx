@@ -3,15 +3,17 @@
 import { motion } from "framer-motion";
 import Button from "@atlaskit/button";
 import Badge from "@atlaskit/badge";
+import type { StrategySummary } from "./history/useResearchHistory";
 
 interface HistoryCardProps {
-  type: "market" | "sns";
+  type: "market" | "sns" | "strategy";
   platform?: string;
   query: string;
   summary: string;
   timestamp: Date;
   status: "success" | "error";
   aiAgent?: string;
+  strategySummary?: StrategySummary;
   onRerun: () => void;
   onViewDetail: () => void;
   isFavorite?: boolean;
@@ -26,6 +28,7 @@ export function HistoryCard({
   timestamp,
   status,
   aiAgent,
+  strategySummary,
   onRerun,
   onViewDetail,
   isFavorite = false,
