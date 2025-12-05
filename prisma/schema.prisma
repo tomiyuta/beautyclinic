@@ -405,64 +405,6 @@ model AiMetric {
   @@map("ai_metrics")
 }
 
-enum ResearchType {
-  trend_analysis
-  competitor_analysis
-  price_research
-}
-
-enum AiAgent {
-  gemini
-  grok
-  claude
-  chatgpt
-  pika
-  synthesia
-}
-
-enum SNSPlatform {
-  twitter
-  instagram
-  youtube
-  tiktok
-}
-
-enum ImplementationStatus {
-  pending
-  in_progress
-  completed
-}
-
-enum ContentType {
-  instagram_lp
-  website_article
-  campaign_copy
-  instagram_post_text
-  instagram_post_image
-  instagram_story
-  ad_banner
-  lp_visual
-  instagram_reels
-  tiktok_video
-  youtube_shorts
-  treatment_explanation_video
-  pre_care_video
-  post_care_video
-  faq_video
-}
-
-enum ContentStatus {
-  draft
-  approved
-  published
-}
-
-enum WorkflowStatus {
-  running
-  completed
-  failed
-}
-
 enum AiSessionStatus {
   active
   completed
