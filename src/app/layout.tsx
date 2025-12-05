@@ -41,8 +41,15 @@ export default function RootLayout({
         <AtlassianProvider>
           <TRPCReactProvider>
             <ToastProvider>
-              <Navigation />
-              {children}
+              <div className="flex h-screen w-full bg-gray-50 overflow-hidden">
+                {/* Sidebar Navigation */}
+                <Navigation />
+
+                {/* Main Content Area */}
+                <main className="flex-1 overflow-y-auto w-full relative scroll-smooth pt-16 lg:pt-0">
+                  {children}
+                </main>
+              </div>
             </ToastProvider>
           </TRPCReactProvider>
         </AtlassianProvider>
