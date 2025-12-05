@@ -47,6 +47,17 @@ export default function SingleResultView({
   inputData,
 }: SingleResultViewProps) {
   const toast = useToastContext();
+
+  const handleCopy = async () => {
+    if (!result) return;
+    try {
+      await navigator.clipboard.writeText(result.content);
+      toast.showSuccess("テキストをクリップボードにコピーしました");
+    } catch (error) {
+      toast.showError("コピーに失敗しました");
+    }
+  };
+
   if (isLoading) {
     return (
       <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "48px 0" }}>
