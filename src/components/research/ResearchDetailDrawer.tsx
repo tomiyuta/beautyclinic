@@ -3,12 +3,15 @@
 import { motion, AnimatePresence } from "framer-motion";
 import { ReactNode } from "react";
 import Button from "@atlaskit/button";
+import CopyIcon from "@atlaskit/icon/glyph/copy";
 
 interface ResearchDetailDrawerProps {
   isOpen: boolean;
   onClose: () => void;
   title: string;
   children: ReactNode;
+  onCopy?: () => void;
+  copyText?: string;
 }
 
 export function ResearchDetailDrawer({
@@ -16,6 +19,8 @@ export function ResearchDetailDrawer({
   onClose,
   title,
   children,
+  onCopy,
+  copyText,
 }: ResearchDetailDrawerProps) {
   return (
     <AnimatePresence>
@@ -90,8 +95,54 @@ export function ResearchDetailDrawer({
                 flex: 1,
                 overflowY: "auto",
                 padding: "24px",
+                position: "relative",
               }}
             >
+              {/* コピーボタン（右上） */}
+              {onCopy && (
+                <div
+                  style={{
+                    position: "absolute",
+                    top: "0px",
+                    right: "0px",
+                    zIndex: 1000,
+                    backgroundColor: "white",
+                    padding: "4px",
+                    borderRadius: "0 0 0 8px",
+                    boxShadow: "-2px 2px 4px rgba(0, 0, 0, 0.1)",
+                  }}
+                >
+                  <button
+                    onClick={onCopy}
+                    style={{
+                      padding: "8px",
+                      color: "#475569",
+                      backgroundColor: "transparent",
+                      border: "none",
+                      borderRadius: "4px",
+                      cursor: "pointer",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      width: "32px",
+                      height: "32px",
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.color = "#0f172a";
+                      e.currentTarget.style.backgroundColor = "#f1f5f9";
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.color = "#475569";
+                      e.currentTarget.style.backgroundColor = "transparent";
+                    }}
+                    title="クリップボードにコピー"
+                    type="button"
+                    aria-label="クリップボードにコピー"
+                  >
+                    <CopyIcon label="コピー" />
+                  </button>
+                </div>
+              )}
               {children}
             </div>
           </motion.div>

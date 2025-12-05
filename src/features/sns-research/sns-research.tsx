@@ -13,6 +13,8 @@ import { api } from "@/trpc/react";
 import { TRPCClientError } from "@trpc/client";
 import { useToastContext } from "@/components/ToastProvider";
 import { USER_ID_PLACEHOLDER } from "@/lib/constants";
+import { HistoryCardList } from "@/components/research/HistoryCardList";
+import { useResearchHistory } from "@/components/research/history/useResearchHistory";
 
 type SNSPlatform = "twitter" | "instagram" | "youtube" | "tiktok";
 type TimeRange = "last_week" | "last_month" | "last_3months";
@@ -120,9 +122,13 @@ export function SNSResearch() {
   const [keywords, setKeywords] = useState<string[]>([]);
   const [keywordInput, setKeywordInput] = useState("");
   const [timeRange, setTimeRange] = useState<TimeRange>("last_month");
+  const [selectedHistoryId, setSelectedHistoryId] = useState<number | null>(null);
 
   const utils = api.useUtils();
   const toast = useToastContext();
+  
+  // 履歴データを取得（統合ワークスペースと同じデザイン）
+  const { items: historyItems, isLoading: isHistoryLoading } = useResearchHistory("sns");
 
   const twitterMutation = api.snsResearch.analyzeTwitter.useMutation({
     onSuccess: () => {
@@ -383,249 +389,30 @@ export function SNSResearch() {
         </form>
       </section>
 
-      {/* 調査結果履歴 */}
+      {/* 調査結果履歴（統合ワークスペースと同じデザイン） */}
       <section style={{ marginTop: "32px" }}>
         <h2 style={{ fontSize: "20px", fontWeight: 600, marginBottom: "24px", color: "#172B4D" }}>
           調査結果履歴
         </h2>
 
-        {/* Twitter調査履歴 */}
-        <div style={{ marginBottom: "32px", padding: "24px", background: "#FFFFFF", borderRadius: "8px", border: "1px solid #DFE1E6" }}>
-          <h3 style={{ fontSize: "16px", fontWeight: 600, marginBottom: "16px", color: "#172B4D" }}>
-            Twitter/X調査履歴
-          </h3>
-          {resultsQuery.isLoading && (
+        <div style={{ padding: "24px", background: "#FFFFFF", borderRadius: "8px", border: "1px solid #DFE1E6" }}>
+          {isHistoryLoading ? (
             <div style={{ display: "flex", alignItems: "center", gap: "8px", padding: "16px" }}>
               <Spinner size="small" />
               <span style={{ fontSize: "14px", color: "#6B778C" }}>読み込み中...</span>
             </div>
-          )}
-          {resultsQuery.error && (
-            <Banner appearance="error">
-              エラー: {resultsQuery.error.message}
-            </Banner>
-          )}
-          {resultsQuery.data && (
-            (() => {
-              const twitterHistories = resultsQuery.data.filter((r: any) => r.platform === "twitter");
-              if (twitterHistories.length === 0) {
-                return (
-                  <EmptyState
-                    header="まだTwitter/X調査がありません"
-                    description="Twitter/X調査を実行すると、ここに履歴が表示されます"
-                  />
-                );
-              }
-              return (
-                <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
-                  {twitterHistories.map((result: any) => (
-                    <div
-                      key={result.id}
-                      style={{ padding: "16px", borderRadius: "8px", border: "1px solid #DFE1E6" }}
-                    >
-                      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "8px" }}>
-                        <span style={{ fontSize: "12px", color: "#6B778C" }}>
-                          {result.keywords} - {new Date(result.createdAt).toLocaleString("ja-JP")}
-                        </span>
-                        <Badge appearance="added">
-                          {result.aiAgent}
-                        </Badge>
-                      </div>
-                      {result.trendData && (
-                        <details style={{ marginTop: "8px" }}>
-                          <summary style={{ cursor: "pointer", fontSize: "14px", fontWeight: 500, color: "#42526E", listStyle: "none" }}>
-                            調査結果を表示
-                          </summary>
-                          <div style={{ marginTop: "12px", whiteSpace: "pre-wrap", borderRadius: "4px", background: "#F4F5F7", padding: "16px", fontSize: "14px", color: "#172B4D", maxHeight: "240px", overflow: "auto" }}>
-                            {formatTrendDataForDisplay(result.trendData, result.platform)}
-                          </div>
-                        </details>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              );
-            })()
-          )}
-        </div>
-
-        {/* Instagram調査履歴 */}
-        <div style={{ marginBottom: "32px", padding: "24px", background: "#FFFFFF", borderRadius: "8px", border: "1px solid #DFE1E6" }}>
-          <h3 style={{ fontSize: "16px", fontWeight: 600, marginBottom: "16px", color: "#172B4D" }}>
-            Instagram調査履歴
-          </h3>
-          {resultsQuery.isLoading && (
-            <div style={{ display: "flex", alignItems: "center", gap: "8px", padding: "16px" }}>
-              <Spinner size="small" />
-              <span style={{ fontSize: "14px", color: "#6B778C" }}>読み込み中...</span>
-            </div>
-          )}
-          {resultsQuery.error && (
-            <Banner appearance="error">
-              エラー: {resultsQuery.error.message}
-            </Banner>
-          )}
-          {resultsQuery.data && (
-            (() => {
-              const instagramHistories = resultsQuery.data.filter((r: any) => r.platform === "instagram");
-              if (instagramHistories.length === 0) {
-                return (
-                  <EmptyState
-                    header="まだInstagram調査がありません"
-                    description="Instagram調査を実行すると、ここに履歴が表示されます"
-                  />
-                );
-              }
-              return (
-                <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
-                  {instagramHistories.map((result: any) => (
-                    <div
-                      key={result.id}
-                      style={{ padding: "16px", borderRadius: "8px", border: "1px solid #DFE1E6" }}
-                    >
-                      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "8px" }}>
-                        <span style={{ fontSize: "12px", color: "#6B778C" }}>
-                          {result.keywords} - {new Date(result.createdAt).toLocaleString("ja-JP")}
-                        </span>
-                        <Badge appearance="added">
-                          {result.aiAgent}
-                        </Badge>
-                      </div>
-                      {result.trendData && (
-                        <details style={{ marginTop: "8px" }}>
-                          <summary style={{ cursor: "pointer", fontSize: "14px", fontWeight: 500, color: "#42526E", listStyle: "none" }}>
-                            調査結果を表示
-                          </summary>
-                          <div style={{ marginTop: "12px", whiteSpace: "pre-wrap", borderRadius: "4px", background: "#F4F5F7", padding: "16px", fontSize: "14px", color: "#172B4D", maxHeight: "240px", overflow: "auto" }}>
-                            {formatTrendDataForDisplay(result.trendData, result.platform)}
-                          </div>
-                        </details>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              );
-            })()
-          )}
-        </div>
-
-        {/* YouTube調査履歴 */}
-        <div style={{ marginBottom: "32px", padding: "24px", background: "#FFFFFF", borderRadius: "8px", border: "1px solid #DFE1E6" }}>
-          <h3 style={{ fontSize: "16px", fontWeight: 600, marginBottom: "16px", color: "#172B4D" }}>
-            YouTube調査履歴
-          </h3>
-          {resultsQuery.isLoading && (
-            <div style={{ display: "flex", alignItems: "center", gap: "8px", padding: "16px" }}>
-              <Spinner size="small" />
-              <span style={{ fontSize: "14px", color: "#6B778C" }}>読み込み中...</span>
-            </div>
-          )}
-          {resultsQuery.error && (
-            <Banner appearance="error">
-              エラー: {resultsQuery.error.message}
-            </Banner>
-          )}
-          {resultsQuery.data && (
-            (() => {
-              const youtubeHistories = resultsQuery.data.filter((r: any) => r.platform === "youtube");
-              if (youtubeHistories.length === 0) {
-                return (
-                  <EmptyState
-                    header="まだYouTube調査がありません"
-                    description="YouTube調査を実行すると、ここに履歴が表示されます"
-                  />
-                );
-              }
-              return (
-                <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
-                  {youtubeHistories.map((result: any) => (
-                    <div
-                      key={result.id}
-                      style={{ padding: "16px", borderRadius: "8px", border: "1px solid #DFE1E6" }}
-                    >
-                      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "8px" }}>
-                        <span style={{ fontSize: "12px", color: "#6B778C" }}>
-                          {result.keywords} - {new Date(result.createdAt).toLocaleString("ja-JP")}
-                        </span>
-                        <Badge appearance="added">
-                          {result.aiAgent}
-                        </Badge>
-                      </div>
-                      {result.trendData && (
-                        <details style={{ marginTop: "8px" }}>
-                          <summary style={{ cursor: "pointer", fontSize: "14px", fontWeight: 500, color: "#42526E", listStyle: "none" }}>
-                            調査結果を表示
-                          </summary>
-                          <div style={{ marginTop: "12px", whiteSpace: "pre-wrap", borderRadius: "4px", background: "#F4F5F7", padding: "16px", fontSize: "14px", color: "#172B4D", maxHeight: "240px", overflow: "auto" }}>
-                            {formatTrendDataForDisplay(result.trendData, result.platform)}
-                          </div>
-                        </details>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              );
-            })()
-          )}
-        </div>
-
-        {/* TikTok調査履歴 */}
-        <div style={{ marginBottom: "32px", padding: "24px", background: "#FFFFFF", borderRadius: "8px", border: "1px solid #DFE1E6" }}>
-          <h3 style={{ fontSize: "16px", fontWeight: 600, marginBottom: "16px", color: "#172B4D" }}>
-            TikTok調査履歴
-          </h3>
-          {resultsQuery.isLoading && (
-            <div style={{ display: "flex", alignItems: "center", gap: "8px", padding: "16px" }}>
-              <Spinner size="small" />
-              <span style={{ fontSize: "14px", color: "#6B778C" }}>読み込み中...</span>
-            </div>
-          )}
-          {resultsQuery.error && (
-            <Banner appearance="error">
-              エラー: {resultsQuery.error.message}
-            </Banner>
-          )}
-          {resultsQuery.data && (
-            (() => {
-              const tiktokHistories = resultsQuery.data.filter((r: any) => r.platform === "tiktok");
-              if (tiktokHistories.length === 0) {
-                return (
-                  <EmptyState
-                    header="まだTikTok調査がありません"
-                    description="TikTok調査を実行すると、ここに履歴が表示されます"
-                  />
-                );
-              }
-              return (
-                <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
-                  {tiktokHistories.map((result: any) => (
-                    <div
-                      key={result.id}
-                      style={{ padding: "16px", borderRadius: "8px", border: "1px solid #DFE1E6" }}
-                    >
-                      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "8px" }}>
-                        <span style={{ fontSize: "12px", color: "#6B778C" }}>
-                          {result.keywords} - {new Date(result.createdAt).toLocaleString("ja-JP")}
-                        </span>
-                        <Badge appearance="added">
-                          {result.aiAgent}
-                        </Badge>
-                      </div>
-                      {result.trendData && (
-                        <details style={{ marginTop: "8px" }}>
-                          <summary style={{ cursor: "pointer", fontSize: "14px", fontWeight: 500, color: "#42526E", listStyle: "none" }}>
-                            調査結果を表示
-                          </summary>
-                          <div style={{ marginTop: "12px", whiteSpace: "pre-wrap", borderRadius: "4px", background: "#F4F5F7", padding: "16px", fontSize: "14px", color: "#172B4D", maxHeight: "240px", overflow: "auto" }}>
-                            {formatTrendDataForDisplay(result.trendData, result.platform)}
-                          </div>
-                        </details>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              );
-            })()
+          ) : historyItems.length === 0 ? (
+            <EmptyState
+              header="まだ調査履歴がありません"
+              description="SNS調査を実行すると、ここに履歴が表示されます"
+            />
+          ) : (
+            <HistoryCardList
+              items={historyItems}
+              selectedId={selectedHistoryId}
+              onSelect={setSelectedHistoryId}
+              showDetails={true}
+            />
           )}
         </div>
       </section>

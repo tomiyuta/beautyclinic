@@ -27,6 +27,7 @@ const navigationCategories: NavCategory[] = [
   {
     title: "リサーチ & 分析",
     items: [
+      { href: "/workspace", label: "統合ワークスペース", icon: "🔬" },
       { href: "/market-research", label: "市場調査", icon: "📊" },
       { href: "/sns-research", label: "SNS調査", icon: "📱" },
       { href: "/strategy-analysis", label: "戦略分析", icon: "🎯" },
