@@ -16,6 +16,7 @@ import MarketDataSelectionDrawer from "@/components/strategy/MarketDataSelection
 import type { CouncilConfig, CouncilModel, CouncilResult } from "@/types/ai-council";
 import { DEFAULT_COUNCIL_CONFIG } from "@/types/ai-council";
 import type { AnalysisMode, StrategyAnalysisType, AIProvider } from "@/types/strategy";
+import type { ResearchHistoryItem } from "@/components/research/history/useResearchHistory";
 import { USER_ID_PLACEHOLDER } from "@/lib/constants";
 
 // 分析タイプ選択肢
